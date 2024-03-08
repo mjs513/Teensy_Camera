@@ -4,6 +4,9 @@
 
 #include "Camera.h"
 
+#define USE_MMOD_ATP_ADAPTER
+//#define USE_SDCARD
+
 //#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
@@ -38,7 +41,7 @@ File file;
  * does not work.  Arduino breakout only brings out  *
  * the lower 4 bits.                                 *
  ****************************************************/
-#define _hmConfig 0 // select mode string below
+#define _hmConfig 2 // select mode string below
 
 PROGMEM const char hmConfig[][48] = {
  "FLEXIO_CUSTOM_LIKE_8_BIT",
@@ -79,9 +82,15 @@ const char bmp_header[BMPIMAGEOFFSET] PROGMEM =
 };
 
 //Set up ILI9341
+#ifdef USE_MMOD_ATP_ADAPTER
+#define TFT_DC  4 //0   // "TX1" on left side of Sparkfun ML Carrier
+#define TFT_CS  5 //4   // "CS" on left side of Sparkfun ML Carrier
+#define TFT_RST 2 //1  // "RX1" on left side of Sparkfun ML Carrier
+#else
 #define TFT_DC  0 //20   // "TX1" on left side of Sparkfun ML Carrier
 #define TFT_CS  4 //5, 4   // "CS" on left side of Sparkfun ML Carrier
 #define TFT_RST 1 //2, 1  // "RX1" on left side of Sparkfun ML Carrier
+#endif
 
 #include "ILI9341_t3n.h" // https://github.com/KurtE/ILI9341_t3n
 ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
@@ -95,7 +104,7 @@ ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
 // Setup framebuffers
 DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
-  uint16_t frameBuffer[(320) * 240] __attribute__((aligned(32))); 
+  uint16_t DMAMEM frameBuffer[(320) * 240] __attribute__((aligned(32))); 
   uint16_t DMAMEM frameBuffer2[(320) * 240] __attribute__((aligned(32))); 
 #else
   uint8_t DMAMEM frameBuffer[(320) * 240] __attribute__((aligned(32))); 
@@ -140,7 +149,6 @@ void setup()
   tft.setTextSize(2);
   tft.println("Waiting for Arduino Serial Monitor...");
 
-
 #if defined(USE_SDCARD)
   Serial.println("Using SDCARD - Initializing");
   #if MMOD_ML==1
@@ -148,7 +156,6 @@ void setup()
   #else
     if (!SD.begin(BUILTIN_SDCARD)) {
   #endif
-    }
     Serial.println("initialization failed!");
     //while (1){
     //    LEDON; delay(100);
@@ -172,6 +179,15 @@ void setup()
 //    setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, en_pin,
 //    uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3,
 //    uint8_t g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
+#ifdef USE_MMOD_ATP_ADAPTER
+
+  if ((_hmConfig == 0) || (_hmConfig == 2)) {
+    camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
+  } else if( _hmConfig == 1) {
+    //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
+    camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
+  }
+#else
   if (_hmConfig == 0 ) {
     //camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
     camera.setPins(7, 8, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
@@ -179,7 +195,7 @@ void setup()
     //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
     camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
   }
-
+#endif
   #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
     camera.begin_omnivision(FRAMESIZE_QVGA, RGB565, 15);
   #else
@@ -250,9 +266,46 @@ inline uint16_t HTONS(uint16_t x) {
   return ((x >> 8) & 0x00FF) | ((x << 8) & 0xFF00);
 }
 
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+
+volatile uint16_t *pfb_last_frame_returned = nullptr;
+
+bool camera_flexio_callback_video(void *pfb) {
+  pfb_last_frame_returned = (uint16_t *)pfb;
+#ifdef UPDATE_ON_CAMERA_FRAMES
+  if ((uint32_t)pfb_last_frame_returned >= 0x20200000u)
+    arm_dcache_delete((void *)pfb_last_frame_returned, FRAME_WIDTH * FRAME_HEIGHT * 2);
+  int numPixels = camera.width() * camera.height();
+
+  for (int i = 0; i < numPixels; i++) pfb_last_frame_returned[i] = HTONS(pfb_last_frame_returned[i]);
+
+  tft.writeRect(0, 0, FRAME_WIDTH, FRAME_HEIGHT, (uint16_t *)pfb_last_frame_returned);
+  pfb_last_frame_returned = nullptr;
+  tft.setOrigin(0, 0);
+  uint16_t *pframebuf = tft.getFrameBuffer();
+  if ((uint32_t)pframebuf >= 0x20200000u) arm_dcache_flush(pframebuf, FRAME_WIDTH * FRAME_HEIGHT);
+#endif
+  //Serial.print("#");
+  return true;
+}
+
+void frame_complete_cb() {
+  //Serial.print("@");
+#ifndef UPDATE_ON_CAMERA_FRAMES
+  if (!pfb_last_frame_returned) return;
+  if ((uint32_t)pfb_last_frame_returned >= 0x20200000u)
+    arm_dcache_delete(pfb_last_frame_returned, FRAME_WIDTH * FRAME_HEIGHT * 2);
+  tft.writeSubImageRectBytesReversed(0, 0, FRAME_WIDTH, FRAME_HEIGHT, 0, 0, FRAME_WIDTH, FRAME_HEIGHT, pfb_last_frame_returned);
+  pfb_last_frame_returned = nullptr;
+  uint16_t *pfb = tft.getFrameBuffer();
+  if ((uint32_t)pfb >= 0x20200000u) arm_dcache_flush(pfb, FRAME_WIDTH * FRAME_HEIGHT);
+#endif
+}
+
+#else
 uint8_t *pfb_last_frame_returned = nullptr;
 
-bool hm0360_flexio_callback_video(void *pfb)
+bool camera_flexio_callback_video(void *pfb)
 {
   pfb_last_frame_returned = (uint8_t*)pfb;
 #ifdef UPDATE_ON_CAMERA_FRAMES
@@ -285,7 +338,7 @@ void frame_complete_cb() {
   if ((uint32_t)pfb >= 0x20200000u) arm_dcache_flush(pfb, FRAME_WIDTH*FRAME_HEIGHT);
 #endif
 }
-
+#endif
 
 void loop()
 {
@@ -324,7 +377,6 @@ void loop()
       case 'b':
       {
   #if defined(USE_SDCARD)
-        calAE();
         memset((uint8_t*)frameBuffer, 0, sizeof(frameBuffer));
         camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
         camera.readFrame(frameBuffer);
@@ -425,10 +477,26 @@ void loop()
         }
         break;
       }
+      case 'm':
+        read_display_multiple_frames(false);
+        break;
+      case 'M':
+        read_display_multiple_frames(true);
+        break;
+      case 'd':
+        tft.fillScreen(TFT_RED);
+        delay(500);
+        tft.fillScreen(TFT_GREEN);
+        delay(500);
+        tft.fillScreen(TFT_BLUE);
+        delay(500);
+        tft.fillScreen(TFT_BLACK);
+        delay(500);
+        break;
       case 'V':
       {
         if (!g_continuous_flex_mode) {
-          if (camera.readContinuous(&hm0360_flexio_callback_video, frameBuffer, frameBuffer2)) {
+          if (camera.readContinuous(&camera_flexio_callback_video, frameBuffer, frameBuffer2)) {
 
             Serial.println("Before Set frame complete CB");
             if (!tft.useFrameBuffer(true)) Serial.println("Failed call to useFrameBuffer");
@@ -543,6 +611,7 @@ void send_raw() {
 }
 #endif
 
+#if defined(USE_SDCARD)  
 char name[] = "9px_0000.bmp";       // filename convention (will auto-increment)
   DMAMEM unsigned char img[3 * 320*240];
 void save_image_SD() {
@@ -626,6 +695,7 @@ void save_image_SD() {
   file.close();                                        // close file when done writing
   Serial.println("Done Writing BMP");
 }
+#endif
 
 void showCommandList() {
   Serial.println("Send the 'f' character to read a frame using FlexIO (changes hardware setup!)");
@@ -635,6 +705,7 @@ void showCommandList() {
   Serial.println("Send the 'b' character to save snapshot (BMP) to SD Card");
   Serial.println("Send the '1' character to blank the display");
   Serial.println("Send the 'z' character to send current screen BMP to SD");
+  Serial.println("Send the 'd' character to send Check the display");
   Serial.println();
 }
 
