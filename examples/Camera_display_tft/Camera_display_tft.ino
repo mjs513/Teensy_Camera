@@ -477,6 +477,12 @@ void loop()
         }
         break;
       }
+      case 'm':
+        read_display_multiple_frames(false);
+        break;
+      case 'M':
+        read_display_multiple_frames(true);
+        break;
       case 'd':
         tft.fillScreen(TFT_RED);
         delay(500);
