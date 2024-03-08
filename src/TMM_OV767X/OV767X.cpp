@@ -4,6 +4,7 @@
  * Copyright (c) 2020 Arduino SA. All rights reserved.
  */
 #define DEBUG_CAMERA
+#define  DEBUG_FLEXIO
 #define USE_VSYNC_PIN_INT
 
 #include <Arduino.h>
@@ -11,7 +12,7 @@
 
 #include "OV767X.h"
 #include "arm_math.h"
-//#define  DEBUG_FLEXIO
+
 // if not defined in the variant
 #ifndef digitalPinToBitMask
 #define digitalPinToBitMask(P) (1 << (digitalPinToPinName(P) % 64))
@@ -78,36 +79,44 @@ OV767X::~OV767X()
 //int OV767X::begin(int resolution, int format, int fps,  int camera_name, bool use_gpio)
 bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format, int fps, bool use_gpio)
 {
-    
+  int _framesize = 0;
+  int _format = 0;
+  
   _use_gpio = use_gpio;
   // BUGBUG::: see where frame is
   pinMode(49, OUTPUT);
     
   Serial.println("OV767X::begin");
+
   switch (resolution) {
   case FRAMESIZE_VGA:
     _width = 640;
     _height = 480;
+    _framesize = 0;
     break;
 
   case FRAMESIZE_CIF:
     _width = 352;
     _height = 240;
+    _framesize = 1;
     break;
 
   case FRAMESIZE_QVGA:
     _width = 320;
     _height = 240;
+    _framesize = 2;
     break;
 
   case FRAMESIZE_QCIF:
     _width = 176;
     _height = 144;
+    _framesize = 3;
     break;
 
   case FRAMESIZE_QQVGA:
     _width = 160;
     _height = 120;
+    _framesize = 4;
     break;
 
   default:
@@ -117,15 +126,23 @@ bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
   _grayscale = false;
   switch (format) {
   case YUV422:
+    _bytesPerPixel = 2;
+    _format = 0;
+    break;
   case RGB444:
+    _bytesPerPixel = 2;
+    _format = 1;
+    break;
   case RGB565:
     _bytesPerPixel = 2;
+    _format = 2;
     break;
 
   case GRAYSCALE:
     format = YUV422;    // We use YUV422 but discard U and V bytes
     _bytesPerPixel = 2; // 2 input bytes per pixel of which 1 is discarded
     _grayscale = true;
+    _format = 4;
     break;
 
   default:
@@ -184,12 +201,13 @@ bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
 
     return 0;
   }
+  
   int camera_name;
   uint16_t _cameraID = getModelid();
-  Serial.printf("Camera ID = 0x%x\n", _cameraID);
-  if(_cameraID == 0x7670) {
+  //Serial.printf("Camera ID = 0x%x\n", _cameraID);
+  if(_cameraID == 0x7676) {
       camera_name = OV7670;
-  } else if(_cameraID == 0x7675) {
+  } else if(_cameraID == 0x7673) {
       camera_name = OV7675;
   } else {
       Serial.println("Omivision Camera Not Supported !");
@@ -206,7 +224,9 @@ bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
       }
   }
   Serial.printf("Calling ov7670_configure\n");
-  ov7670_configure(_ov7670, camera_name /*OV7670 = 0, OV7675 = 1*/, format, resolution, _xclk_freq /* MHz */,
+  Serial.printf("Cam Name: %d, Format: %d, Resolution: %d, Clock: %d\n", camera_name, _format, _framesize, _xclk_freq);
+  Serial.printf("Frame rate: %d\n", fps);
+  ov7670_configure(_ov7670, camera_name /*OV7670 = 0, OV7675 = 1*/, _format, _framesize, _xclk_freq /* MHz */,
                    0 /*pll bypass*/, 1 /* pclk_hb_disable */);
 
   if (ov7670_s_power(_ov7670, 1)) {
@@ -441,8 +461,7 @@ void OV767X::stopReadContinuous() {
 }
 
 void OV767X::readFrameGPIO(void* buffer)
-{
-
+{    
   uint8_t* b = (uint8_t*)buffer;
 //  bool _grayscale;  // ????  member variable ?????????????
   int bytesPerRow = _width * _bytesPerPixel;
@@ -1614,13 +1633,13 @@ void OV767X::captureFrameStatistics()
 
 // Read a single uint8_t from address and return it as a uint8_t
 uint8_t OV767X::cameraReadRegister(uint8_t reg) {
-  Wire.beginTransmission(0x42);
+  Wire.beginTransmission(0x42>>1);
   Wire.write(reg);
   if (Wire.endTransmission(false) != 0) {
     Serial.println("error reading OV767X, address");
     return 0;
   }
-  if (Wire.requestFrom(0x42, 1) < 1) {
+  if (Wire.requestFrom(0x42>>1, 1) < 1) {
     Serial.println("error reading OV767X, data");
     return 0;
   }

@@ -9,15 +9,15 @@ typedef enum {
 } pixformat_t;
 
 typedef enum {
-    FRAMESIZE_INVALID = 0,
     // VGA Resolutions
-    FRAMESIZE_VGA,
+    FRAMESIZE_VGA = 0,
     FRAMESIZE_QQVGA,    // 160x120
     FRAMESIZE_QVGA,     // 320x240
 	FRAMESIZE_320X320,  // 320x320
 	FRAMESIZE_QVGA4BIT,
     FRAMESIZE_QCIF,
     FRAMESIZE_CIF,
+    FRAMESIZE_INVALID,
 } framesize_t;
 
 typedef enum {

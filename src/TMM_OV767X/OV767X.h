@@ -141,7 +141,7 @@ enum
   OV7670 = 0,
   OV7675 = 1
 };
-
+/*
 enum
 {
   VGA = 0,  // 640x480
@@ -150,7 +150,7 @@ enum
   QCIF = 3,  // 176x144
   QQVGA = 4,  // 160x120
 };
-
+*/
 class OV767X  : public ImageSensor 
 {
 public:
