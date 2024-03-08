@@ -621,13 +621,13 @@ void HM0360::endXClk()
 }
 
 #define FLEXIO_USE_DMA
-void HM0360::readFrame(void *buffer) {
+void HM0360::readFrame(void *buffer, bool fUseDMA) {
   setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
   if (!_use_gpio) {
 #if defined(_use_original)
     readFrameFlexIO(buffer);
 #else
-    readFrameFlexIO(buffer, true);
+    readFrameFlexIO(buffer, fUseDMA);
 #endif
   } else {
     readFrameGPIO(buffer);

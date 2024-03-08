@@ -50,8 +50,6 @@ SOFTWARE.
 //Do not touch this define
 #define SensorMonochrome 1
 
-
-
 class HM0360 : public ImageSensor {
 public:
 
@@ -84,11 +82,21 @@ public:
   uint8_t getAE(ae_cfg_t *psAECfg);
   uint8_t calAE(uint8_t CalFrames, uint8_t *Buffer, uint32_t ui32BufferLen, ae_cfg_t *pAECfg);
   uint16_t getModelid();
-
   void captureFrameStatistics();
+  
+  // covers ov functions
+  bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, bool use_gpio = false) { return 0;};
+  void setSaturation(int saturation) {}; // 0 - 255
+  void setHue(int hue) {}; // -180 - 180
+  void setContrast(int contrast) {}; // 0 - 127
+  void setGain(int gain) {}; // 0 - 255
+  void autoGain(int enable, float gain_db, float gain_db_ceiling) {};
+  void setExposure(int exposure) {}; // 0 - 65535
+  void autoExposure(int enable) {};
+  
   //-------------------------------------------------------
   //Generic Read Frame base on _hw_config
-  void readFrame(void *buffer);
+  void readFrame(void *buffer, bool fUseDMA = true);
 
   //normal Read mode
   void readFrameGPIO(void *buffer);

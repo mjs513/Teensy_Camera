@@ -107,8 +107,8 @@ uint8_t Camera::calAE(uint8_t CalFrames, uint8_t *Buffer, uint32_t ui32BufferLen
 
 //-------------------------------------------------------
 //Generic Read Frame base on _hw_config
-void Camera::readFrame(void *buffer) {
-  return sensor->readFrame(buffer);
+void Camera::readFrame(void *buffer, bool fUseDMA) {
+  sensor->readFrame(buffer, fUseDMA);
 }
 
 //normal Read mode
@@ -152,7 +152,7 @@ bool Camera::stopReadFlexIO() {
 // So lets have a start, stop... Have it allocate 2 frame buffers and it's own DMA
 // buffers, with the option of setting your own buffers if desired.
 
-bool Camera::startReadFrameDMA(bool (*callback)(void *frame_buffer) = nullptr, uint8_t *fb1 = nullptr, uint8_t *fb2 = nullptr) {
+bool Camera::startReadFrameDMA(bool (*callback)(void *frame_buffer), uint8_t *fb1, uint8_t *fb2) {
   return sensor->startReadFrameDMA(callback, fb1, fb2);
 }
 
@@ -187,4 +187,37 @@ int16_t Camera::mode(void) {
 uint32_t Camera::frameCount()  //{return _dma_frame_count;}
 {
   return sensor->frameCount();
+}
+
+/********* OV Supported cameras ********************/
+void Camera::setSaturation(int saturation) { // 0 - 255
+    sensor->setSaturation(saturation);
+}
+
+void Camera::setHue(int hue) {
+    sensor->setHue(hue);
+}
+
+void Camera::setContrast(int contrast) {
+    sensor->setContrast(contrast);
+}
+
+void Camera::setGain(int gain) {
+    sensor->setGain(gain);
+}
+
+void Camera::autoGain(int enable, float gain_db, float gain_db_ceiling) {
+    sensor->autoGain(enable, gain_db, gain_db_ceiling);
+}
+
+void Camera::setExposure(int exposure) {
+    sensor->setExposure(exposure);
+}
+
+void Camera::autoExposure(int enable) {
+    sensor->setExposure(enable);
+}
+
+bool Camera::begin_omnivision(framesize_t resolution, pixformat_t format, int fps, bool use_gpio) { // Supported FPS: 1, 5, 10, 15, 30
+    return sensor->begin_omnivision(resolution, format, fps, use_gpio);
 }

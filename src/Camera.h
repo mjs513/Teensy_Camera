@@ -40,15 +40,21 @@ public:
   virtual uint8_t getAE(ae_cfg_t *psAECfg) = 0;
   virtual uint8_t calAE(uint8_t CalFrames, uint8_t *Buffer, uint32_t ui32BufferLen, ae_cfg_t *pAECfg) = 0;
   virtual uint16_t getModelid() = 0;
-
-  //from 0V767x library
-  //virtual void end();  // TODO: need to add + endCLK function + set pins
   virtual void captureFrameStatistics() = 0;
+  
+  virtual bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
+  virtual void setSaturation(int saturation) = 0; // 0 - 255
+  virtual void setHue(int hue) = 0; // -180 - 180
+  virtual void setContrast(int contrast) = 0; // 0 - 127
+  virtual void setGain(int gain) = 0; // 0 - 255
+  virtual void autoGain(int enable, float gain_db, float gain_db_ceiling) = 0;
+  virtual void setExposure(int exposure) = 0; // 0 - 65535
+  virtual void autoExposure(int enable) = 0;
 
   // grab Frame functions
   //-------------------------------------------------------
   //Generic Read Frame base on _hw_config
-  virtual void readFrame(void *buffer) = 0;
+  virtual void readFrame(void *buffer, bool fUseDMA = true) = 0;
   //normal Read mode
   virtual void readFrameGPIO(void *buffer) = 0;
   virtual void readFrame4BitGPIO(void *buffer) = 0;
@@ -84,6 +90,7 @@ public:
   hw_config_t _hw_config;
   hw_carrier_t _hw_carrier;
 private:
+
 };
 
 class Camera {
@@ -119,14 +126,25 @@ public:
   uint8_t getAE(ae_cfg_t *psAECfg);
   uint8_t calAE(uint8_t CalFrames, uint8_t *Buffer, uint32_t ui32BufferLen, ae_cfg_t *pAECfg);
   uint16_t getModelid();
+  
+  /***********  OV specific ************************/
+  bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30,
+                        bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
+  void setSaturation(int saturation); // 0 - 255
+  void setHue(int hue); // -180 - 180
+  void setContrast(int contrast); // 0 - 127
+  void setGain(int gain); // 0 - 255
+  void autoGain(int enable, float gain_db, float gain_db_ceiling);
+  void setExposure(int exposure); // 0 - 65535
+  void autoExposure(int enable);
 
   // grab Frame functions
   //-------------------------------------------------------
   //Generic Read Frame base on _hw_config
-  void readFrame(void *buffer);
+  void readFrame(void *buffer, bool fUseDMA = true);
 
   //normal Read mode
-  void readFrameGPIO(void *buffer);
+  void readFrameGPIO(void* buffer);
   void readFrame4BitGPIO(void *buffer);
 
   bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);

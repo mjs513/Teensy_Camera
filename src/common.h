@@ -2,6 +2,10 @@ typedef enum {
     PIXFORMAT_INVALID = 0,
     PIXFORMAT_GRAYSCALE, // 1BPP/GRAYSCALE
     PIXFORMAT_BAYER,     // 1BPP/RAW
+    YUV422,
+    RGB444,
+    RGB565,
+    GRAYSCALE,
 } pixformat_t;
 
 typedef enum {
@@ -12,6 +16,8 @@ typedef enum {
     FRAMESIZE_QVGA,     // 320x240
 	FRAMESIZE_320X320,  // 320x320
 	FRAMESIZE_QVGA4BIT,
+    FRAMESIZE_QCIF,
+    FRAMESIZE_CIF,
 } framesize_t;
 
 typedef enum {

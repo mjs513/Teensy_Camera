@@ -1199,10 +1199,10 @@ void HM01B0::endXClk()
 
 
 #define FLEXIO_USE_DMA
-void HM01B0::readFrame(void* buffer){
+void HM01B0::readFrame(void* buffer, bool fUseDMA){
 	setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
     if(!_use_gpio) {
-        readFrameFlexIO(buffer, true);
+        readFrameFlexIO(buffer, fUseDMA);
     } else {
         readFrameGPIO(buffer);
     }
