@@ -215,7 +215,7 @@ public:
   void autoGain(int enable, float gain_db, float gain_db_ceiling);
   void setExposure(int exposure); // 0 - 65535
   void autoExposure(int enable);
-  void showRegisters(){};
+  void showRegisters();
 
   // must be called before Camera.begin()
   //void setPins(int vsync, int href, int pclk, int xclk, int rst, const int dpins[8]);

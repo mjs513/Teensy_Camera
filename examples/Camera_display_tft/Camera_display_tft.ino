@@ -4,6 +4,9 @@
 
 #include "Camera.h"
 
+//#define USE_MMOD_ATP_ADAPTER
+//#define USE_SDCARD
+
 //#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
@@ -79,9 +82,15 @@ const char bmp_header[BMPIMAGEOFFSET] PROGMEM =
 };
 
 //Set up ILI9341
+#ifdef USE_MMOD_ATP_ADAPTER
+#define TFT_DC  4 //0   // "TX1" on left side of Sparkfun ML Carrier
+#define TFT_CS  5 //4   // "CS" on left side of Sparkfun ML Carrier
+#define TFT_RST 2 //1  // "RX1" on left side of Sparkfun ML Carrier
+#else
 #define TFT_DC  0 //20   // "TX1" on left side of Sparkfun ML Carrier
 #define TFT_CS  4 //5, 4   // "CS" on left side of Sparkfun ML Carrier
 #define TFT_RST 1 //2, 1  // "RX1" on left side of Sparkfun ML Carrier
+#endif
 
 #include "ILI9341_t3n.h" // https://github.com/KurtE/ILI9341_t3n
 ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
@@ -172,13 +181,23 @@ void setup()
 //    setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, en_pin,
 //    uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3,
 //    uint8_t g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
-  if (_hmConfig == 0 ) {
+#ifdef USE_MMOD_ATP_ADAPTER
+
+  if ((_hmConfig == 0) || (_hmConfig == 2)) {
+    camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
+  } else if( _hmConfig == 1) {
+    //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
+    camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
+  }
+#else
+ if (_hmConfig == 0 ) {
     //camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
     camera.setPins(7, 8, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
   } else if( _hmConfig == 1) {
     //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
     camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
   }
+#endif
 
   #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
     camera.begin_omnivision(FRAMESIZE_QVGA, RGB565, 30);
@@ -212,7 +231,7 @@ void setup()
   camera.setMode(HIMAX_MODE_STREAMING, 0); // turn on, continuous streaming mode
 #endif
 
-  //Camera.showRegisters();
+  camera.showRegisters();
   Serial.println("Camera settings:");
   Serial.print("\twidth = ");
   Serial.println(camera.width());
@@ -355,18 +374,17 @@ void loop()
       case 'z':
       {
   #if defined(USE_SDCARD)
-        //save_image_SD();
+        save_image_SD();
   #endif
         break;
       }
       case 'b':
       {
   #if defined(USE_SDCARD)
-        //calAE();
-        //memset((uint8_t*)frameBuffer, 0, sizeof(frameBuffer));
-        //camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
-        //camera.readFrame(frameBuffer);
-        //save_image_SD();
+        memset((uint8_t*)frameBuffer, 0, sizeof(frameBuffer));
+        camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
+        camera.readFrame(frameBuffer);
+        save_image_SD();
         ch = ' '; 
   #endif
         break;
@@ -378,7 +396,16 @@ void loop()
       case 'M':
         read_display_multiple_frames(true);
         break;
-      case 'f':
+      case 'd':
+        tft.fillScreen(TFT_RED);
+        delay(500);
+        tft.fillScreen(TFT_GREEN);
+        delay(500);
+        tft.fillScreen(TFT_BLUE);
+        delay(500);
+        tft.fillScreen(TFT_BLACK);
+        delay(500);
+        break;      case 'f':
       {
         camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
         tft.useFrameBuffer(false);
@@ -586,7 +613,8 @@ void send_raw() {
   }
 }
 #endif
-/*
+
+#if defined(USE_SDCARD) 
 char name[] = "9px_0000.bmp";       // filename convention (will auto-increment)
   DMAMEM unsigned char img[3 * 320*240];
 void save_image_SD() {
@@ -670,15 +698,19 @@ void save_image_SD() {
   file.close();                                        // close file when done writing
   Serial.println("Done Writing BMP");
 }
-*/
+#endif
+
 void showCommandList() {
   Serial.println("Send the 'f' character to read a frame using FlexIO (changes hardware setup!)");
   Serial.println("Send the 'F' to start/stop continuous using FlexIO (changes hardware setup!)");
+  Serial.println("Send the 'm' character to read and display multiple frames");
+  Serial.println("Send the 'M' character to read and display multiple frames use Frame buffer");
   Serial.println("Send the 'V' character DMA to TFT async continueous  ...");
   Serial.println("Send the 'p' character to snapshot to PC on USB1");
   Serial.println("Send the 'b' character to save snapshot (BMP) to SD Card");
   Serial.println("Send the '1' character to blank the display");
   Serial.println("Send the 'z' character to send current screen BMP to SD");
+  Serial.println("Send the 'd' character to send Check the display");
   Serial.println();
 }
 

@@ -50,6 +50,7 @@ extern "C" {
   int ov7670_s_exp(void*, int value);
   int ov7670_s_autoexp(void*, int value);
   int ov7670_s_test_pattern(void*, int value);
+  void ov7670_printRegs();
 
 };
 
@@ -1644,4 +1645,10 @@ uint8_t OV767X::cameraReadRegister(uint8_t reg) {
     return 0;
   }
   return Wire.read();
+}
+
+
+void OV767X::showRegisters() {
+  ov7670_printRegs();
+
 }

@@ -274,11 +274,16 @@ int arduino_i2c_read(unsigned short address, unsigned char reg, unsigned char *v
     return 0;
   }
 
+
+uint32_t ov767x_registers_set[8] = {0xf, 0};  // have a few at front marked...
+
 void arduino_i2c_printRegs(unsigned short address) {
     Serial.println("\n*** OV767X registers ***");
     unsigned char value;
     for (uint16_t i=0; i < (sizeof(ov_reg_name_table)/sizeof(ov_reg_name_table[0])); i++) {
-        arduino_i2c_read(address, i, &value);
+        if (ov767x_registers_set[i >> 5] & ( 1 << (i & 0x1f))) {
+            arduino_i2c_read(address, i, &value);
+        }
     }
 }
 
@@ -296,6 +301,7 @@ void arduino_i2c_printRegs(unsigned short address) {
     }
     Serial.printf(", value = 0x%02x\n", value);
 #endif
+    ov767x_registers_set[reg >> 5] |= 1 << (reg & 0x1f);
 
     Wire.beginTransmission(address);
     Wire.write(reg);
