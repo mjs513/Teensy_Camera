@@ -107,8 +107,8 @@ DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
   uint16_t DMAMEM frameBuffer[(320) * 240] __attribute__((aligned(32))); 
   uint16_t DMAMEM frameBuffer2[(320) * 240] __attribute__((aligned(32))); 
 #else
-  uint8_t DMAMEM frameBuffer[(320) * 240] __attribute__((aligned(32))); 
-  uint8_t DMAMEM frameBuffer2[(320) * 240] __attribute__((aligned(32))); 
+  uint8_t DMAMEM frameBuffer[(324) * 244] __attribute__((aligned(32))); 
+  uint8_t DMAMEM frameBuffer2[(324) * 244] __attribute__((aligned(32))); 
   #define CAMERA_USES_MONO_PALETTE
 #endif
 
@@ -126,7 +126,10 @@ void setup()
 {
     while(!Serial && millis() < 5000){}
     Serial.begin(921600);
+
+#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
     SerialUSB1.begin(921600);
+#endif
 
     if(CrashReport) {
       Serial.print(CrashReport);
@@ -149,7 +152,6 @@ void setup()
   tft.setTextColor(TFT_YELLOW);
   tft.setTextSize(2);
   tft.println("Waiting for Arduino Serial Monitor...");
-
 
 #if defined(USE_SDCARD)
   Serial.println("Using SDCARD - Initializing");
@@ -182,10 +184,9 @@ void setup()
 //    uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3,
 //    uint8_t g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
 #ifdef USE_MMOD_ATP_ADAPTER
-
   if ((_hmConfig == 0) || (_hmConfig == 2)) {
     camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
-  } else if(( _hmConfig == 1) || (_hmConfig == 3)){
+  } else if( _hmConfig == 1) {
     //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
     camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
   }
@@ -194,8 +195,7 @@ void setup()
     //camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
     camera.setPins(7, 8, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
   } else if( _hmConfig == 1) {
-    //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
-    camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
+    camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
   }
 #endif
 
@@ -594,12 +594,26 @@ void send_image(Stream *imgSerial) {
   imgSerial->write((const uint8_t *)&bmp_header, sizeof(bmp_header));
 
   uint32_t idx = 0;
-  for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
-    idx = i * 2;
-    imgSerial->write((frameBuffer[i] >> 8) & 0xFF);
-    imgSerial->write((frameBuffer[i]) & 0xFF);
-    delayMicroseconds(8);
-  }
+  #ifdef CAMERA_USES_MONO_PALETTE
+    uint32_t image_idx = 0;
+    uint32_t frame_idx = 0;
+    for (uint32_t row = 0; row < FRAME_HEIGHT; row++) {
+      for (uint32_t col = 0; col < FRAME_WIDTH; col++) {
+        frame_idx = ((FRAME_WIDTH + 4) * (row + 2)) + col + 2;
+        uint16_t framePixel = color565(frameBuffer[frame_idx], frameBuffer[frame_idx], frameBuffer[frame_idx]);
+        imgSerial->write((framePixel) & 0xFF);
+        imgSerial->write( (framePixel >> 8) & 0xFF);
+        delayMicroseconds(8);
+      }
+    }
+  #else
+    for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
+      idx = i * 2;
+      imgSerial->write((frameBuffer[i] >> 8) & 0xFF);
+      imgSerial->write((frameBuffer[i]) & 0xFF);
+      delayMicroseconds(8);
+    }
+  #endif
   imgSerial->write(0xBB);
   imgSerial->write(0xCC);
 
