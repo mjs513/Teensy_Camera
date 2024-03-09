@@ -41,7 +41,7 @@ File file;
  * does not work.  Arduino breakout only brings out  *
  * the lower 4 bits.                                 *
  ****************************************************/
-#define _hmConfig 0 // select mode string below
+#define _hmConfig 2 // select mode string below
 
 PROGMEM const char hmConfig[][48] = {
  "FLEXIO_CUSTOM_LIKE_8_BIT",
@@ -109,6 +109,7 @@ DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 #else
   uint8_t DMAMEM frameBuffer[(320) * 240] __attribute__((aligned(32))); 
   uint8_t DMAMEM frameBuffer2[(320) * 240] __attribute__((aligned(32))); 
+  #define CAMERA_USES_MONO_PALETTE
 #endif
 
 // Setup display modes frame / video
@@ -184,7 +185,7 @@ void setup()
 
   if ((_hmConfig == 0) || (_hmConfig == 2)) {
     camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
-  } else if( _hmConfig == 1) {
+  } else if(( _hmConfig == 1) || (_hmConfig == 3)){
     //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
     camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
   }
@@ -627,8 +628,8 @@ char name[] = "9px_0000.bmp";       // filename convention (will auto-increment)
 
   //DMAMEM unsigned char img[3 * 320*240];
 void save_image_SD() {
-  uint8_t r, g, b;
-  uint32_t x, y;
+  //uint8_t r, g, b;
+  //uint32_t x, y;
 
   Serial.print("Writing BMP to SD CARD File: ");
 
@@ -655,25 +656,6 @@ void save_image_SD() {
 
 //  img = (unsigned char *)malloc(3 * w * h);
 
-  // See if we can do it on the fly and not need such large buffer
-#if 0
-  for (int i = 0; i < w; i++)
-  {
-    for (int j = 0; j < h; j++)
-    {
-      //r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3
-      x = i; y = (h - 1) - j;
-
-      r = frameBuffer[(x + y * w)]    ;
-      g = frameBuffer[(x + y * w)]    ;
-      b = frameBuffer[(x + y * w)]    ;
-
-      img[(x + y * w) * 3 + 2] = (unsigned char)(r);
-      img[(x + y * w) * 3 + 1] = (unsigned char)(g);
-      img[(x + y * w) * 3 + 0] = (unsigned char)(b);
-    }
-  }
-#endif
   // create padding (based on the number of pixels in a row
   unsigned char bmpPad[rowSize - 3 * w];
   for (int i = 0; i < (int)(sizeof(bmpPad)); i++) {      // fill with 0s
@@ -701,8 +683,21 @@ void save_image_SD() {
   file.write(bmpFileHeader, sizeof(bmpFileHeader));    // write file header
   file.write(bmpInfoHeader, sizeof(bmpInfoHeader));    // " info header
 
-#if 1
   // try to compute and output one row at a time.
+  #ifdef CAMERA_USES_MONO_PALETTE
+  uint8_t *pfb = frameBuffer;
+  uint8_t img[3];
+  for (int y = h-1; y >= 0; y--) {                        // iterate image array
+    pfb = &frameBuffer[y*w];
+    for (int x = 0; x < w; x++) {
+      //r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3
+      img[2] = *pfb;   // r 
+      img[1] = *pfb;   // g 
+      img[0] = *pfb;   // b 
+      file.write(img, 3);
+      pfb++;
+    }
+  #else
   uint16_t *pfb = frameBuffer;
   uint8_t img[3];
   for (int y = h-1; y >= 0; y--) {                        // iterate image array
@@ -715,15 +710,9 @@ void save_image_SD() {
       file.write(img, 3);
       pfb++;
     }
+  #endif    
     file.write(bmpPad, (4 - (FRAME_WIDTH * 3) % 4) % 4);         // and padding as needed
   }
-#else
-  for (int i = 0; i < h; i++) {                        // iterate image array
-    file.write(img + (FRAME_WIDTH * (FRAME_HEIGHT - i - 1) * 3), 3 * FRAME_WIDTH);    // write px data
-    file.write(bmpPad, (4 - (FRAME_WIDTH * 3) % 4) % 4);         // and padding as needed
-  }
-#endif  
-  //free(img);
   file.close();                                        // close file when done writing
   Serial.println("Done Writing BMP");
 }
@@ -766,6 +755,9 @@ void read_display_multiple_frames(bool use_frame_buffer) {
 
     //byte swap
     //for (int i = 0; i < numPixels; i++) frameBuffer[i] = (frameBuffer[i] >> 8) | (((frameBuffer[i] & 0xff) << 8));
+    #ifdef CAMERA_USES_MONO_PALETTE
+    tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBuffer, mono_palette);
+    #else
     for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
 
     if (use_frame_buffer) tft.waitUpdateAsyncComplete();
@@ -777,6 +769,7 @@ void read_display_multiple_frames(bool use_frame_buffer) {
       tft.writeSubImageRect(0, 0, tft.width(), tft.height(), (camera.width() - tft.width()) / 2, (camera.height() - tft.height()),
                             camera.width(), camera.height(), frameBuffer);
     }
+  #endif
 
     if (use_frame_buffer) tft.updateScreenAsync();
 
