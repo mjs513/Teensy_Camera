@@ -4,8 +4,8 @@
 
 #include "Camera.h"
 
-//#define USE_MMOD_ATP_ADAPTER
-//#define USE_SDCARD
+#define USE_MMOD_ATP_ADAPTER
+#define USE_SDCARD
 
 //#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
@@ -163,7 +163,6 @@ void setup()
     //    LEDON; delay(100);
     //    LEDOFF; delay(100);
     //  }
-  }
   Serial.println("initialization done.");
   delay(100);
 #endif
@@ -616,7 +615,9 @@ void send_raw() {
 
 #if defined(USE_SDCARD) 
 char name[] = "9px_0000.bmp";       // filename convention (will auto-increment)
-  DMAMEM unsigned char img[3 * 320*240];
+  // can probably reuse framebuffer2...
+
+  //DMAMEM unsigned char img[3 * 320*240];
 void save_image_SD() {
   uint8_t r, g, b;
   uint32_t x, y;
@@ -646,6 +647,8 @@ void save_image_SD() {
 
 //  img = (unsigned char *)malloc(3 * w * h);
 
+  // See if we can do it on the fly and not need such large buffer
+#if 0
   for (int i = 0; i < w; i++)
   {
     for (int j = 0; j < h; j++)
@@ -662,7 +665,7 @@ void save_image_SD() {
       img[(x + y * w) * 3 + 0] = (unsigned char)(b);
     }
   }
-
+#endif
   // create padding (based on the number of pixels in a row
   unsigned char bmpPad[rowSize - 3 * w];
   for (int i = 0; i < (int)(sizeof(bmpPad)); i++) {      // fill with 0s
@@ -690,10 +693,28 @@ void save_image_SD() {
   file.write(bmpFileHeader, sizeof(bmpFileHeader));    // write file header
   file.write(bmpInfoHeader, sizeof(bmpInfoHeader));    // " info header
 
+#if 1
+  // try to compute and output one row at a time.
+  uint16_t *pfb = frameBuffer;
+  uint8_t img[3];
+  for (int y = h-1; y >= 0; y--) {                        // iterate image array
+    pfb = &frameBuffer[y*w];
+    for (int x = 0; x < w; x++) {
+      //r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3
+      img[2] = (*pfb >> 8) & 0xf8;   // r 
+      img[1] = (*pfb >> 3) & 0xfc;   // g 
+      img[0] = (*pfb << 3);          // b 
+      file.write(img, 3);
+      pfb++;
+    }
+    file.write(bmpPad, (4 - (FRAME_WIDTH * 3) % 4) % 4);         // and padding as needed
+  }
+#else
   for (int i = 0; i < h; i++) {                        // iterate image array
     file.write(img + (FRAME_WIDTH * (FRAME_HEIGHT - i - 1) * 3), 3 * FRAME_WIDTH);    // write px data
     file.write(bmpPad, (4 - (FRAME_WIDTH * 3) % 4) % 4);         // and padding as needed
   }
+#endif  
   //free(img);
   file.close();                                        // close file when done writing
   Serial.println("Done Writing BMP");
