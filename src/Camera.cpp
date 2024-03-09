@@ -111,9 +111,14 @@ void Camera::readFrame(void *buffer, bool fUseDMA) {
   sensor->readFrame(buffer, fUseDMA);
 }
 
+void Camera::readFrameSplitBuffer(void *buffer1, size_t cb1, void *buffer2, size_t cb2, bool fUseDMA ) {
+  sensor->readFrameSplitBuffer(buffer1, cb1, buffer2, cb2, fUseDMA);
+}
+
+
 //normal Read mode
-void Camera::readFrameGPIO(void *buffer) {
-  return sensor->readFrameGPIO(buffer);
+void Camera::readFrameGPIO(void* buffer, size_t cb1, void* buffer2, size_t cb2) {
+    return sensor->readFrameGPIO(buffer, cb1, buffer2, cb2);
 }
 
 void Camera::readFrame4BitGPIO(void *buffer) {
