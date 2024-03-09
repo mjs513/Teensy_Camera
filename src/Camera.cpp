@@ -215,7 +215,7 @@ void Camera::setExposure(int exposure) {
 }
 
 void Camera::autoExposure(int enable) {
-    sensor->setExposure(enable);
+    sensor->autoExposure(enable);
 }
 
 bool Camera::begin_omnivision(framesize_t resolution, pixformat_t format, int fps, bool use_gpio) { // Supported FPS: 1, 5, 10, 15, 30

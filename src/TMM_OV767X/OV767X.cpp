@@ -351,12 +351,14 @@ void OV767X::setContrast(int contrast)
 int OV767X::setHmirror(int enable)
 {
   ov7670_s_hflip(_ov7670, enable);
+  delay(10);
   return 1;
 }
 
 int OV767X::setVflip(int enable)
 {
   ov7670_s_vflip(_ov7670, enable);
+  delay(10);
   return 1;
 }
 
@@ -385,6 +387,7 @@ void OV767X::autoExposure(int enable)
       enable = 1;
   }
   ov7670_s_autoexp(_ov7670, enable) /* V4L2_EXPOSURE_AUTO */;
+  delay(10);
 }
 
 //void OV767X::setPins(int vsync, int href, int pclk, int xclk, int rst, const int dpins[8])

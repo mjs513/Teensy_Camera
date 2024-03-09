@@ -199,7 +199,7 @@ void setup()
 #endif
 
   #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
-    camera.begin_omnivision(FRAMESIZE_QVGA, RGB565, 30);
+    camera.begin_omnivision(FRAMESIZE_QVGA, RGB565, 15);
   #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
@@ -221,7 +221,7 @@ void setup()
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
   camera.setContrast(0x30);
   camera.setBrightness(0x80);
-  //camera.autoExposure(true);
+  camera.autoExposure(1);
 #else
   camera.setGainceiling(GAINCEILING_2X);
   camera.setBrightness(3);
@@ -383,6 +383,10 @@ void loop()
         memset((uint8_t*)frameBuffer, 0, sizeof(frameBuffer));
         camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
         camera.readFrame(frameBuffer);
+        #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+          int numPixels = camera.width() * camera.height();
+          for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
+        #endif
         save_image_SD();
         ch = ' '; 
   #endif
@@ -404,7 +408,8 @@ void loop()
         delay(500);
         tft.fillScreen(TFT_BLACK);
         delay(500);
-        break;      case 'f':
+        break;
+      case 'f':
       {
         camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
         tft.useFrameBuffer(false);
@@ -579,6 +584,7 @@ uint16_t color565(uint8_t r, uint8_t g, uint8_t b) {
 #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
 void send_image(Stream *imgSerial) {
   memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
+  camera.setHmirror(1);
   camera.readFrame(frameBuffer);
 
   imgSerial->write(0xFF);
@@ -597,6 +603,8 @@ void send_image(Stream *imgSerial) {
   imgSerial->write(0xCC);
 
   imgSerial->println(F("ACK CMD CAM Capture Done. END"));
+  camera.setHmirror(0);
+
   delay(50);
 }
 
