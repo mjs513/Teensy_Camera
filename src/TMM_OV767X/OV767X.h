@@ -169,9 +169,10 @@ public:
 	//-------------------------------------------------------
 	//Generic Read Frame base on _hw_config
 	void readFrame(void *buffer, bool fUseDMA = true);
-	
+  void readFrameSplitBuffer(void *buffer1, size_t cb1, void *buffer2, size_t cb2, bool fUseDMA = true); // give default one for now
+
 	//normal Read mode
-	void readFrameGPIO(void* buffer);
+	void readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
 	bool readContinuous(bool(*callback)(void *frame_buffer), void *fb1, void *fb2);
 	void stopReadContinuous();
 

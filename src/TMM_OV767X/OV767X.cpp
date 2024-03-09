@@ -451,6 +451,15 @@ void OV767X::readFrame(void* buffer, bool fUseDMA){
     }
 }
 
+void OV767X::readFrameSplitBuffer(void *buffer1, size_t cb1, void *buffer2, size_t cb2, bool fUseDMA) {
+    if(!_use_gpio) {
+        readFrameFlexIO(buffer1, fUseDMA);
+    } else {
+        readFrameGPIO(buffer1, cb1, buffer2, cb2);
+    }
+
+}
+
 
 bool OV767X::readContinuous(bool(*callback)(void *frame_buffer), void *fb1, void *fb2) {
 
@@ -464,9 +473,11 @@ void OV767X::stopReadContinuous() {
 
 }
 
-void OV767X::readFrameGPIO(void* buffer)
+void OV767X::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 {    
+  Serial.printf("$$readFrameGPIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
   uint8_t* b = (uint8_t*)buffer;
+  uint32_t cb = (uint32_t)cb1;
 //  bool _grayscale;  // ????  member variable ?????????????
   int bytesPerRow = _width * _bytesPerPixel;
 
@@ -494,9 +505,15 @@ void OV767X::readFrameGPIO(void* buffer)
       uint32_t in =  (GPIO7_PSR >> 4); // read all bits in parallel  
 
 	  //uint32_t in = mmBus;
-
+      // bugbug what happens to the the data if grayscale?
       if (!(j & 1) || !_grayscale) {
         *b++ = in;
+        if ( buffer2 && (--cb == 0) ) {
+          Serial.printf("\t$$ 2nd buffer: %u %u\n", i, j);
+          b = (uint8_t *)buffer2;
+          cb = (uint32_t)cb2;
+          buffer2 = nullptr;
+        }
       }
       while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0)) ; // wait for LOW bail if _href is lost
     }
