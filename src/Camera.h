@@ -128,7 +128,7 @@ public:
   uint16_t getModelid();
   
   /***********  OV specific ************************/
-  bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30,
+  bool begin(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30,
                         bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
   void setSaturation(int saturation); // 0 - 255
   void setHue(int hue); // -180 - 180

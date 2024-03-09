@@ -199,7 +199,7 @@ void setup()
 #endif
 
   #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
-    camera.begin_omnivision(FRAMESIZE_QVGA, RGB565, 15);
+    camera.begin(FRAMESIZE_QVGA, RGB565, 15);
   #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
