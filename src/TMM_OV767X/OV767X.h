@@ -218,6 +218,10 @@ public:
   void autoExposure(int enable);
   void showRegisters();
 
+  void debug(bool debug_on) {_debug = debug_on;}
+  bool debug() {return _debug;}
+
+
   // must be called before Camera.begin()
   //void setPins(int vsync, int href, int pclk, int xclk, int rst, const int dpins[8]);
   void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, uint8_t en_pin,
@@ -262,6 +266,8 @@ private:
   int _xclk_freq = 14;
 
   bool _use_gpio = false;
+  bool _debug = true;
+
   TwoWire *_wire;
   
   int16_t _width;

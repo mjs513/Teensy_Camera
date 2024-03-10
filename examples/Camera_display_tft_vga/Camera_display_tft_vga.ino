@@ -132,8 +132,10 @@ void setup() {
 
   if (CrashReport) {
     Serial.print(CrashReport);
-    while (1)
-      ;
+    Serial.println("Press any key to continue");
+    while (Serial.read() != -1) {}
+    while (Serial.read() == -1) {}
+    while (Serial.read() != -1) {}
   }
 
   tft.begin(15000000);
@@ -402,7 +404,7 @@ void loop() {
       case 'M':
         read_display_multiple_frames(true);
         break;
-      case 'd':
+      case 't':
         tft.fillScreen(TFT_RED);
         delay(500);
         tft.fillScreen(TFT_GREEN);
@@ -412,102 +414,25 @@ void loop() {
         tft.fillScreen(TFT_BLACK);
         delay(500);
         break;
+      case 'd':
+        camera.debug(!camera.debug());
+        if (camera.debug()) Serial.println("Camera Debug turned on");
+        else Serial.println("Camera debug turned off");
+        break;
       case 'f':
-        {
-          camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
-          tft.useFrameBuffer(false);
-          tft.fillScreen(TFT_BLACK);
-          Serial.println("Reading frame");
-          uint32_t count_pixels_in_buffer = sizeof(frameBuffer)/sizeof(frameBuffer[0]);
-          Serial.printf("Buffer1: %p(%u) halfway: %p end:%p\n", frameBuffer, sizeof(frameBuffer), &frameBuffer[count_pixels_in_buffer/2], &frameBuffer[count_pixels_in_buffer]);
-          count_pixels_in_buffer = sizeof(frameBuffer2)/sizeof(frameBuffer2[0]);
-          Serial.printf("Buffer2: %p(%u) halfway: %p end:%p\n", frameBuffer2, sizeof(frameBuffer2), &frameBuffer2[count_pixels_in_buffer/2], &frameBuffer2[count_pixels_in_buffer]);
-          memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
-          memset((uint8_t *)frameBuffer2, 0, sizeof(frameBuffer2));
-          camera.readFrameSplitBuffer(frameBuffer, sizeof(frameBuffer), frameBuffer2, sizeof(frameBuffer2));
-          Serial.println("Finished reading frame");
-          Serial.flush();
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
-          for (volatile uint16_t *pfb = frameBuffer; pfb < (frameBuffer + 4 * camera.width()); pfb += camera.width()) {
-#else
-          for (volatile uint8_t *pfb = frameBuffer; pfb < (frameBuffer + 4 * camera.width()); pfb += camera.width()) {
-#endif
-            Serial.printf("\n%08x: ", (uint32_t)pfb);
-            for (uint16_t i = 0; i < 8; i++) Serial.printf("%02x ", pfb[i]);
-            Serial.print("..");
-            Serial.print("..");
-            for (uint16_t i = camera.width() - 8; i < camera.width(); i++) Serial.printf("%04x ", pfb[i]);
-          }
-          Serial.println("\n");
-#if 0  // Figure this out later... \
-       // Lets dump out some of center of image.
-          Serial.println("Show Center pixels\n");
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
-          for (volatile uint16_t *pfb = frameBuffer + camera.width() * ((camera.height() / 2) - 8); pfb < (frameBuffer + camera.width() * (camera.height() / 2 + 8)); pfb += camera.width()) {
-#else
-          for (volatile uint8_t *pfb = frameBuffer + camera.width() * ((camera.height() / 2) - 8); pfb < (frameBuffer + camera.width() * (camera.height() / 2 + 8)); pfb += camera.width()) {
-#endif
-            Serial.printf("\n%08x: ", (uint32_t)pfb);
-            for (uint16_t i = 0; i < 8; i++) Serial.printf("%02x ", pfb[i]);
-            Serial.print("..");
-            for (uint16_t i = (camera.width() / 2) - 4; i < (camera.width() / 2) + 4; i++) Serial.printf("%02x ", pfb[i]);
-            Serial.print("..");
-            for (uint16_t i = camera.width() - 8; i < camera.width(); i++) Serial.printf("%02x ", pfb[i]);
-          }
-          Serial.println("\n...");
-
-          //int numPixels = camera.width() * camera.height();
-          Serial.printf("TFT(%u, %u) Camera(%u, %u)\n", tft.width(), tft.height(), camera.width(), camera.height());
-          //int camera_width = Camera.width();
-#endif
-          //tft.setOrigin(-2, -2);
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
-          int numPixels = camera.width() * camera.height();
-
-          Serial.printf("TFT(%u, %u) Camera(%u, %u)\n", tft.width(), tft.height(), camera.width(), camera.height());
-//int camera_width = Camera.width();
-#if 1
-          //byte swap
-          //for (int i = 0; i < numPixels; i++) frameBuffer[i] = (frameBuffer[i] >> 8) | (((frameBuffer[i] & 0xff) << 8));
-          // now see if all fit into one buffer or part in second...
-          int numPixels1 = min((int)(sizeof(frameBuffer) / 2), numPixels);
-          int numPixels2 = min((int)(sizeof(frameBuffer) / 2), numPixels - numPixels1);
-          for (int i = 0; i < numPixels1; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
-          for (int i = 0; i < numPixels2; i++) frameBuffer2[i] = HTONS(frameBuffer2[i]);
-
-          if (numPixels2 == 0) {
-            if ((camera.width() <= tft.width()) && (camera.height() <= tft.height())) {
-              if ((camera.width() != tft.width()) || (camera.height() != tft.height())) tft.fillScreen(TFT_BLACK);
-              tft.writeRect(CENTER, CENTER, camera.width(), camera.height(), frameBuffer);
-            } else {
-              Serial.println("sub image");
-              tft.writeSubImageRect(0, 0, tft.width(), tft.height(), (camera.width() - tft.width()) / 2, (camera.height() - tft.height()),
-                                    camera.width(), camera.height(), frameBuffer);
-            }
-          } else {
-            // We used both buffers.  Assume for now each buffer is in multples of Width
-            tft.writeRect(CENTER, CENTER, camera.width(), camera.height(), frameBuffer);
-            int start_x = (tft.width() - camera.width()) / 2;
-            int start_y = (tft.height() - camera.height()) / 2;
-            tft.writeRect(start_x, start_y, camera.width(), numPixels1 / camera.width(), frameBuffer);
-
-            // now try second part
-            start_y += numPixels1 / camera.width();
-            tft.writeRect(start_x, start_y, camera.width(), numPixels2 / camera.width(), frameBuffer2);
-          }
-
-#else
-          Serial.println("sub image1");
-          tft.writeSubImageRect(0, 0, tft.width(), tft.height(), 0, 0, camera.width(), camera.height(), pixels);
-#endif
-#else
-          tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBuffer, mono_palette);
-#endif
-          tft.setOrigin(0, 0);
-          ch = ' ';
-          g_continuous_flex_mode = false;
-          break;
-        }
+        tft.useFrameBuffer(false);
+        tft.fillScreen(TFT_BLACK);
+        read_display_one_frame(true, true);
+        ch = ' ';
+        g_continuous_flex_mode = false;
+        break;
+      case 'n':
+        tft.useFrameBuffer(false);
+        tft.fillScreen(TFT_BLACK);
+        read_display_one_frame(false, true);
+        ch = ' ';
+        g_continuous_flex_mode = false;
+        break;
       case 'F':
         {
           if (!g_continuous_flex_mode) {
@@ -747,6 +672,7 @@ void save_image_SD() {
 void showCommandList() {
   Serial.println("Send the 'f' character to read a frame using FlexIO (changes hardware setup!)");
   Serial.println("Send the 'F' to start/stop continuous using FlexIO (changes hardware setup!)");
+  Serial.println("Send the 'n' character to read a frame using FlexIO without DMA (changes hardware setup!)");
   Serial.println("Send the 'm' character to read and display multiple frames");
   Serial.println("Send the 'M' character to read and display multiple frames use Frame buffer");
   Serial.println("Send the 'V' character DMA to TFT async continueous  ...");
@@ -754,8 +680,106 @@ void showCommandList() {
   Serial.println("Send the 'b' character to save snapshot (BMP) to SD Card");
   Serial.println("Send the '1' character to blank the display");
   Serial.println("Send the 'z' character to send current screen BMP to SD");
-  Serial.println("Send the 'd' character to send Check the display");
+  Serial.println("Send the 't' character to send Check the display");
+  Serial.println("Send the 'd' character to toggle camera debug on and off");
   Serial.println();
+}
+
+
+//=============================================================================
+void read_display_one_frame(bool use_dma, bool show_debug_info) {
+  camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
+  uint32_t count_pixels_in_buffer = sizeof(frameBuffer) / sizeof(frameBuffer[0]);
+  if (show_debug_info) {
+    Serial.println("Reading frame");
+    Serial.printf("Buffer1: %p(%u) halfway: %p end:%p\n", frameBuffer, sizeof(frameBuffer), &frameBuffer[count_pixels_in_buffer / 2], &frameBuffer[count_pixels_in_buffer]);
+    count_pixels_in_buffer = sizeof(frameBuffer2) / sizeof(frameBuffer2[0]);
+    Serial.printf("Buffer2: %p(%u) halfway: %p end:%p\n", frameBuffer2, sizeof(frameBuffer2), &frameBuffer2[count_pixels_in_buffer / 2], &frameBuffer2[count_pixels_in_buffer]);
+    memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
+    memset((uint8_t *)frameBuffer2, 0, sizeof(frameBuffer2));
+  }
+  camera.readFrameSplitBuffer(frameBuffer, sizeof(frameBuffer), frameBuffer2, sizeof(frameBuffer2), use_dma);
+
+  if (show_debug_info) {
+    Serial.println("Finished reading frame");
+    Serial.flush();
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+    for (volatile uint16_t *pfb = frameBuffer; pfb < (frameBuffer + 4 * camera.width()); pfb += camera.width()) {
+#else
+    for (volatile uint8_t *pfb = frameBuffer; pfb < (frameBuffer + 4 * camera.width()); pfb += camera.width()) {
+#endif
+      Serial.printf("\n%08x: ", (uint32_t)pfb);
+      for (uint16_t i = 0; i < 8; i++) Serial.printf("%02x ", pfb[i]);
+      Serial.print("..");
+      Serial.print("..");
+      for (uint16_t i = camera.width() - 8; i < camera.width(); i++) Serial.printf("%04x ", pfb[i]);
+    }
+    Serial.println("\n");
+#if 0  // Figure this out later... \
+        // Lets dump out some of center of image.
+            Serial.println("Show Center pixels\n");
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+            for (volatile uint16_t *pfb = frameBuffer + camera.width() * ((camera.height() / 2) - 8); pfb < (frameBuffer + camera.width() * (camera.height() / 2 + 8)); pfb += camera.width()) {
+#else
+            for (volatile uint8_t *pfb = frameBuffer + camera.width() * ((camera.height() / 2) - 8); pfb < (frameBuffer + camera.width() * (camera.height() / 2 + 8)); pfb += camera.width()) {
+#endif
+              Serial.printf("\n%08x: ", (uint32_t)pfb);
+              for (uint16_t i = 0; i < 8; i++) Serial.printf("%02x ", pfb[i]);
+              Serial.print("..");
+              for (uint16_t i = (camera.width() / 2) - 4; i < (camera.width() / 2) + 4; i++) Serial.printf("%02x ", pfb[i]);
+              Serial.print("..");
+              for (uint16_t i = camera.width() - 8; i < camera.width(); i++) Serial.printf("%02x ", pfb[i]);
+            }
+            Serial.println("\n...");
+
+            //int numPixels = camera.width() * camera.height();
+            Serial.printf("TFT(%u, %u) Camera(%u, %u)\n", tft.width(), tft.height(), camera.width(), camera.height());
+            //int camera_width = Camera.width();
+#endif
+    Serial.printf("TFT(%u, %u) Camera(%u, %u)\n", tft.width(), tft.height(), camera.width(), camera.height());
+  }
+  //tft.setOrigin(-2, -2);
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+  int numPixels = camera.width() * camera.height();
+
+//int camera_width = Camera.width();
+#if 1
+  //byte swap
+  //for (int i = 0; i < numPixels; i++) frameBuffer[i] = (frameBuffer[i] >> 8) | (((frameBuffer[i] & 0xff) << 8));
+  // now see if all fit into one buffer or part in second...
+  int numPixels1 = min((int)(sizeof(frameBuffer) / 2), numPixels);
+  int numPixels2 = min((int)(sizeof(frameBuffer) / 2), numPixels - numPixels1);
+  for (int i = 0; i < numPixels1; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
+  for (int i = 0; i < numPixels2; i++) frameBuffer2[i] = HTONS(frameBuffer2[i]);
+
+  if (numPixels2 == 0) {
+    if ((camera.width() <= tft.width()) && (camera.height() <= tft.height())) {
+      if ((camera.width() != tft.width()) || (camera.height() != tft.height())) tft.fillScreen(TFT_BLACK);
+      tft.writeRect(CENTER, CENTER, camera.width(), camera.height(), frameBuffer);
+    } else {
+      Serial.println("sub image");
+      tft.writeSubImageRect(0, 0, tft.width(), tft.height(), (camera.width() - tft.width()) / 2, (camera.height() - tft.height()),
+                            camera.width(), camera.height(), frameBuffer);
+    }
+  } else {
+    // We used both buffers.  Assume for now each buffer is in multples of Width
+    tft.writeRect(CENTER, CENTER, camera.width(), camera.height(), frameBuffer);
+    int start_x = (tft.width() - camera.width()) / 2;
+    int start_y = (tft.height() - camera.height()) / 2;
+    tft.writeRect(start_x, start_y, camera.width(), numPixels1 / camera.width(), frameBuffer);
+
+    // now try second part
+    start_y += numPixels1 / camera.width();
+    tft.writeRect(start_x, start_y, camera.width(), numPixels2 / camera.width(), frameBuffer2);
+  }
+
+#else
+  Serial.println("sub image1");
+  tft.writeSubImageRect(0, 0, tft.width(), tft.height(), 0, 0, camera.width(), camera.height(), pixels);
+#endif
+#else
+  tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBuffer, mono_palette);
+#endif
 }
 
 
@@ -775,6 +799,9 @@ void read_display_multiple_frames(bool use_frame_buffer) {
 
   for (;;) {
 
+#if 1
+    read_display_one_frame(true, false);
+#else
     camera.readFrame(frameBuffer);
 
     int numPixels = camera.width() * camera.height();
@@ -796,7 +823,7 @@ void read_display_multiple_frames(bool use_frame_buffer) {
                             camera.width(), camera.height(), frameBuffer);
     }
 #endif
-
+#endif // 1
     if (use_frame_buffer) tft.updateScreenAsync();
 
     frame_count++;

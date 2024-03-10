@@ -840,21 +840,23 @@ void OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     // Polling FlexIO version
     //----------------------------------------------------------------------
     if (!use_dma) {
-      Serial.println("\tNot DMA");
+      if (_debug)Serial.println("\tNot DMA");
       #ifdef OV7670_USE_DEBUG_PINS
       digitalWriteFast(2, HIGH);
       #endif
       // read FlexIO by polling
-      uint32_t *p_end = (uint32_t *)buffer + (_width*_height/4)*_bytesPerPixel;
+      //uint32_t *p_end = (uint32_t *)buffer + (_width*_height/4)*_bytesPerPixel;
+      uint32_t count_items_left = (_width*_height/4)*_bytesPerPixel;
       uint32_t count_items_left_in_buffer = (uint32_t)cb1 / 4;
 
-      while (p < p_end) {
+      while (count_items_left) {
           while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
               // wait for FlexIO shifter data
           }
           // Lets try to load in multiple shifters
           for (uint8_t i = 0; i < CNT_SHIFTERS; i++) {
             *p++ = _pflexio->SHIFTBUF[_fshifter+i]; // should use DMA...
+            count_items_left--;
             if (buffer2 && (--count_items_left_in_buffer == 0)) {
               p = (uint32_t*)buffer2;
               count_items_left_in_buffer = (uint32_t)cb2 / 4;
@@ -890,7 +892,7 @@ void OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     // do it over 2 
     // first pass split into two
     uint32_t cb_left = 0;
-    Serial.printf("\tframe Size:%u cb1: %u\n", frame_size_bytes, cb1);
+    if (_debug)Serial.printf("\tframe Size:%u cb1: %u\n", frame_size_bytes, cb1);
 
     if ((buffer2 == nullptr) ||  frame_size_bytes < cb1) {
       _dmasettings[0].source(_pflexio->SHIFTBUF[_fshifter]);
@@ -943,14 +945,16 @@ void OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
 
     _dmachannel.clearComplete();
 #ifdef DEBUG_FLEXIO
-    dumpDMA_TCD(&_dmachannel," CH: ");
-    dumpDMA_TCD(&_dmasettings[0], " 0: ");
-    dumpDMA_TCD(&_dmasettings[1], " 1: ");
-    if (cb_left) {
-      dumpDMA_TCD(&_dmasettings[2], " 2: ");
-      dumpDMA_TCD(&_dmasettings[3], " 3: ");      
-      dumpDMA_TCD(&_dmasettings[4], " 4: ");      
-      dumpDMA_TCD(&_dmasettings[5], " 5: ");      
+    if (_debug) {
+      dumpDMA_TCD(&_dmachannel," CH: ");
+      dumpDMA_TCD(&_dmasettings[0], " 0: ");
+      dumpDMA_TCD(&_dmasettings[1], " 1: ");
+      if (cb_left) {
+        dumpDMA_TCD(&_dmasettings[2], " 2: ");
+        dumpDMA_TCD(&_dmasettings[3], " 3: ");      
+        dumpDMA_TCD(&_dmasettings[4], " 4: ");      
+        dumpDMA_TCD(&_dmasettings[5], " 5: ");      
+      }
     }
 #endif
 
@@ -960,7 +964,7 @@ void OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     _dmachannel.enable();
     
 #ifdef DEBUG_FLEXIO
-    Serial.printf("Flexio DMA: length: %d\n", frame_size_bytes);
+    if (_debug) Serial.printf("Flexio DMA: length: %d\n", frame_size_bytes);
 #endif
     
     elapsedMillis timeout = 0;
@@ -997,7 +1001,7 @@ void OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     if (cb_left && ((uint32_t)buffer2 >= 0x20200000u)) arm_dcache_flush(buffer2, cb_left);
 
 #ifdef DEBUG_FLEXIO
-    dumpDMA_TCD(&_dmachannel,"CM: ");
+    if (_debug) dumpDMA_TCD(&_dmachannel,"CM: ");
 #endif
 //    dumpDMA_TCD(&_dmasettings[0], " 0: ");
 //    dumpDMA_TCD(&_dmasettings[1], " 1: ");

@@ -19,6 +19,8 @@ public:
   virtual void end() = 0;
   virtual int reset() = 0;
   virtual void showRegisters(void);
+  virtual void debug(bool debug_on) {}; // 
+  virtual bool debug() { return false; }
   virtual int setPixformat(pixformat_t pfmt) = 0;
   virtual uint8_t setFramesize(framesize_t framesize) = 0;
   virtual int setFramerate(int framerate) = 0;
@@ -107,6 +109,8 @@ public:
   void end();
   int reset();
   void showRegisters(void);
+  void debug(bool debug_on);
+  bool debug();
   int setPixformat(pixformat_t pfmt);
   uint8_t setFramesize(framesize_t framesize);
   int setFramerate(int framerate);

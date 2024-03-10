@@ -27,6 +27,13 @@ int Camera::setPixformat(pixformat_t pfmt) {
   return sensor->setPixformat(pfmt);
 }
 
+void Camera::debug(bool debug_on) {
+  sensor->debug(debug_on);
+}
+bool Camera::debug() {
+  return sensor->debug();
+}
+
 uint8_t Camera::setFramesize(framesize_t framesize) {
   return sensor->setFramesize(framesize);
 }
