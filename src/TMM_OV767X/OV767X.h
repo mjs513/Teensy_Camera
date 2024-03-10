@@ -177,7 +177,7 @@ public:
 	void stopReadContinuous();
 
 	//FlexIO is default mode for the camera
-	void readFrameFlexIO(void* buffer, bool use_dma=true);
+  void readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0, bool fUseDMA=true);
 	bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
 	bool stopReadFlexIO();
 
