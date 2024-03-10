@@ -634,6 +634,16 @@ void HM0360::readFrame(void *buffer, bool fUseDMA) {
   }
 }
 
+void HM0360::readFrameSplitBuffer(void *buffer1, size_t cb1, void *buffer2, size_t cb2, bool fUseDMA) {
+    if(!_use_gpio) {
+        readFrameFlexIO(buffer1, cb1, buffer2, cb2, fUseDMA);
+    } else {
+        readFrameGPIO(buffer1, cb1, buffer2, cb2);
+    }
+
+}
+
+
 
 bool HM0360::readContinuous(bool (*callback)(void *frame_buffer), void *fb1, void *fb2) {
   setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
@@ -646,9 +656,10 @@ void HM0360::stopReadContinuous() {
   stopReadFlexIO();
 }
 
-void HM0360::readFrameGPIO(void *buffer) {
-
+void HM0360::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
+{
   uint8_t *b = (uint8_t *)buffer;
+  uint32_t cb = (uint32_t)cb1;
   bool _grayscale;
   int bytesPerRow;
 //Change for Monodchrome only Sparkfun HB01b0
@@ -691,6 +702,12 @@ void HM0360::readFrameGPIO(void *buffer) {
 
       if (!(j & 1) || !_grayscale) {
         *b++ = in;
+        if ( buffer2 && (--cb == 0) ) {
+          Serial.printf("\t$$ 2nd buffer: %u %u\n", i, j);
+          b = (uint8_t *)buffer2;
+          cb = (uint32_t)cb2;
+          buffer2 = nullptr;
+        }
       }
       while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0))
         ;  // wait for LOW bail if _href is lost
@@ -1027,38 +1044,113 @@ bool HM0360::flexio_configure() {
 }
 
 
-void HM0360::readFrameFlexIO(void *buffer) {
+void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2, bool use_dma)
   //flexio_configure(); // one-time hardware setup
   // wait for VSYNC to be low
+  const uint32_t frame_size_bytes = _width*_height*/*_bytesPerPixel*/;
   while ((*_vsyncPort & _vsyncMask) != 0)
     ;
 
   _pflexio->SHIFTSTAT = _fshifter_mask;  // clear any prior shift status
   _pflexio->SHIFTERR = _fshifter_mask;
 
-#ifndef FLEXIO_USE_DMA
-  // read FlexIO by polling
   uint32_t *p = (uint32_t *)buffer;
-  //uint32_t *p_end = (uint32_t *)buffer + _width*_height/4; ???
-  uint32_t *p_end = (uint32_t *)buffer + _width * _height / 8;
+  if (!use_dma) {
+    // read FlexIO by polling
+    //uint32_t *p_end = (uint32_t *)buffer + _width*_height/4; ???
 
-  while (p < p_end) {
-    while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
-      // wait for FlexIO shifter data
+    uint32_t count_items_left = (_width*_height/4)/**_bytesPerPixel */;
+    uint32_t count_items_left_in_buffer = (uint32_t)cb1 / 4;
+
+    while (count_items_left) {
+
+    while (p < p_end) {
+      while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
+        // wait for FlexIO shifter data
+      }
+      
+      *p++ = _pflexio->SHIFTBUF[_fshifter];  // should use DMA...
+      count_items_left--;
+      if (buffer2 && (--count_items_left_in_buffer == 0)) {
+        p = (uint32_t*)buffer2;
+        count_items_left_in_buffer = (uint32_t)cb2 / 4;
+      }
     }
-    *p++ = _pflexio->SHIFTBUF[_fshifter];  // should use DMA...
+    return;
   }
-#else
   // read FlexIO by DMA
   dma_flexio.begin();
   const uint32_t length = _width * _height;
-  dma_flexio.source(_pflexio->SHIFTBUF[_fshifter]);
-  dma_flexio.destinationBuffer((uint32_t *)buffer, length);
-  dma_flexio.transferSize(4);
-  dma_flexio.transferCount(length / 4);
-  dma_flexio.disableOnCompletion();
-  dma_flexio.clearComplete();
-  dma_flexio.triggerAtHardwareEvent(_dma_source);
+  // Will it fit into one DMA object. 
+  if ((_width <= 320) && (buffer2 == nullptr)) {
+    dma_flexio.source(_pflexio->SHIFTBUF[_fshifter]);
+    dma_flexio.destinationBuffer((uint32_t *)buffer, length);
+    dma_flexio.transferSize(4);
+    dma_flexio.transferCount(length / 4);
+    dma_flexio.disableOnCompletion();
+    dma_flexio.clearComplete();
+    dma_flexio.triggerAtHardwareEvent(_dma_source);
+  } else {
+    // We need to use dma settings.
+    if (cb1 >= frame_size_bytes) {
+      // fit it into 3 _dmasettings
+      uint32_t cb_per_setting = ((frame_size_bytes / 3) + 4) & 0xfffffffc; // round up to next multiple of 4.
+      _dmasettings[0].TCD->CSR = 0;
+      _dmasettings[0].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[0].destinationBuffer(p, cb_per_setting);
+      _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
+
+      _dmasettings[1].TCD->CSR = 0;
+      _dmasettings[1].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[1].destinationBuffer(&p[cb_per_setting / 4], cb_per_setting);
+      _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[2]);
+
+      _dmasettings[2].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[2].destinationBuffer(&p[cb_per_setting / 2], cb1 - 2 * cb_per_setting);
+      _dmasettings[2].replaceSettingsOnCompletion(_dmasettings[0]);
+      _dmasettings[2].disableOnCompletion();
+      _dmasettings[2].interruptAtCompletion();
+    } else {
+      if ((cb1 + cb2) < frame_size_bytes) return; // not big enough
+      // have two buffers - see how we may need to distribute the dma settings.
+      uint8_t count_dma_settings = (cb1 / (32767 * 4)) + 1;
+      uint32_t cb_per_setting = ((cb1 / count_dma_settings) + 4) & 0xfffffffc; // round up to next multiple of 4.
+      
+      uint8_t dmas_index = 0;
+      uint8_t cb_left = cb1;
+      for (; dmas_index < count_dma_settings; dmas_index++) {
+        _dmasettings[dmas_index].TCD->CSR = 0;
+        _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
+        _dmasettings[dmas_index].destinationBuffer(p, min(cb_per_setting, cb_left));
+        _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
+        p += (cb_per_setting / 4);
+        cb_left -= cb_per_setting
+      }
+
+      cb_left = frame_size_bytes - cb1;
+      count_dma_settings = (cb_left / (32767 * 4)) + 1;
+      cb_per_setting = ((cb_left / count_dma_settings) + 4) & 0xfffffffc; // round up to next multiple of 4.
+      uint32_t *p = (uint32_t *)buffer2;
+
+      for (uint8_t i = 0; i < count_dma_settings; i++, dmas_index++) {
+        _dmasettings[dmas_index].TCD->CSR = 0;
+        _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
+        _dmasettings[dmas_index].destinationBuffer(p, min(cb_per_setting, cb_left));
+        _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
+        p += (cb_per_setting / 4);
+        cb_left -= cb_per_setting
+      }
+      dmas_index--; // lets point back to the last one
+      _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[0]);
+      _dmasettings[dmas_index].disableOnCompletion();
+      _dmasettings[dmas_index].interruptAtCompletion();
+
+    }
+    dma_flexio = _dmasettings[0];
+    dma_flexio.clearComplete();
+
+  }
+
   dma_flexio.enable();
   _pflexio->SHIFTSDEN = _fshifter_mask;
 
@@ -1081,7 +1173,6 @@ void HM0360::readFrameFlexIO(void *buffer) {
     }
   }
   arm_dcache_delete(buffer, length);
-#endif
 }
 
 
@@ -1180,7 +1271,7 @@ bool HM0360::stopReadFlexIO() {
 //================================================================================
 // Define our DMA structure.
 DMAChannel HM0360::_dmachannel;
-DMASetting HM0360::_dmasettings[2];
+DMASetting HM0360::_dmasettings[4];
 uint32_t HM0360::_dmaBuffer1[DMABUFFER_SIZE] __attribute__((used, aligned(32)));
 uint32_t HM0360::_dmaBuffer2[DMABUFFER_SIZE] __attribute__((used, aligned(32)));
 extern "C" void xbar_connect(unsigned int input, unsigned int output);  // in pwm.c
@@ -1761,13 +1852,16 @@ bool HM0360::flexio_configure() {
   return true;
 }
 
+extern void dumpDMA_TCD1(DMABaseClass *dmabc, const char *psz_title=nullptr);
 
-void HM0360::readFrameFlexIO(void *buffer, bool fUseDMA) {
+void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2, bool use_dma) {
+    Serial.printf("$$HM0360::readFrameFlexIO(%p, %u, %p, %u, %u)\n", buffer, cb1, buffer2, cb2, use_dma);
   //flexio_configure(); // one-time hardware setup
   // wait for VSYNC to be low
   //while ((*_vsyncPort & _vsyncMask) != 0);
   // lets wait for a vsync that is high long enough to not be pin noise
   elapsedMillis timeout = 0;
+  const uint32_t frame_size_bytes = _width*_height /* * _bytesPerPixel*/;
 
   for (;;) {
     if (((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0)) break;
@@ -1783,31 +1877,47 @@ void HM0360::readFrameFlexIO(void *buffer, bool fUseDMA) {
 
   //#ifndef FLEXIO_USE_DMA
   // read FlexIO by polling
-  if (!fUseDMA) {
+  uint32_t *p = (uint32_t *)buffer;
+
+  if (!use_dma) {
     _pflexio->SHIFTSDEN = _fshifter_mask;
-    uint32_t *p = (uint32_t *)buffer;
-    //uint32_t *p_end = (uint32_t *)buffer + _width*_height/4; ???
-    uint32_t *p_end = (uint32_t *)buffer + _width * _height / 4;
-    // test to see about 4 bit mode skipping half
+
+    uint32_t count_items_left = (_width*_height/4)/**_bytesPerPixel */;
+    uint32_t count_items_left_in_buffer = (uint32_t)cb1 / 4;
+    Serial.printf("\tleft:%u in_buffer:%u\n", count_items_left, count_items_left_in_buffer);
+
     if (G4 != 0xff) {
-      while (p < p_end) {
+      while (count_items_left) {
         while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
           // wait for FlexIO shifter data
         }
         *p++ = _pflexio->SHIFTBUF[_fshifter];  // should use DMA...
+        count_items_left--;
+        if (buffer2 && (--count_items_left_in_buffer == 0)) {
+          Serial.println("\tSwitch to second buffer");
+          p = (uint32_t*)buffer2;
+          count_items_left_in_buffer = (uint32_t)cb2 / 4;
+        }
       }
     } else {
       // 4 bit mode:
       bool save_pixels = true;
       uint8_t in_row_count = _width / 4;
-      while (p < p_end) {
+      while (count_items_left) {
         // we want to read and save one rows worth of pixels
         // and skipt the second half
         while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
           // wait for FlexIO shifter data
         }
         uint32_t sbuf = _pflexio->SHIFTBUF[_fshifter];
-        if (save_pixels) *p++ = sbuf;  // should use DMA...
+        if (save_pixels) {
+          *p++ = sbuf;  // should use DMA...
+          count_items_left--;
+          if (buffer2 && (--count_items_left_in_buffer == 0)) {
+            p = (uint32_t*)buffer2;
+            count_items_left_in_buffer = (uint32_t)cb2 / 4;
+          }
+        }
         in_row_count--;
         if (in_row_count == 0) {
           save_pixels = !save_pixels;
@@ -1821,13 +1931,83 @@ void HM0360::readFrameFlexIO(void *buffer, bool fUseDMA) {
   // read FlexIO by DMA
   dma_flexio.begin();
   const uint32_t length = _width * _height;
-  dma_flexio.source(_pflexio->SHIFTBUF[_fshifter]);
-  dma_flexio.destinationBuffer((uint32_t *)buffer, length);
-  dma_flexio.transferSize(4);
-  dma_flexio.transferCount(length / 4);
-  dma_flexio.disableOnCompletion();
-  dma_flexio.clearComplete();
-  dma_flexio.triggerAtHardwareEvent(_dma_source);
+  // Will it fit into one DMA object. 
+  if ((_width <= 320) && (buffer2 == nullptr)) {
+    dma_flexio.source(_pflexio->SHIFTBUF[_fshifter]);
+    dma_flexio.destinationBuffer((uint32_t *)buffer, length);
+    dma_flexio.transferSize(4);
+    dma_flexio.transferCount(length / 4);
+    dma_flexio.disableOnCompletion();
+    dma_flexio.clearComplete();
+    dma_flexio.triggerAtHardwareEvent(_dma_source);
+  } else {
+    // We need to use dma settings.
+    uint8_t dmas_index = 0;
+    if (cb1 >= frame_size_bytes) {
+      // fit it into 3 _dmasettings
+      uint32_t cb_per_setting = ((frame_size_bytes / 3) + 4) & 0xfffffffc; // round up to next multiple of 4.
+      _dmasettings[0].TCD->CSR = 0;
+      _dmasettings[0].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[0].destinationBuffer(p, cb_per_setting);
+      _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
+
+      _dmasettings[1].TCD->CSR = 0;
+      _dmasettings[1].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[1].destinationBuffer(&p[cb_per_setting / 4], cb_per_setting);
+      _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[2]);
+
+      _dmasettings[2].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[2].destinationBuffer(&p[cb_per_setting / 2], cb1 - 2 * cb_per_setting);
+      _dmasettings[2].replaceSettingsOnCompletion(_dmasettings[0]);
+      _dmasettings[2].disableOnCompletion();
+      _dmasettings[2].interruptAtCompletion();
+      dmas_index = 2;
+    } else {
+      if ((cb1 + cb2) < frame_size_bytes) return; // not big enough
+      // have two buffers - see how we may need to distribute the dma settings.
+      uint8_t count_dma_settings = (cb1 / (32767 * 4)) + 1;
+      uint32_t cb_per_setting = ((cb1 / count_dma_settings) + 4) & 0xfffffffc; // round up to next multiple of 4.
+      
+      uint8_t cb_left = cb1;
+      for (; dmas_index < count_dma_settings; dmas_index++) {
+        _dmasettings[dmas_index].TCD->CSR = 0;
+        _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
+        _dmasettings[dmas_index].destinationBuffer(p, min(cb_per_setting, cb_left));
+        _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
+        p += (cb_per_setting / 4);
+        cb_left -= cb_per_setting;
+      }
+
+      cb_left = frame_size_bytes - cb1;
+      count_dma_settings = (cb_left / (32767 * 4)) + 1;
+      cb_per_setting = ((cb_left / count_dma_settings) + 4) & 0xfffffffc; // round up to next multiple of 4.
+      uint32_t *p = (uint32_t *)buffer2;
+
+      for (uint8_t i = 0; i < count_dma_settings; i++, dmas_index++) {
+        _dmasettings[dmas_index].TCD->CSR = 0;
+        _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
+        _dmasettings[dmas_index].destinationBuffer(p, min(cb_per_setting, cb_left));
+        _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
+        p += (cb_per_setting / 4);
+        cb_left -= cb_per_setting;
+      }
+      dmas_index--; // lets point back to the last one
+      _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[0]);
+      _dmasettings[dmas_index].disableOnCompletion();
+      _dmasettings[dmas_index].interruptAtCompletion();
+
+    }
+    dma_flexio = _dmasettings[0];
+    dma_flexio.clearComplete();
+
+    dumpDMA_TCD1(&dma_flexio, "flexio: ");
+    for (uint8_t i = 0; i <= dmas_index; i++) {
+      Serial.printf("     %u: ", i);
+      dumpDMA_TCD1(&_dmasettings[i]);
+    }
+
+  }
+
   dma_flexio.enable();
   _pflexio->SHIFTSDEN = _fshifter_mask;
 
@@ -1852,7 +2032,6 @@ void HM0360::readFrameFlexIO(void *buffer, bool fUseDMA) {
   arm_dcache_delete(buffer, length);
   //#endif
 }
-
 
 
 bool HM0360::startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2) {
@@ -1949,22 +2128,27 @@ bool HM0360::stopReadFlexIO() {
 //================================================================================
 // Define our DMA structure.
 DMAChannel HM0360::_dmachannel;
-DMASetting HM0360::_dmasettings[2];
+DMASetting HM0360::_dmasettings[4];
 uint32_t HM0360::_dmaBuffer1[DMABUFFER_SIZE] __attribute__((used, aligned(32)));
 uint32_t HM0360::_dmaBuffer2[DMABUFFER_SIZE] __attribute__((used, aligned(32)));
 extern "C" void xbar_connect(unsigned int input, unsigned int output);  // in pwm.c
 
 HM0360 *HM0360::active_dma_camera = nullptr;
 
-void dumpDMA_TCD1(DMABaseClass *dmabc) {
-  Serial.printf("%lx %lx:", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
+void dumpDMA_TCD1(DMABaseClass *dmabc, const char *psz_title=nullptr) {
+  if (psz_title)
+    Serial.print(psz_title);
+  Serial.printf("%x %x: ", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
 
-  Serial.printf("SA:%lx SO:%d AT:%x NB:%lx SL:%ld DA:%lx DO:%d CI:%x DL:%ld CS:%x BI:%x\n",
-                (uint32_t)dmabc->TCD->SADDR,
-                dmabc->TCD->SOFF, dmabc->TCD->ATTR, dmabc->TCD->NBYTES, dmabc->TCD->SLAST, (uint32_t)dmabc->TCD->DADDR,
-                dmabc->TCD->DOFF, dmabc->TCD->CITER, dmabc->TCD->DLASTSGA, dmabc->TCD->CSR, dmabc->TCD->BITER);
+  Serial.printf(
+      "SA:%x SO:%d AT:%x (SM:%x SS:%x DM:%x DS:%x) NB:%x SL:%d DA:%x DO: %d CI:%x DL:%x CS:%x BI:%x\n",
+      (uint32_t)dmabc->TCD->SADDR, dmabc->TCD->SOFF, dmabc->TCD->ATTR,
+      (dmabc->TCD->ATTR >> 11) & 0x1f, (dmabc->TCD->ATTR >> 8) & 0x7,
+      (dmabc->TCD->ATTR >> 3) & 0x1f, (dmabc->TCD->ATTR >> 0) & 0x7,
+      dmabc->TCD->NBYTES, dmabc->TCD->SLAST, (uint32_t)dmabc->TCD->DADDR,
+      dmabc->TCD->DOFF, dmabc->TCD->CITER, dmabc->TCD->DLASTSGA,
+      dmabc->TCD->CSR, dmabc->TCD->BITER);
 }
-
 
 //===================================================================
 // Start a DMA operation -

@@ -97,16 +97,18 @@ public:
   //-------------------------------------------------------
   //Generic Read Frame base on _hw_config
   void readFrame(void *buffer, bool fUseDMA = true);
+  void readFrameSplitBuffer(void *buffer1, size_t cb1, void *buffer2, size_t cb2, bool fUseDMA = true);
 
   //normal Read mode
-  void readFrameGPIO(void *buffer);
+  void readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
   void readFrame4BitGPIO(void *buffer);
   bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
   void stopReadContinuous();
 
   //FlexIO is default mode for the camera
-  void readFrameFlexIO(void *buffer);
-  void readFrameFlexIO(void *buffer, bool fUseDMA);
+  void readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0, bool fUseDMA=true);
+//  void readFrameFlexIO(void *buffer);
+//  void readFrameFlexIO(void *buffer, bool fUseDMA);
   bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
   bool stopReadFlexIO();
 
@@ -178,7 +180,7 @@ private:
   // DMA STUFF
   enum { DMABUFFER_SIZE = 1296 };  // 640x480  so 640*2*2
   static DMAChannel _dmachannel;
-  static DMASetting _dmasettings[2];
+  static DMASetting _dmasettings[4];
   static uint32_t _dmaBuffer1[DMABUFFER_SIZE];
   static uint32_t _dmaBuffer2[DMABUFFER_SIZE];
 

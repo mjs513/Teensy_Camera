@@ -8,9 +8,9 @@
 #define USE_SDCARD
 
 //#define ARDUCAM_CAMERA_HM01B0
-//#define ARDUCAM_CAMERA_HM0360
+#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
-#define ARDUCAM_CAMERA_OV7675
+//#define ARDUCAM_CAMERA_OV7675
 
 #if defined(ARDUCAM_CAMERA_HM0360)
 #include "TMM_HM0360/HM0360.h"
@@ -213,7 +213,7 @@ void setup() {
   //HM0360(8pin) 15/30/60/120 works :)
   //HM01B0(4pin only) 15/30/60 works, 120 not supported
   //camera.begin(FRAMESIZE_QVGA, 30);
-  camera.begin(FRAMESIZE_VGA4BIT, 15);
+  camera.begin(FRAMESIZE_VGA, 15);
 #endif
 
   Serial.println("getting model id");
@@ -715,7 +715,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
       for (uint16_t i = camera.width() - 8; i < camera.width(); i++) Serial.printf("%04x ", pfb[i]);
     }
     Serial.println("\n");
-#if 0  // Figure this out later... \
+#if 0  // Figure this out later... 
         // Lets dump out some of center of image.
             Serial.println("Show Center pixels\n");
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
@@ -739,8 +739,8 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
     Serial.printf("TFT(%u, %u) Camera(%u, %u)\n", tft.width(), tft.height(), camera.width(), camera.height());
   }
   //tft.setOrigin(-2, -2);
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
   int numPixels = camera.width() * camera.height();
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
 
 //int camera_width = Camera.width();
 #if 1
@@ -763,7 +763,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
     }
   } else {
     // We used both buffers.  Assume for now each buffer is in multples of Width
-    tft.writeRect(CENTER, CENTER, camera.width(), camera.height(), frameBuffer);
+//    tft.writeRect(CENTER, CENTER, camera.width(), camera.height(), frameBuffer);
     int start_x = (tft.width() - camera.width()) / 2;
     int start_y = (tft.height() - camera.height()) / 2;
     tft.writeRect(start_x, start_y, camera.width(), numPixels1 / camera.width(), frameBuffer);
@@ -778,7 +778,18 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
   tft.writeSubImageRect(0, 0, tft.width(), tft.height(), 0, 0, camera.width(), camera.height(), pixels);
 #endif
 #else
-  tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBuffer, mono_palette);
+  //tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBuffer, mono_palette);
+  int numPixels1 = min((int)(sizeof(frameBuffer)), numPixels);
+  int numPixels2 = min((int)(sizeof(frameBuffer)), numPixels - numPixels1);
+  int start_x = (tft.width() - camera.width()) / 2;
+  int start_y = (tft.height() - camera.height()) / 2;
+  tft.writeRect8BPP(start_x, start_y, camera.width(), numPixels1 / camera.width(), frameBuffer, mono_palette);
+
+  if (numPixels2) {
+    // now try second part
+    start_y += numPixels1 / camera.width();
+    tft.writeRect8BPP(start_x, start_y, camera.width(), numPixels2 / camera.width(), frameBuffer2, mono_palette);
+  }
 #endif
 }
 
