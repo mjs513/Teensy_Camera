@@ -418,7 +418,10 @@ void loop() {
           tft.useFrameBuffer(false);
           tft.fillScreen(TFT_BLACK);
           Serial.println("Reading frame");
-          Serial.printf("Buffer: %p halfway: %p end:%p\n", frameBuffer, &frameBuffer[camera.width() * camera.height() / 2], &frameBuffer[camera.width() * camera.height()]);
+          uint32_t count_pixels_in_buffer = sizeof(frameBuffer)/sizeof(frameBuffer[0]);
+          Serial.printf("Buffer1: %p(%u) halfway: %p end:%p\n", frameBuffer, sizeof(frameBuffer), &frameBuffer[count_pixels_in_buffer/2], &frameBuffer[count_pixels_in_buffer]);
+          count_pixels_in_buffer = sizeof(frameBuffer2)/sizeof(frameBuffer2[0]);
+          Serial.printf("Buffer2: %p(%u) halfway: %p end:%p\n", frameBuffer2, sizeof(frameBuffer2), &frameBuffer2[count_pixels_in_buffer/2], &frameBuffer2[count_pixels_in_buffer]);
           memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
           memset((uint8_t *)frameBuffer2, 0, sizeof(frameBuffer2));
           camera.readFrameSplitBuffer(frameBuffer, sizeof(frameBuffer), frameBuffer2, sizeof(frameBuffer2));

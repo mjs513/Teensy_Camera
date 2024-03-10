@@ -805,7 +805,7 @@ void dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title) {
   Serial.printf("%x %x: ", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
 
   Serial.printf(
-      "SA:%x SO:%d AT:%x (SM:%x SS:%x DM:%x DS:%x) NB:%x SL:%d DA:%x DO: %d CI:%x DL:%d CS:%x BI:%x\n",
+      "SA:%x SO:%d AT:%x (SM:%x SS:%x DM:%x DS:%x) NB:%x SL:%d DA:%x DO: %d CI:%x DL:%x CS:%x BI:%x\n",
       (uint32_t)dmabc->TCD->SADDR, dmabc->TCD->SOFF, dmabc->TCD->ATTR,
       (dmabc->TCD->ATTR >> 11) & 0x1f, (dmabc->TCD->ATTR >> 8) & 0x7,
       (dmabc->TCD->ATTR >> 3) & 0x1f, (dmabc->TCD->ATTR >> 0) & 0x7,
@@ -903,29 +903,40 @@ void OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
       _dmasettings[1].disableOnCompletion();
       _dmasettings[1].interruptAtCompletion();
     } else {
+      // Note: in this part we are going to use 3 
       // use the first two for the first buffer
-
+      uint32_t cb_per_setting = ((cb1 / 3) + 4) & 0xfffffffc; // round up to next multiple of 4.
       _dmasettings[0].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[0].destinationBuffer(p, cb1 / 2);
+      _dmasettings[0].destinationBuffer(p, cb_per_setting);
       _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
 
       _dmasettings[1].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[1].destinationBuffer(&p[cb1 / 8], cb1 / 2);
+      _dmasettings[1].destinationBuffer(&p[cb_per_setting / 4], cb_per_setting);
       _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[2]);
+
+      _dmasettings[2].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[2].destinationBuffer(&p[cb_per_setting / 2], cb1 - 2 * cb_per_setting);
+      _dmasettings[2].replaceSettingsOnCompletion(_dmasettings[3]);
 
       p = (uint32_t *)buffer2;
       cb_left = frame_size_bytes - cb1;
-      _dmasettings[2].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[2].destinationBuffer(p, cb_left / 2);
-      _dmasettings[2].replaceSettingsOnCompletion(_dmasettings[3]);
+      cb_per_setting = ((cb_left / 3) + 4) & 0xfffffffc; // round up to next multiple of 4.
 
       _dmasettings[3].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[3].destinationBuffer(&p[cb_left / 8], cb_left / 2);
-      _dmasettings[3].replaceSettingsOnCompletion(_dmasettings[0]);
+      _dmasettings[3].destinationBuffer(p, cb_per_setting);
+      _dmasettings[3].replaceSettingsOnCompletion(_dmasettings[4]);
+
+      _dmasettings[4].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[4].destinationBuffer(&p[cb_per_setting / 4],cb_per_setting);
+      _dmasettings[4].replaceSettingsOnCompletion(_dmasettings[5]);
+
+      _dmasettings[5].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[5].destinationBuffer(&p[cb_per_setting / 2], cb_left - 2 * cb_per_setting);
+      _dmasettings[5].replaceSettingsOnCompletion(_dmasettings[0]);
 
       _dmasettings[1].TCD->CSR &= ~(DMA_TCD_CSR_DREQ | DMA_TCD_CSR_INTMAJOR); // Don't disable or interrupt on this one
-      _dmasettings[3].disableOnCompletion();
-      _dmasettings[3].interruptAtCompletion();
+      _dmasettings[5].disableOnCompletion();
+      _dmasettings[5].interruptAtCompletion();
     }
 
     _dmachannel = _dmasettings[0];
@@ -938,6 +949,8 @@ void OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     if (cb_left) {
       dumpDMA_TCD(&_dmasettings[2], " 2: ");
       dumpDMA_TCD(&_dmasettings[3], " 3: ");      
+      dumpDMA_TCD(&_dmasettings[4], " 4: ");      
+      dumpDMA_TCD(&_dmasettings[5], " 5: ");      
     }
 #endif
 
@@ -1231,7 +1244,7 @@ bool OV767X::stopReadFlexIO()
 //================================================================================
 // Define our DMA structure.
 DMAChannel OV767X::_dmachannel;
-DMASetting OV767X::_dmasettings[4];
+DMASetting OV767X::_dmasettings[6];
 uint32_t OV767X::_dmaBuffer1[DMABUFFER_SIZE] __attribute__ ((used, aligned(32)));
 uint32_t OV767X::_dmaBuffer2[DMABUFFER_SIZE] __attribute__ ((used, aligned(32)));
 extern "C" void xbar_connect(unsigned int input, unsigned int output); // in pwm.c
