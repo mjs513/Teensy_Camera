@@ -62,6 +62,8 @@ public:
   void end();
   int reset();
   void showRegisters(void);
+  void debug(bool debug_on) {_debug = debug_on;}
+  bool debug() {return _debug;}
   int setPixformat(pixformat_t pfmt);
   uint8_t setFramesize(framesize_t framesize);
   int setFramerate(int framerate);
@@ -200,6 +202,7 @@ private:
   uint8_t _fshifter_mask;
   uint8_t _ftimer;
   uint8_t _dma_source;
+  bool _debug = true;
 
 #if defined(ARDUINO_TEENSY_MICROMOD)
   uint32_t _save_IOMUXC_GPR_GPR27;

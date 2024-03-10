@@ -1855,7 +1855,7 @@ bool HM0360::flexio_configure() {
 extern void dumpDMA_TCD1(DMABaseClass *dmabc, const char *psz_title=nullptr);
 
 void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2, bool use_dma) {
-    Serial.printf("$$HM0360::readFrameFlexIO(%p, %u, %p, %u, %u)\n", buffer, cb1, buffer2, cb2, use_dma);
+  if (_debug) Serial.printf("$$HM0360::readFrameFlexIO(%p, %u, %p, %u, %u)\n", buffer, cb1, buffer2, cb2, use_dma);
   //flexio_configure(); // one-time hardware setup
   // wait for VSYNC to be low
   //while ((*_vsyncPort & _vsyncMask) != 0);
@@ -1884,7 +1884,7 @@ void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
 
     uint32_t count_items_left = (_width*_height/4)/**_bytesPerPixel */;
     uint32_t count_items_left_in_buffer = (uint32_t)cb1 / 4;
-    Serial.printf("\tleft:%u in_buffer:%u\n", count_items_left, count_items_left_in_buffer);
+    if (_debug) Serial.printf("\tleft:%u in_buffer:%u\n", count_items_left, count_items_left_in_buffer);
 
     if (G4 != 0xff) {
       while (count_items_left) {
@@ -1894,7 +1894,7 @@ void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
         *p++ = _pflexio->SHIFTBUF[_fshifter];  // should use DMA...
         count_items_left--;
         if (buffer2 && (--count_items_left_in_buffer == 0)) {
-          Serial.println("\tSwitch to second buffer");
+          if (_debug) Serial.println("\tSwitch to second buffer");
           p = (uint32_t*)buffer2;
           count_items_left_in_buffer = (uint32_t)cb2 / 4;
         }
@@ -1997,15 +1997,17 @@ void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
       _dmasettings[dmas_index].interruptAtCompletion();
 
     }
+    dma_flexio.triggerAtHardwareEvent(_dma_source);
     dma_flexio = _dmasettings[0];
     dma_flexio.clearComplete();
 
-    dumpDMA_TCD1(&dma_flexio, "flexio: ");
-    for (uint8_t i = 0; i <= dmas_index; i++) {
-      Serial.printf("     %u: ", i);
-      dumpDMA_TCD1(&_dmasettings[i]);
+    if (_debug) {
+      dumpDMA_TCD1(&dma_flexio, "flexio: ");
+      for (uint8_t i = 0; i <= dmas_index; i++) {
+        Serial.printf("     %u: ", i);
+        dumpDMA_TCD1(&_dmasettings[i]);
+      }
     }
-
   }
 
   dma_flexio.enable();
@@ -2029,7 +2031,11 @@ void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
       break;
     }
   }
-  arm_dcache_delete(buffer, length);
+  if ((uint32_t)buffer >= 0x20200000u) arm_dcache_delete(buffer, min(cb1, frame_size_bytes));
+  uint32_t cb_left = frame_size_bytes - cb1;
+  if (cb_left && ((uint32_t)buffer2 >= 0x20200000u)) arm_dcache_delete(buffer2, cb_left);
+
+  //arm_dcache_delete(buffer, length);
   //#endif
 }
 
