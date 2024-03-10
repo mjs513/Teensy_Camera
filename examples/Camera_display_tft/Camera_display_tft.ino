@@ -4,34 +4,34 @@
 
 #include "Camera.h"
 
-#define USE_MMOD_ATP_ADAPTER
+//#define USE_MMOD_ATP_ADAPTER
 #define USE_SDCARD
 
-//#define ARDUCAM_CAMERA_HM01B0
+#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
-#define ARDUCAM_CAMERA_OV7675
+//#define ARDUCAM_CAMERA_OV7675
 
 #if defined(ARDUCAM_CAMERA_HM0360)
-#include "TMM_HM0360/HM0360.h"
-HM0360 himax;
-Camera camera(himax);
-#define CameraID 0x0360
+  #include "TMM_HM0360/HM0360.h"
+  HM0360 himax;
+  Camera camera(himax);
+  #define CameraID 0x0360
 #elif defined(ARDUCAM_CAMERA_HM01B0)
-#include "TMM_HM01B0/HM01B0.h"
-HM01B0 himax;
-Camera camera(himax);
-#define CameraID 0x01B0
+  #include "TMM_HM01B0/HM01B0.h"
+  HM01B0 himax;
+  Camera camera(himax);
+  #define CameraID 0x01B0
 #elif defined(ARDUCAM_CAMERA_OV7670)
-#include "TMM_OV767X/OV767X.h"
-OV767X omni;
-Camera camera(omni);
-#define CameraID 0x7676
+  #include "TMM_OV767X/OV767X.h"
+  OV767X omni;
+  Camera camera(omni);
+  #define CameraID 0x7676
 #elif defined(ARDUCAM_CAMERA_OV7675)
-#include "TMM_OV767X/OV767X.h"
-OV767X omni;
-Camera camera(omni);
-#define CameraID 0x7673
+  #include "TMM_OV767X/OV767X.h"
+  OV767X omni;
+  Camera camera(omni);
+  #define CameraID 0x7673
 #endif
 
 File file;
@@ -41,7 +41,7 @@ File file;
  * does not work.  Arduino breakout only brings out  *
  * the lower 4 bits.                                 *
  ****************************************************/
-#define _hmConfig 2 // select mode string below
+#define _hmConfig 1 // select mode string below
 
 PROGMEM const char hmConfig[][48] = {
  "FLEXIO_CUSTOM_LIKE_8_BIT",
@@ -124,9 +124,8 @@ ae_cfg_t aecfg;
 
 void setup()
 {
-    while(!Serial && millis() < 5000){}
     Serial.begin(921600);
-
+    while(!Serial && millis() < 5000) { }
 #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
     SerialUSB1.begin(921600);
 #endif
@@ -623,16 +622,29 @@ void send_image(Stream *imgSerial) {
   delay(50);
 }
 
-//#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
 void send_raw() {
   memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
   camera.readFrame(frameBuffer);
   uint32_t idx = 0;
-  for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
-    idx = i * 2;
-    SerialUSB1.write((frameBuffer[i] >> 8) & 0xFF);
-    SerialUSB1.write((frameBuffer[i]) & 0xFF);
-  }
+  #ifdef CAMERA_USES_MONO_PALETTE
+    uint32_t image_idx = 0;
+    uint32_t frame_idx = 0;
+    for (uint32_t row = 0; row < FRAME_HEIGHT; row++) {
+      for (uint32_t col = 0; col < FRAME_WIDTH; col++) {
+        frame_idx = ((FRAME_WIDTH + 4) * (row + 2)) + col + 2;
+        uint16_t framePixel = color565(frameBuffer[frame_idx], frameBuffer[frame_idx], frameBuffer[frame_idx]);
+        SerialUSB1.write((framePixel) & 0xFF);
+        SerialUSB1.write( (framePixel >> 8) & 0xFF);
+        delayMicroseconds(8);
+      }
+    }
+  #else
+    for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
+      idx = i * 2;
+      SerialUSB1.write((frameBuffer[i] >> 8) & 0xFF);
+      SerialUSB1.write((frameBuffer[i]) & 0xFF);
+    }
+  #endif
 }
 #endif
 
