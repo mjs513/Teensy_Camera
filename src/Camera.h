@@ -65,7 +65,7 @@ public:
 
   //FlexIO is default mode for the camera
   //virtual void readFrameFlexIO(void* buffer);
-  virtual void readFrameFlexIO(void *buffer, bool fUseDMA) = 0;
+  virtual void readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0, bool fUseDMA=true) = 0;
 
   virtual bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2) = 0;
   virtual bool stopReadFlexIO() = 0;
@@ -155,7 +155,7 @@ public:
 
   //FlexIO is default mode for the camera
   //void readFrameFlexIO(void* buffer);
-  void readFrameFlexIO(void *buffer, bool fUseDMA);
+  void readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0, bool fUseDMA=true);
 
   bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
   bool stopReadFlexIO();

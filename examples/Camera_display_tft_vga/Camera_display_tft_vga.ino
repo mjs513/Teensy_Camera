@@ -41,7 +41,7 @@ File file;
  * does not work.  Arduino breakout only brings out  *
  * the lower 4 bits.                                 *
  ****************************************************/
-#define _hmConfig 0  // select mode string below
+#define _hmConfig 2  // select mode string below
 
 PROGMEM const char hmConfig[][48] = {
   "FLEXIO_CUSTOM_LIKE_8_BIT",
@@ -205,7 +205,7 @@ void setup() {
 
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
   // VGA mode
-  camera.begin(FRAMESIZE_VGA, RGB565, 15, true);
+  camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
 #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)

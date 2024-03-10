@@ -141,8 +141,8 @@ void Camera::readFrameFlexIO(void* buffer)
 }
 */
 
-void Camera::readFrameFlexIO(void *buffer, bool fUseDMA) {
-  return sensor->readFrameFlexIO(buffer, fUseDMA);
+void Camera::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2, bool fUseDMA) {
+  return sensor->readFrameFlexIO(buffer, cb1, buffer2, cb2, fUseDMA);
 }
 
 bool Camera::startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2) {
