@@ -627,7 +627,7 @@ void HM0360::readFrame(void *buffer, bool fUseDMA) {
 #if defined(_use_original)
     readFrameFlexIO(buffer);
 #else
-    readFrameFlexIO(buffer, fUseDMA);
+    readFrameFlexIO(buffer, (size_t)-1, nullptr, 0, fUseDMA);
 #endif
   } else {
     readFrameGPIO(buffer);
@@ -2032,9 +2032,9 @@ void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     }
   }
   if ((uint32_t)buffer >= 0x20200000u) arm_dcache_delete(buffer, min(cb1, frame_size_bytes));
-  uint32_t cb_left = frame_size_bytes - cb1;
-  if (cb_left && ((uint32_t)buffer2 >= 0x20200000u)) arm_dcache_delete(buffer2, cb_left);
-
+  if (frame_size_bytes > cb1) {
+    if ((uint32_t)buffer2 >= 0x20200000u) arm_dcache_delete(buffer2, frame_size_bytes - cb1);
+  } 
   //arm_dcache_delete(buffer, length);
   //#endif
 }

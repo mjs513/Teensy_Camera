@@ -62,6 +62,8 @@ public:
   void end();
   int reset();
   void showRegisters(void);
+  void debug(bool debug_on) {_debug = debug_on;}
+  bool debug() {return _debug;}
   int setPixformat( pixformat_t pfmt);
   uint8_t setFramesize(framesize_t framesize);
   int setFramerate(int framerate);
@@ -98,6 +100,7 @@ public:
   //-------------------------------------------------------
   //Generic Read Frame base on _hw_config
   void readFrame(void* buffer, bool fUseDMA = true);
+  void readFrameSplitBuffer(void *buffer1, size_t cb1, void *buffer2, size_t cb2, bool fUseDMA = true);
   
   //normal Read mode
   //void readFrameGPIO(void* buffer);
@@ -108,7 +111,8 @@ public:
   void stopReadContinuous();
 
   //FlexIO is default mode for the camera
-  void readFrameFlexIO(void* buffer, bool fUseDMA);
+  void readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0, bool fUseDMA=true);
+  //void readFrameFlexIO(void* buffer, bool fUseDMA);
   bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
   bool stopReadFlexIO();
 
@@ -180,11 +184,12 @@ private:
 
   // Added settings for configurable flexio
   FlexIOHandler *_pflex;
-    IMXRT_FLEXIO_t *_pflexio;
+  IMXRT_FLEXIO_t *_pflexio;
   uint8_t _fshifter;
   uint8_t _fshifter_mask;
-    uint8_t _ftimer;
-    uint8_t _dma_source;
+  uint8_t _ftimer;
+  uint8_t _dma_source;
+  bool _debug = true;
 
 
 
