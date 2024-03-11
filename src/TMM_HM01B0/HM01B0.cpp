@@ -1221,7 +1221,7 @@ void HM01B0::stopReadContinuous() {
   stopReadFlexIO();
 
 }
-
+/*
 void HM01B0::readFrameGPIO(void* buffer)
 {
 
@@ -1273,6 +1273,72 @@ void HM01B0::readFrameGPIO(void* buffer)
 
    setMode(HIMAX_MODE_STREAMING, 0);
 
+}
+*/
+
+void HM01B0::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
+{
+  uint8_t *b = (uint8_t *)buffer;
+  uint32_t cb = (uint32_t)cb1;
+  bool _grayscale;
+  int bytesPerRow;
+//Change for Monodchrome only Sparkfun HB01b0
+#if defined(SensorMonochrome)
+  _grayscale = false;
+  bytesPerRow = _width;
+#else
+  _grayscale = (pixformat == PIXFORMAT_GRAYSCALE);
+  bytesPerRow = _width * 2;
+#endif
+
+  // Falling edge indicates start of frame
+  //pinMode(PCLK_PIN, INPUT); // make sure back to input pin...
+  // lets add our own glitch filter.  Say it must be hig for at least 100us
+  elapsedMicros emHigh;
+  do {
+    while ((*_vsyncPort & _vsyncMask) == 0)
+      ;  // wait for HIGH
+    emHigh = 0;
+    while ((*_vsyncPort & _vsyncMask) != 0)
+      ;  // wait for LOW
+  } while (emHigh < 2);
+
+  for (int i = 0; i < _height; i++) {
+    // rising edge indicates start of line
+    while ((*_hrefPort & _hrefMask) == 0)
+      ;  // wait for HIGH
+    while ((*_pclkPort & _pclkMask) != 0)
+      ;  // wait for LOW
+    noInterrupts();
+
+    for (int j = 0; j < bytesPerRow; j++) {
+      // rising edges clock each data byte
+      while ((*_pclkPort & _pclkMask) == 0)
+        ;  // wait for HIGH
+
+      //uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >> 18; // read all bits in parallel
+      uint32_t in = (GPIO7_PSR >> 4);  // read all bits in parallel
+                                       //uint32_t in = mmBus;
+
+      if (!(j & 1) || !_grayscale) {
+        *b++ = in;
+        if ( buffer2 && (--cb == 0) ) {
+          Serial.printf("\t$$ 2nd buffer: %u %u\n", i, j);
+          b = (uint8_t *)buffer2;
+          cb = (uint32_t)cb2;
+          buffer2 = nullptr;
+        }
+      }
+      while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0))
+        ;  // wait for LOW bail if _href is lost
+    }
+
+    while ((*_hrefPort & _hrefMask) != 0)
+      ;  // wait for LOW
+    interrupts();
+  }
+
+  setMode(HIMAX_MODE_STREAMING, 0);
 }
 
 void HM01B0::readFrame4BitGPIO(void* buffer)

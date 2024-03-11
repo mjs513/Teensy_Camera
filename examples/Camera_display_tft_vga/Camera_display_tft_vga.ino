@@ -11,6 +11,7 @@
 //#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
 #define ARDUCAM_CAMERA_OV7675
+//#define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
 #include "TMM_HM0360/HM0360.h"
@@ -28,10 +29,15 @@ OV767X omni;
 Camera camera(omni);
 #define CameraID 0x7676
 #elif defined(ARDUCAM_CAMERA_OV7675)
-#include "TMM_OV767X/OV767X.h"
-OV767X omni;
-Camera camera(omni);
-#define CameraID 0x7673
+  #include "TMM_OV767X/OV767X.h"
+  OV767X omni;
+  Camera camera(omni);
+  #define CameraID 0x7673
+#elif defined(ARDUCAM_CAMERA_GC2145)
+  #include "TMM_GC2145/GC2145.h"
+  GC2145 galaxycore;
+  Camera camera(galaxycore);
+  #define CameraID 0x7673
 #endif
 
 File file;
@@ -205,7 +211,7 @@ void setup() {
   }
 #endif
 
-#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
+#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
   // VGA mode
   camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
 #else
@@ -276,7 +282,7 @@ inline uint16_t HTONS(uint16_t x) {
   return ((x >> 8) & 0x00FF) | ((x << 8) & 0xFF00);
 }
 
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
 
 volatile uint16_t *pfb_last_frame_returned = nullptr;
 
@@ -390,7 +396,7 @@ void loop() {
           //camera.readFrame(frameBuffer);
           camera.readFrameSplitBuffer(frameBuffer, sizeof(frameBuffer), frameBuffer2, sizeof(frameBuffer2));
 
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
           int numPixels = camera.width() * camera.height();
           //for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
           int numPixels1 = min((int)(sizeof(frameBuffer) / 2), numPixels);
@@ -715,7 +721,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
   if (show_debug_info) {
     Serial.println("Finished reading frame");
     Serial.flush();
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
     for (volatile uint16_t *pfb = frameBuffer; pfb < (frameBuffer + 4 * camera.width()); pfb += camera.width()) {
 #else
     for (volatile uint8_t *pfb = frameBuffer; pfb < (frameBuffer + 4 * camera.width()); pfb += camera.width()) {

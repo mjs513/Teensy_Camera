@@ -7,10 +7,11 @@
 //#define USE_MMOD_ATP_ADAPTER
 #define USE_SDCARD
 
-#define ARDUCAM_CAMERA_HM01B0
+//#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
 //#define ARDUCAM_CAMERA_OV7675
+#define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
   #include "TMM_HM0360/HM0360.h"
@@ -31,6 +32,11 @@
   #include "TMM_OV767X/OV767X.h"
   OV767X omni;
   Camera camera(omni);
+  #define CameraID 0x7673
+#elif defined(ARDUCAM_CAMERA_GC2145)
+  #include "TMM_GC2145/GC2145.h"
+  GC2145 galaxycore;
+  Camera camera(galaxycore);
   #define CameraID 0x7673
 #endif
 
@@ -103,7 +109,7 @@ ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
 
 // Setup framebuffers
 DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
   uint16_t DMAMEM frameBuffer[(320) * 240] __attribute__((aligned(32))); 
   uint16_t DMAMEM frameBuffer2[(320) * 240] __attribute__((aligned(32))); 
 #else
@@ -198,7 +204,7 @@ void setup()
   }
 #endif
 
-  #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
+  #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
     camera.begin(FRAMESIZE_QVGA, RGB565, 15);
   #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
@@ -269,7 +275,7 @@ inline uint16_t HTONS(uint16_t x) {
   return ((x >> 8) & 0x00FF) | ((x << 8) & 0xFF00);
 }
 
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
 
 volatile uint16_t *pfb_last_frame_returned = nullptr;
 
@@ -383,7 +389,7 @@ void loop()
         memset((uint8_t*)frameBuffer, 0, sizeof(frameBuffer));
         camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
         camera.readFrame(frameBuffer);
-        #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+        #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
           int numPixels = camera.width() * camera.height();
           for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
         #endif
@@ -419,7 +425,7 @@ void loop()
         memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
         camera.readFrame(frameBuffer);
         Serial.println("Finished reading frame"); Serial.flush();
-        #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+        #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
           for (volatile uint16_t *pfb = frameBuffer; pfb < (frameBuffer + 4 * camera.width()); pfb += camera.width()) {
         #else
           for (volatile uint8_t *pfb = frameBuffer; pfb < (frameBuffer + 4 * camera.width()); pfb += camera.width()) {
@@ -434,7 +440,7 @@ void loop()
 
           // Lets dump out some of center of image.
           Serial.println("Show Center pixels\n");
-          #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+          #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
           for (volatile uint16_t *pfb = frameBuffer + camera.width() * ((camera.height() / 2) - 8); pfb < (frameBuffer + camera.width() * (camera.height() / 2 + 8)); pfb += camera.width()) {
           #else
           for (volatile uint8_t *pfb = frameBuffer + camera.width() * ((camera.height() / 2) - 8); pfb < (frameBuffer + camera.width() * (camera.height() / 2 + 8)); pfb += camera.width()) {
@@ -453,7 +459,7 @@ void loop()
           //int camera_width = Camera.width();
 
         tft.setOrigin(-2, -2);
-        #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+        #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
           int numPixels = camera.width() * camera.height();
           Serial.printf("TFT(%u, %u) Camera(%u, %u)\n", tft.width(), tft.height(), camera.width(), camera.height());
 //int camera_width = Camera.width();

@@ -249,6 +249,10 @@ public:
   void readFrame4BitGPIO(void* buffer) {Serial.println("4 Bit mode not supported ..... !!!!!"); }
   int16_t mode(void) { return 0; }
   int setAutoExposure(int enable, int exposure_us) { return 0; } ;
+  
+  // unique to GC2145................................
+  void printRegisters(bool only_ones_set = true) {} ;
+  int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db) { return 0;};
 
   
 private:

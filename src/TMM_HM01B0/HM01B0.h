@@ -92,12 +92,17 @@ public:
   void autoGain(int enable, float gain_db, float gain_db_ceiling) {};
   void setExposure(int exposure) {}; // 0 - 65535
   void autoExposure(int enable) {};
+  void printRegisters(bool only_ones_set = true) {} ;
+  int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db) { return 0;};
+
   //-------------------------------------------------------
   //Generic Read Frame base on _hw_config
   void readFrame(void* buffer, bool fUseDMA = true);
   
   //normal Read mode
-  void readFrameGPIO(void* buffer);
+  //void readFrameGPIO(void* buffer);
+  void readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
+
   void readFrame4BitGPIO(void* buffer);
   bool readContinuous(bool(*callback)(void *frame_buffer), void *fb1, void *fb2);
   void stopReadContinuous();

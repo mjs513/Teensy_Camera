@@ -5,6 +5,7 @@ typedef enum {
     YUV422,
     RGB444,
     RGB565,
+    BAYER,
     GRAYSCALE,
 } pixformat_t;
 
