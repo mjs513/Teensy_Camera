@@ -8,9 +8,9 @@
 #define USE_SDCARD
 
 //#define ARDUCAM_CAMERA_HM01B0
-#define ARDUCAM_CAMERA_HM0360
+//#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
-//#define ARDUCAM_CAMERA_OV7675
+#define ARDUCAM_CAMERA_OV7675
 
 #if defined(ARDUCAM_CAMERA_HM0360)
 #include "TMM_HM0360/HM0360.h"
@@ -387,10 +387,17 @@ void loop() {
 #if defined(USE_SDCARD)
           memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
           camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
-          camera.readFrame(frameBuffer);
+          //camera.readFrame(frameBuffer);
+          camera.readFrameSplitBuffer(frameBuffer, sizeof(frameBuffer), frameBuffer2, sizeof(frameBuffer2));
+
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
           int numPixels = camera.width() * camera.height();
-          for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
+          //for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
+          int numPixels1 = min((int)(sizeof(frameBuffer) / 2), numPixels);
+          int numPixels2 = min((int)(sizeof(frameBuffer2) / 2), numPixels - numPixels1);
+          for (int i = 0; i < numPixels1; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
+          for (int i = 0; i < numPixels2; i++) frameBuffer2[i] = HTONS(frameBuffer2[i]);
+
 #endif
           save_image_SD();
           ch = ' ';
@@ -635,11 +642,14 @@ void save_image_SD() {
   file.write(bmpInfoHeader, sizeof(bmpInfoHeader));  // " info header
 
 // try to compute and output one row at a time.
+// Handle possible split buffer.
 #ifdef CAMERA_USES_MONO_PALETTE
   uint8_t *pfb = frameBuffer;
+  uint32_t count_y_first_buffer = sizeof(frameBuffer) / w;
   uint8_t img[3];
   for (int y = h - 1; y >= 0; y--) {  // iterate image array
-    pfb = &frameBuffer[y * w];
+    if (y < count_y_first_buffer) pfb = &frameBuffer[y * w];
+    else pfb = &frameBuffer2[(y - count_y_first_buffer) * w];
     for (int x = 0; x < w; x++) {
       //r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3
       img[2] = *pfb;  // r
@@ -651,8 +661,10 @@ void save_image_SD() {
 #else
   uint16_t *pfb = frameBuffer;
   uint8_t img[3];
+  uint32_t count_y_first_buffer = sizeof(frameBuffer) / (w * 2);
   for (int y = h - 1; y >= 0; y--) {  // iterate image array
-    pfb = &frameBuffer[y * w];
+    if (y < count_y_first_buffer) pfb = &frameBuffer[y * w];
+    else pfb = &frameBuffer2[(y - count_y_first_buffer) * w];
     for (int x = 0; x < w; x++) {
       //r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3
       img[2] = (*pfb >> 8) & 0xf8;  // r
@@ -715,8 +727,8 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
       for (uint16_t i = camera.width() - 8; i < camera.width(); i++) Serial.printf("%04x ", pfb[i]);
     }
     Serial.println("\n");
-#if 0  // Figure this out later... 
-        // Lets dump out some of center of image.
+#if 0  // Figure this out later... \
+       // Lets dump out some of center of image.
             Serial.println("Show Center pixels\n");
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
             for (volatile uint16_t *pfb = frameBuffer + camera.width() * ((camera.height() / 2) - 8); pfb < (frameBuffer + camera.width() * (camera.height() / 2 + 8)); pfb += camera.width()) {
@@ -748,7 +760,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
   //for (int i = 0; i < numPixels; i++) frameBuffer[i] = (frameBuffer[i] >> 8) | (((frameBuffer[i] & 0xff) << 8));
   // now see if all fit into one buffer or part in second...
   int numPixels1 = min((int)(sizeof(frameBuffer) / 2), numPixels);
-  int numPixels2 = min((int)(sizeof(frameBuffer) / 2), numPixels - numPixels1);
+  int numPixels2 = min((int)(sizeof(frameBuffer2) / 2), numPixels - numPixels1);
   for (int i = 0; i < numPixels1; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
   for (int i = 0; i < numPixels2; i++) frameBuffer2[i] = HTONS(frameBuffer2[i]);
 
@@ -763,7 +775,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
     }
   } else {
     // We used both buffers.  Assume for now each buffer is in multples of Width
-//    tft.writeRect(CENTER, CENTER, camera.width(), camera.height(), frameBuffer);
+    //    tft.writeRect(CENTER, CENTER, camera.width(), camera.height(), frameBuffer);
     int start_x = (tft.width() - camera.width()) / 2;
     int start_y = (tft.height() - camera.height()) / 2;
     tft.writeRect(start_x, start_y, camera.width(), numPixels1 / camera.width(), frameBuffer);
@@ -834,7 +846,7 @@ void read_display_multiple_frames(bool use_frame_buffer) {
                             camera.width(), camera.height(), frameBuffer);
     }
 #endif
-#endif // 1
+#endif  // 1
     if (use_frame_buffer) tft.updateScreenAsync();
 
     frame_count++;

@@ -816,7 +816,7 @@ void dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title) {
 
 void OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2, bool use_dma)
 {
-    Serial.printf("$$OV767X::readFrameFlexIO(%p, %u, %p, %u, %u)\n", buffer, cb1, buffer2, cb2, use_dma);
+    if (_debug)Serial.printf("$$OV767X::readFrameFlexIO(%p, %u, %p, %u, %u)\n", buffer, cb1, buffer2, cb2, use_dma);
     //flexio_configure(); // one-time hardware setup
     // wait for VSYNC to go high and then low with a sort of glitch filter
     elapsedMillis emWaitSOF;
