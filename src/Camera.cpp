@@ -237,8 +237,3 @@ bool Camera::begin(framesize_t resolution, pixformat_t format, int fps, bool use
 int Camera::setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db) {
     return sensor->setAutoWhitebal(enable, r_gain_db, g_gain_db, b_gain_db);
 }
-
-
-void Camera::printRegisters(bool only_ones_set) {
-    sensor->printRegisters(only_ones_set);
-}

@@ -52,7 +52,7 @@ public:
   virtual void autoGain(int enable, float gain_db, float gain_db_ceiling) = 0;
   virtual void setExposure(int exposure) = 0; // 0 - 65535
   virtual void autoExposure(int enable) = 0;
-  virtual void printRegisters(bool only_ones_set = true);
+  
   virtual int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db);
 
   // grab Frame functions
@@ -146,7 +146,6 @@ public:
   void setExposure(int exposure); // 0 - 65535
   void autoExposure(int enable);
   /***********  GC2145 specific ************************/
-  void printRegisters(bool only_ones_set = true);
   int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db);
 
   // grab Frame functions

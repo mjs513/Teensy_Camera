@@ -37,7 +37,7 @@
   #include "TMM_GC2145/GC2145.h"
   GC2145 galaxycore;
   Camera camera(galaxycore);
-  #define CameraID 0x7673
+  #define CameraID 0x2145
 #endif
 
 File file;

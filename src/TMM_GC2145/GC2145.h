@@ -127,18 +127,18 @@ SDA             18      AD_B1_1 I2C
 typedef enum {
     FRAMESIZE_INVALID = 0,
     // C/SIF Resolutions
-    FRAMESIZE_QQCIF,    // 88x72
-    FRAMESIZE_QCIF,     // 176x144
-    FRAMESIZE_CIF,      // 352x288
-    FRAMESIZE_QQSIF,    // 88x60
-    FRAMESIZE_QSIF,     // 176x120
-    FRAMESIZE_SIF,      // 352x240
+    FRAMESIZE_QQCIF,    // 88x72  0
+    FRAMESIZE_QCIF,     // 176x144  1
+    FRAMESIZE_CIF,      // 352x288  2
+    FRAMESIZE_QQSIF,    // 88x60  3
+    FRAMESIZE_QSIF,     // 176x120  4
+    FRAMESIZE_SIF,      // 352x240  5
     // VGA Resolutions
     FRAMESIZE_QQQQVGA,  // 40x30
     FRAMESIZE_QQQVGA,   // 80x60
-    FRAMESIZE_QQVGA,    // 160x120
-    FRAMESIZE_QVGA,     // 320x240
-    FRAMESIZE_VGA,      // 640x480
+    FRAMESIZE_QQVGA,    // 160x120  8
+    FRAMESIZE_QVGA,     // 320x240  9
+    FRAMESIZE_VGA,      // 640x480 11
     FRAMESIZE_HQQQQVGA, // 30x20
     FRAMESIZE_HQQQVGA,  // 60x40
     FRAMESIZE_HQQVGA,   // 120x80
@@ -188,7 +188,8 @@ public:
   void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, uint8_t en_pin,
                      uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4, uint8_t g5, uint8_t g6, uint8_t g7, TwoWire &wire);
 
-  bool begin(framesize_t resolution, int format, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
+  //bool begin(framesize_t resolution, int format, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
+  bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, bool use_gpio = false); 
   void end();
   uint16_t getModelid();
 
@@ -200,14 +201,15 @@ public:
   
   int reset();
   int sleep(int enable);
-  int setPixelFormat(int32_t pixformat);
+  int setPixelFormat(pixformat_t pixformat);
   uint8_t setFramesize(framesize_t framesize);
   int setHmirror(int enable);
   int setVflip(int enable);
   int setAutoExposure(int enable, int exposure_us);
   int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db);
-  void printRegisters(bool only_ones_set = true);
-  
+  //void printRegisters(bool only_ones_set = true);
+  void showRegisters();
+
   /**********************************************************/
   
   //other camera functions - non-operational
@@ -235,10 +237,7 @@ public:
   void autoGain(int enable, float gain_db, float gain_db_ceiling) {  }
   void setExposure(int exposure) {  } // 0 - 65535
   void autoExposure(int enable) {}
-  void showRegisters() {}
-   bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, 
-                         int fps = 30, bool use_gpio = false){ return false;}
-
+  bool begin(framesize_t resolution, int format, bool use_gpio = false){return 0;}
   void readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0, bool fUseDMA=true){}
 /********************************************************************************************/
 	//-------------------------------------------------------

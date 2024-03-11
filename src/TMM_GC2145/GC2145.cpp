@@ -69,50 +69,14 @@ static bool fov_wide = false;
 
 // Sensor frame size/resolution table.
 const int resolution[][2] = {
-    {0,    0   },
-    // C/SIF Resolutions
-    {88,   72  },    /* QQCIF     */
-    {176,  144 },    /* QCIF      */
-    {352,  288 },    /* CIF       */
-    {88,   60  },    /* QQSIF     */
-    {176,  120 },    /* QSIF      */
-    {352,  240 },    /* SIF       */
-    // VGA Resolutions
-    {40,   30  },    /* QQQQVGA   */
-    {80,   60  },    /* QQQVGA    */
+    {640,  480 },    /* VGA       */
     {160,  120 },    /* QQVGA     */
     {320,  240 },    /* QVGA      */
-    {640,  480 },    /* VGA       */
-    {30,   20  },    /* HQQQQVGA  */
-    {60,   40  },    /* HQQQVGA   */
-    {120,  80  },    /* HQQVGA    */
-    {240,  160 },    /* HQVGA     */
-    {480,  320 },    /* HVGA      */
-    // FFT Resolutions
-    {64,   32  },    /* 64x32     */
-    {64,   64  },    /* 64x64     */
-    {128,  64  },    /* 128x64    */
-    {128,  128 },    /* 128x128   */
-    // Himax Resolutions
-    {160,  160 },    /* 160x160   */
     {320,  320 },    /* 320x320   */
-    // Other
-    {128,  160 },    /* LCD       */
-    {128,  160 },    /* QQVGA2    */
-    {720,  480 },    /* WVGA      */
-    {752,  480 },    /* WVGA2     */
-    {800,  600 },    /* SVGA      */
-    {1024, 768 },    /* XGA       */
-    {1280, 768 },    /* WXGA      */
-    {1280, 1024},    /* SXGA      */
-    {1280, 960 },    /* SXGAM     */
-    {1600, 1200},    /* UXGA      */
-    {1280, 720 },    /* HD        */
-    {1920, 1080},    /* FHD       */
-    {2560, 1440},    /* QHD       */
-    {2048, 1536},    /* QXGA      */
-    {2560, 1600},    /* WQXGA     */
-    {2592, 1944},    /* WQXGA2    */
+    {320,  240 },    /* QVGA      */
+    {176,  144 },    /* QCIF      */
+    {352,  288 },    /* CIF       */
+    {0,    0   },
 };
 
 static const uint8_t default_regs[][2] = {
@@ -933,7 +897,7 @@ void GC2145::setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint
   _dPins[7] = g7;
   
   _wire = &wire;
-              
+
   //memcpy(_dPins, dpins, sizeof(_dPins));
 }
 
@@ -942,19 +906,20 @@ uint16_t GC2145::getModelid()
 {
     uint8_t Data;
     uint16_t MID = 0x0000;
-
+cameraWriteRegister(0xFE, 0x00);
     Data = cameraReadRegister(0XF0);
        MID = (Data << 8);
-
+Serial.printf("F0: 0x%x\n", Data);
     Data = cameraReadRegister(0XF1);
         MID |= Data;
-
+Serial.printf("F1: 0x%x\n", Data);
     return MID;
 }
 
-bool GC2145::begin(framesize_t resolution, int format, bool use_gpio)
+//bool GC2145::begin(framesize_t resolution, int format, bool use_gpio)
+bool GC2145::begin_omnivision(framesize_t resolution, pixformat_t format, int fps, bool use_gpio)
 {
-    _wire = &Wire;
+    //_wire = &Wire;
     _wire->begin();
 
   _use_gpio = use_gpio;
@@ -962,7 +927,7 @@ bool GC2145::begin(framesize_t resolution, int format, bool use_gpio)
   pinMode(49, OUTPUT);
     
   Serial.println("GC2145::begin");
-  
+   
   _grayscale = false;
   switch (format) {
   case YUV422:
@@ -1021,7 +986,7 @@ bool GC2145::begin(framesize_t resolution, int format, bool use_gpio)
   setPixelFormat(format);
   Serial.println("\nSetting FrameSize");
   setFramesize(resolution);
-printRegisters();
+  //printRegisters();
 
 //flexIO/DMA
     if(!_use_gpio) {
@@ -1073,7 +1038,7 @@ int GC2145::sleep(int enable) {
     return ret;
 }
 
-int GC2145::setPixelFormat(int32_t pixformat)
+int GC2145::setPixelFormat(pixformat_t pixformat)
 {
     int ret = 0;
     uint8_t reg;
@@ -1629,6 +1594,7 @@ static const GC2145_TO_NAME_t GC2145_reg_name_table[] PROGMEM {
 uint16_t gc2145_reg_page = 0;
 uint32_t gc2145_registers_set[32] = {0};
 
+#if (0)
 void GC2145::printRegisters(bool only_ones_set)
 {
     uint8_t reg;
@@ -1672,7 +1638,15 @@ void GC2145::printRegisters(bool only_ones_set)
         }
     }
 }
+#endif
 
+void GC2145::showRegisters(void) {
+  Serial.println("\n*** Camera Registers ***");
+  for (uint16_t ii = 0; ii < (sizeof(GC2145_reg_name_table) / sizeof(GC2145_reg_name_table[0])); ii++) {
+    uint8_t reg_value = cameraReadRegister(GC2145_reg_name_table[ii].reg);
+    Serial.printf("%s(%x): %u(%x)\n", GC2145_reg_name_table[ii].reg_name, GC2145_reg_name_table[ii].reg, reg_value, reg_value);
+  }
+}
 /*******************************************************************/
 // Read a single uint8_t from address and return it as a uint8_t
 uint8_t GC2145::cameraReadRegister(uint8_t reg) {
