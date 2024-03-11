@@ -47,8 +47,11 @@ File file;
  * does not work.  Arduino breakout only brings out  *
  * the lower 4 bits.                                 *
  ****************************************************/
+#if defined(ARDUCAM_CAMERA_HM01B0)
+#define _hmConfig 3  // select mode string below
+#else
 #define _hmConfig 2  // select mode string below
-
+#endif
 PROGMEM const char hmConfig[][48] = {
   "FLEXIO_CUSTOM_LIKE_8_BIT",
   "FLEXIO_CUSTOM_LIKE_4_BIT"
@@ -113,12 +116,14 @@ DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 // split into two parts, part dmamem and part fast mememory to fit 640x480x2
 DMAMEM uint16_t frameBuffer[640 * 240] __attribute__((aligned(32)));
 uint16_t frameBuffer2[640 * 240] __attribute__((aligned(32)));
+#define SCREEN_ROTATION 3
 #else
 // split into two parts, part dmamem and part fast mememory to fit 640x480x2
 DMAMEM uint8_t frameBuffer[640 * 480] __attribute__((aligned(32)));
 // mono can fit one in each.
 uint8_t frameBuffer2[640 * 480] __attribute__((aligned(32)));
 #define CAMERA_USES_MONO_PALETTE
+#define SCREEN_ROTATION 1
 #endif
 
 // Setup display modes frame / video
@@ -146,7 +151,7 @@ void setup() {
 
   tft.begin(15000000);
 
-  tft.setRotation(3);
+  tft.setRotation(SCREEN_ROTATION);
   tft.fillScreen(TFT_RED);
   delay(500);
   tft.fillScreen(TFT_GREEN);
@@ -194,6 +199,8 @@ void setup() {
 //    uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3,
 //    uint8_t g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
 #ifdef USE_MMOD_ATP_ADAPTER
+  pinMode(30, INPUT_PULLUP);
+  pinMode(31, INPUT_PULLUP);
 
   if ((_hmConfig == 0) || (_hmConfig == 2)) {
     camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
@@ -214,12 +221,15 @@ void setup() {
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
   // VGA mode
   camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
+#elif defined(ARDUCAM_CAMERA_HM0360) 
+  camera.begin(FRAMESIZE_VGA, 15);
 #else
+   // 1b0 defaults to qvga 4 bit
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
   //HM01B0(4pin only) 15/30/60 works, 120 not supported
   //camera.begin(FRAMESIZE_QVGA, 30);
-  camera.begin(FRAMESIZE_VGA, 15);
+  camera.begin(FRAMESIZE_QVGA4BIT, 15);
 #endif
 
   Serial.println("getting model id");
