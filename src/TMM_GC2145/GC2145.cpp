@@ -788,8 +788,7 @@ static const uint8_t default_regs[][2] = {
     {0x96, 0xf0},
     {0x97, 0x01},
     {0x98, 0x40},
-
-
+    
     {0x00, 0x00},
 };
     
@@ -1071,6 +1070,7 @@ int GC2145::setPixelFormat(pixformat_t pixformat)
         default:
             return -1;
     }
+    Serial.printf("Pixel Format: 0x%x, 0x%x, 0x%x\n", reg, REG_OUTPUT_FMT,REG_OUTPUT_SET_FMT(reg, REG_OUTPUT_FMT_RGB565));
 
     return ret;
 }
@@ -1108,7 +1108,7 @@ int GC2145::setWindow(uint16_t reg, uint16_t x, uint16_t y, uint16_t w, uint16_t
 
 uint8_t GC2145::setFramesize(framesize_t framesize) {
     int ret = 0;
-
+/*
     uint16_t w = resolution[framesize][0];
     uint16_t h = resolution[framesize][1];
     
@@ -1187,7 +1187,64 @@ uint8_t GC2145::setFramesize(framesize_t framesize) {
     // Set Sub-sampling ratio and mode
     ret |= cameraWriteRegister(0x99, ((ratio << 4) | (ratio)));
     ret |= cameraWriteRegister(0x9A, 0x0E);
+*/
+
+    uint16_t win_w;
+    uint16_t win_h;
+
+    uint16_t w = resolution[framesize][0];
+    uint16_t h = resolution[framesize][1];
     
+    _width = w;
+    _height = h;
+    
+    Serial.printf("Setting Resolution\n");
+    Serial.printf("Resolution (w/h): %d, %d\n", w, h);
+
+    switch (framesize) {
+        case FRAMESIZE_QQVGA:
+            win_w = w * 4;
+            win_h = h * 4;
+            break;
+        case FRAMESIZE_QVGA:
+        case FRAMESIZE_320X320:
+            win_w = w * 3;
+            win_h = h * 3;
+            break;
+        case FRAMESIZE_VGA:
+            win_w = w * 2;
+            win_h = h * 2;
+            break;
+/*        case CAMERA_R800x600:
+        case CAMERA_R1600x1200:
+            // For frames bigger than subsample using full UXGA window.
+            win_w = 1600;
+            win_h = 1200;
+            break;
+*/
+        default:
+            return -1;
+    }
+
+    Serial.printf("Window (win_w, win_h): %d, %d\n", win_w, win_h);
+
+    uint16_t c_ratio = win_w / w;
+    uint16_t r_ratio = win_h / h;
+
+    uint16_t x = (((win_w / c_ratio) - w) / 2);
+    uint16_t y = (((win_h / r_ratio) - h) / 2);
+
+    uint16_t win_x = ((ACTIVE_SENSOR_WIDTH - win_w) / 2);
+    uint16_t win_y = ((ACTIVE_SENSOR_HEIGHT - win_h) / 2);
+    
+    Serial.printf("Window Ratios (c/r, x/y): %d, %d, %d, %d\n", c_ratio, r_ratio, x, y);
+    Serial.printf("Window size (win_x, win_y): %d, %d\n", x, y, win_x, win_y);
+    
+
+    // Set readout window first.
+    ret |= setWindow(0x09, win_x, win_y, win_w + 16, win_h + 8);
+    Serial.printf("setWindow (win_x, win_ywin_w + 16, win_h + 8): %d, %d\n", win_x, win_y, win_w + 16, win_h + 8);
+
 
 
     return ret;
@@ -1647,6 +1704,8 @@ void GC2145::showRegisters(void) {
     Serial.printf("%s(%x): %u(%x)\n", GC2145_reg_name_table[ii].reg_name, GC2145_reg_name_table[ii].reg, reg_value, reg_value);
   }
 }
+
+
 /*******************************************************************/
 // Read a single uint8_t from address and return it as a uint8_t
 uint8_t GC2145::cameraReadRegister(uint8_t reg) {
