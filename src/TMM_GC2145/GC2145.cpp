@@ -67,6 +67,7 @@ static bool fov_wide = false;
 #define REG_SYNC_MODE_COL_SWITCH        (0x10)
 #define REG_SYNC_MODE_ROW_SWITCH        (0x20)
 
+
 // Sensor frame size/resolution table.
 const int resolution[][2] = {
     {640,  480 },    /* VGA       */
@@ -1108,86 +1109,6 @@ int GC2145::setWindow(uint16_t reg, uint16_t x, uint16_t y, uint16_t w, uint16_t
 
 uint8_t GC2145::setFramesize(framesize_t framesize) {
     int ret = 0;
-/*
-    uint16_t w = resolution[framesize][0];
-    uint16_t h = resolution[framesize][1];
-    
-    _width = w;
-    _height = h;
-
-    // Invalid resolution.
-    if ((w > ACTIVE_SENSOR_WIDTH) || (h > ACTIVE_SENSOR_HEIGHT)) {
-        return -1;
-    }
-
-    // Step 0: Clamp readout settings.
-
-    readout_w = max(readout_w, w);
-    readout_h = max(readout_h, h);
-    
-    int readout_x_max = (ACTIVE_SENSOR_WIDTH - readout_w) / 2;
-    int readout_y_max = (ACTIVE_SENSOR_HEIGHT - readout_h) / 2;
-    readout_x = max(min(readout_x, readout_x_max), -readout_x_max);
-    readout_y = max(min(readout_y, readout_y_max), -readout_y_max);
-
-
-    // Step 1: Determine sub-readout window.
-    uint16_t ratio = fast_floorf(min(readout_w / ((float) w), readout_h / ((float) h)));
-
-    // Limit the maximum amount of scaling allowed to keep the frame rate up.
-    ratio = min(ratio, (fov_wide ? 5 : 3));
-
-    if (!(ratio % 2)) {
-        // camera outputs messed up bayer images at even ratios for some reason...
-        ratio -= 1;
-    }
-    
-    uint16_t sub_readout_w = w * ratio;
-    uint16_t sub_readout_h = h * ratio;
-
-    // Step 2: Determine horizontal and vertical start and end points.
-    uint16_t sensor_w = sub_readout_w + DUMMY_WIDTH_BUFFER; // camera hardware needs dummy pixels to sync
-    uint16_t sensor_h = sub_readout_h + DUMMY_HEIGHT_BUFFER; // camera hardware needs dummy lines to sync
-
-    uint16_t sensor_x = max(min((((ACTIVE_SENSOR_WIDTH - sensor_w) / 4) - (readout_x / 2)) * 2,
-                                      ACTIVE_SENSOR_WIDTH - sensor_w), -(DUMMY_WIDTH_BUFFER / 2)) + DUMMY_COLUMNS; // must be multiple of 2
-
-    uint16_t sensor_y = max(min((((ACTIVE_SENSOR_HEIGHT - sensor_h) / 4) - (readout_y / 2)) * 2,
-                                      ACTIVE_SENSOR_HEIGHT - sensor_h), -(DUMMY_HEIGHT_BUFFER / 2)) + DUMMY_LINES; // must be multiple of 2
-
-    // Step 3: Write regs.
-    // Set Readout window first.
-
-#if defined(DEBUG_CAMERA)
-    Serial.println("\nSet Framesize:");
-    Serial.println("Step 0: Clamp readout settings");
-    Serial.printf("ActSenWidth: %d, ActSenHeight: %d\n", ACTIVE_SENSOR_WIDTH, ACTIVE_SENSOR_HEIGHT);
-    Serial.printf("Width: %d, Height: %d\n", w, h);
-    Serial.printf("ReadoutW: %d, ReadoutH: %d\n", readout_w, readout_h);
-    Serial.printf("ReadoutXmax: %d, ReadoutYmax: %d\n", readout_x_max, readout_y_max);
-    Serial.printf("ReadoutX: %d, ReadoutY: %d\n", readout_x, readout_y);
-    Serial.println("\nStep 1: Determine sub-readout window.");
-    Serial.printf("Ratio: %d\n", ratio);
-    Serial.printf("Ratio after test: %d\n", ratio);
-    Serial.printf("sub_readout_w: %d, sub_readout_h: %d\n", sub_readout_w, sub_readout_h);
-    Serial.println("\nStep 2: Determine horizontal and vertical start and end points");
-    Serial.printf("sensor_w: %d, sensor_h: %d, sensor_x: %d, sensor_y: %d\n", sensor_w,sensor_h, sensor_x, sensor_y);
-    Serial.println("\nStep 3: Write Regs - call set window");
-    Serial.printf("SensorX: %d, SensorY: %d, SensorW: %d, SensorH: %d\n\n", sensor_x, sensor_y, sensor_w, sensor_h);
-#endif
-    
-    ret |= setWindow(0x09, sensor_x, sensor_y, sensor_w, sensor_h);
-
-    // Set cropping window next.
-    ret |= setWindow(0x91, 0, 0, w, h);
-
-    // Enable crop
-    ret |= cameraWriteRegister(0x90, 0x01);
-
-    // Set Sub-sampling ratio and mode
-    ret |= cameraWriteRegister(0x99, ((ratio << 4) | (ratio)));
-    ret |= cameraWriteRegister(0x9A, 0x0E);
-*/
 
     uint16_t win_w;
     uint16_t win_h;
@@ -1294,8 +1215,36 @@ int GC2145::setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float 
     return ret;
 }
 
+int GC2145::setColorbar(int enable) 
+{
+    uint8_t ret = 0;
+    uint8_t test1 = 0;
+    uint8_t test2 = 0x01;
+    uint8_t val = enable;
 
+    if (val == GC2145_TEST_PATTERN_VGA_COLOR_BARS)
+        test1 = 0x04;
+    else if (val == GC2145_TEST_PATTERN_UXGA_COLOR_BARS)
+        test1 = 0x44;
+    else if (val == GC2145_TEST_PATTERN_SKIN_MAP)
+        test1 = 0x10;
+    else if (val >= GC2145_TEST_PATTERN_SOLID_COLOR) {
+        test1 = 0x04;
+        test2 = ((val - GC2145_TEST_PATTERN_SOLID_COLOR) << 4) | 0x8;
+    } else if (val != GC2145_TEST_PATTERN_DISABLED) {
+        Serial.println("test pattern out of range\n");
+        return 0;
+    }
 
+    cameraWriteRegister(0xfe, 0x00);
+    
+    ret = cameraWriteRegister(0x8c, test1);
+    if (ret)
+        return ret;
+
+    return cameraWriteRegister( 0x8d, test2);
+
+}
 
 typedef struct {
   uint16_t reg;

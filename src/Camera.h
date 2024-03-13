@@ -18,7 +18,7 @@ public:
   virtual bool begin(framesize_t framesize = FRAMESIZE_QVGA, int framerate = 30, bool use_gpio = false) = 0;
   virtual void end() = 0;
   virtual int reset() = 0;
-  virtual void showRegisters(void);
+  virtual void showRegisters(void) = 0;
   virtual void debug(bool debug_on) {}; // 
   virtual bool debug() { return false; }
   virtual int setPixformat(pixformat_t pfmt) = 0;
@@ -55,6 +55,7 @@ public:
   
   virtual int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db);
 
+  
   // grab Frame functions
   //-------------------------------------------------------
   //Generic Read Frame base on _hw_config

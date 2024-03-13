@@ -8,9 +8,9 @@
 #define USE_SDCARD
 
 //#define ARDUCAM_CAMERA_HM01B0
-#define ARDUCAM_CAMERA_HM0360
+//#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
-//#define ARDUCAM_CAMERA_OV7675
+#define ARDUCAM_CAMERA_OV7675
 //#define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
@@ -52,6 +52,7 @@ File file;
 #else
 #define _hmConfig 2  // select mode string below
 #endif
+
 PROGMEM const char hmConfig[][48] = {
   "FLEXIO_CUSTOM_LIKE_8_BIT",
   "FLEXIO_CUSTOM_LIKE_4_BIT"
@@ -211,7 +212,7 @@ void setup() {
 #else
   if (_hmConfig == 0) {
     //camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
-    camera.setPins(7, 8, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
+    camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43, 44, 45, 6, 9);
   } else if (_hmConfig == 1) {
     //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
     camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
@@ -220,7 +221,7 @@ void setup() {
 
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
   // VGA mode
-  camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
+  camera.begin(FRAMESIZE_VGA, RGB565, 15, true);
 #elif defined(ARDUCAM_CAMERA_HM0360) 
   camera.begin(FRAMESIZE_VGA, 15);
 #else
@@ -275,7 +276,32 @@ void setup() {
 
   showCommandList();
 
-  //camera.set_colorbar(true);
+#if defined(ARDUCAM_CAMERA_GC2145)
+  /***************note for the GC2145 the following is supported **************
+    GC2145_DISABLED = 0,
+    GC2145_COLOR_BARS,
+    GC2145_UXGA_COLOR_BARS,
+    GC2145_SKIN_MAP,
+    GC2145_SOLID_BLACK,
+    GC2145_SOLID_LIGHT_GRAY,
+    GC2145_SOLID_GRAY,
+    GC2145_SOLID_DARK_GRAY,
+    GC2145_SOLID_WHITE,
+    GC2145_SOLID_RED,
+    GC2145_SOLID_GREEN,
+    GC2145_SOLID_BLUE,
+    GC2145_SOLID_YELLOW,
+    GC2145_SOLID_CYAN,
+    GC2145_SOLID_MAGENTA
+  ****************************************************************************/
+  camera.setColorbar(GC2145_DISABLED);
+#else
+  /**************************************************************************
+    0 = disabled
+    1 = enabled
+   *************************************************************************/
+  camera.setColorbar(GC2145_COLOR_BARS);
+#endif
 }
 
 bool hm0360_flexio_callback(void *pfb) {

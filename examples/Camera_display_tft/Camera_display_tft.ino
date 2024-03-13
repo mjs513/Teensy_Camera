@@ -4,8 +4,8 @@
 
 #include "Camera.h"
 
-//#define USE_MMOD_ATP_ADAPTER
-#define USE_SDCARD
+#define USE_MMOD_ATP_ADAPTER
+//#define USE_SDCARD
 
 //#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
@@ -198,14 +198,14 @@ void setup()
 #else
  if (_hmConfig == 0 ) {
     //camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
-    camera.setPins(7, 8, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
+    camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43, 44, 45, 6, 9);
   } else if( _hmConfig == 1) {
     camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
   }
 #endif
 
   #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
-    camera.begin(FRAMESIZE_QVGA, RGB565, 15);
+    camera.begin(FRAMESIZE_QVGA, RGB565, 30, true);
   #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
@@ -236,7 +236,7 @@ void setup()
   camera.setMode(HIMAX_MODE_STREAMING, 0); // turn on, continuous streaming mode
 #endif
 
-  camera.showRegisters();
+  //camera.showRegisters();
   Serial.println("Camera settings:");
   Serial.print("\twidth = ");
   Serial.println(camera.width());
@@ -257,7 +257,33 @@ void setup()
 
   showCommandList();
 
-  //camera.set_colorbar(true);
+#if defined(ARDUCAM_CAMERA_GC2145)
+  /***************note for the GC2145 the following is supported **************
+    GC2145_DISABLED = 0,
+    GC2145_COLOR_BARS,
+    GC2145_UXGA_COLOR_BARS,
+    GC2145_SKIN_MAP,
+    GC2145_SOLID_BLACK,
+    GC2145_SOLID_LIGHT_GRAY,
+    GC2145_SOLID_GRAY,
+    GC2145_SOLID_DARK_GRAY,
+    GC2145_SOLID_WHITE,
+    GC2145_SOLID_RED,
+    GC2145_SOLID_GREEN,
+    GC2145_SOLID_BLUE,
+    GC2145_SOLID_YELLOW,
+    GC2145_SOLID_CYAN,
+    GC2145_SOLID_MAGENTA
+  ****************************************************************************/
+  camera.setColorbar(GC2145_DISABLED);
+#else
+  /**************************************************************************
+    0 = disabled
+    1 = enabled
+   *************************************************************************/
+  camera.setColorbar(GC2145_COLOR_BARS);
+#endif
+
 }
 
 bool hm0360_flexio_callback(void *pfb)

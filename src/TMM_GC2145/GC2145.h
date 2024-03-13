@@ -117,12 +117,39 @@ SDA             18      AD_B1_1 I2C
 #endif
 //      #define GC2145_D6    26 // AD_B1_14 1.30
 //      #define GC2145_D7    27 // AD_B1_15 1.31
+#endif
 
 // dummy defines for camera class
 #define         HIMAX_MODE_STREAMING            0x01     // I2C triggered streaming enable
 #define         HIMAX_MODE_STREAMING_NFRAMES    0x03     
 
-#endif
+
+enum {
+	GC2145_TEST_PATTERN_DISABLED,
+	GC2145_TEST_PATTERN_VGA_COLOR_BARS,
+	GC2145_TEST_PATTERN_UXGA_COLOR_BARS,
+	GC2145_TEST_PATTERN_SKIN_MAP,
+	GC2145_TEST_PATTERN_SOLID_COLOR,
+};
+
+enum {
+    GC2145_DISABLED = 0,
+    GC2145_COLOR_BARS,
+    GC2145_UXGA_COLOR_BARS,
+    GC2145_SKIN_MAP,
+    GC2145_SOLID_BLACK,
+    GC2145_SOLID_LIGHT_GRAY,
+    GC2145_SOLID_GRAY,
+    GC2145_SOLID_DARK_GRAY,
+    GC2145_SOLID_WHITE,
+    GC2145_SOLID_RED,
+    GC2145_SOLID_GREEN,
+    GC2145_SOLID_BLUE,
+    GC2145_SOLID_YELLOW,
+    GC2145_SOLID_CYAN,
+    GC2145_SOLID_MAGENTA,
+};
+
 /*
 typedef enum {
     FRAMESIZE_INVALID = 0,
@@ -209,12 +236,13 @@ public:
   int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db);
   //void printRegisters(bool only_ones_set = true);
   void showRegisters();
-
-  /**********************************************************/
+  int setColorbar(int enable);
   
-  //other camera functions - non-operational
+  
+  /**********************************************************/
+    //other camera functions - non-operational
   int setGainceiling(gainceiling_t gainceiling) {return 0; };
-  int setColorbar(int enable) {return 0; };
+  //int setColorbar(int enable) {return 0; };
   int setAutoGain(int enable, float gain_db, float gain_db_ceiling) {return 0; };
   int get_vt_pix_clk(uint32_t *vt_pix_clk) {return 0; };
   int getGain_db(float *gain_db) {return 0; };
