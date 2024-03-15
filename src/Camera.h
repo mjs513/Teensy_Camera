@@ -21,6 +21,9 @@ public:
   virtual void showRegisters(void) = 0;
   virtual void debug(bool debug_on) {}; // 
   virtual bool debug() { return false; }
+  // debug and experimenting support
+  virtual uint8_t readRegister(uint8_t reg) {return (uint8_t)-1;}
+  virtual bool writeRegister(uint8_t reg, uint8_t data) {return false;}
   virtual int setPixformat(pixformat_t pfmt) = 0;
   virtual uint8_t setFramesize(framesize_t framesize) = 0;
   virtual int setFramerate(int framerate) = 0;
@@ -135,6 +138,11 @@ public:
   uint8_t getAE(ae_cfg_t *psAECfg);
   uint8_t calAE(uint8_t CalFrames, uint8_t *Buffer, uint32_t ui32BufferLen, ae_cfg_t *pAECfg);
   uint16_t getModelid();
+
+  // debug and experimenting support
+  uint8_t readRegister(uint8_t reg);
+  bool writeRegister(uint8_t reg, uint8_t data);
+
   
   /***********  OV specific ************************/
   bool begin(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30,

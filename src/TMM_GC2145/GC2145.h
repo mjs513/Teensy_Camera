@@ -234,7 +234,9 @@ public:
   int setVflip(int enable);
   int setAutoExposure(int enable, int exposure_us);
   int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db);
-  //void printRegisters(bool only_ones_set = true);
+  void printRegisters(bool only_ones_set = true);
+  void debug(bool debug_on) {_debug = debug_on;}
+  bool debug() {return _debug;}
   void showRegisters();
   int setColorbar(int enable);
   
@@ -266,14 +268,15 @@ public:
   void setExposure(int exposure) {  } // 0 - 65535
   void autoExposure(int enable) {}
   bool begin(framesize_t resolution, int format, bool use_gpio = false){return 0;}
-  void readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0, bool fUseDMA=true){}
+  void readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0, bool fUseDMA=true);
 /********************************************************************************************/
 	//-------------------------------------------------------
 	//Generic Read Frame base on _hw_config
 	void readFrame(void* buffer, bool use_dma=true);
+  void readFrameSplitBuffer(void *buffer1, size_t cb1, void *buffer2, size_t cb2, bool fUseDMA = true); // give default one for now
 
 	// quick and dirty attempt to read in images larger than can fit into one region of memory...
-	void readFrameMultiBuffer(void* buffer1, size_t size1, void* buffer2, size_t size2);
+//	void readFrameMultiBuffer(void* buffer1, size_t size1, void* buffer2, size_t size2);
 	
 	//normal Read mode
 	//void readFrameGPIO(void* buffer);
@@ -283,7 +286,7 @@ public:
 	void stopReadContinuous();
 
 	//FlexIO is default mode for the camera
-	void readFrameFlexIO(void* buffer, bool use_dma=true);
+	//void readFrameFlexIO(void* buffer, bool use_dma=true);
 	void readFrameMultiBufferFlexIO(void* buffer1, size_t size1, void* buffer2, size_t size2);
 	bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
 	bool stopReadFlexIO();
@@ -327,7 +330,8 @@ private:
     int _dPins[8];
 
     bool _use_gpio = false;
-	TwoWire *_wire;
+    bool _debug = true;
+	  TwoWire *_wire;
 
     int _width;
     int _height;
@@ -343,7 +347,7 @@ private:
     volatile uint32_t* _pclkPort;
     uint32_t _pclkMask;
 
-    uint32_t _xclk_freq	= 9000000;
+    uint32_t _xclk_freq	= 12000000;
     
 
 	bool flexio_configure();
@@ -351,7 +355,7 @@ private:
 	// DMA STUFF
 	enum {DMABUFFER_SIZE=1296};  // 640x480  so 640*2*2
 	static DMAChannel _dmachannel;
-	static DMASetting _dmasettings[4];
+	static DMASetting _dmasettings[6];
 	static uint32_t _dmaBuffer1[DMABUFFER_SIZE];
 	static uint32_t _dmaBuffer2[DMABUFFER_SIZE];
 

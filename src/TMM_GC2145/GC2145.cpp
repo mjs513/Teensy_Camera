@@ -792,7 +792,63 @@ static const uint8_t default_regs[][2] = {
     
     {0x00, 0x00},
 };
-    
+/* 640X480 VGA,30fps*/
+static const uint8_t gc2145_setting_vga[][2] = {
+//SENSORDB("GC2145_Sensor_VGA"},
+    {0xfe, 0x00},
+    {0xb6, 0x01},
+    {0xfd, 0x01},
+    {0xfa, 0x00},
+    /* crop window */ 
+    {0xfe, 0x00},
+    {0x90, 0x01},
+    {0x91, 0x00},
+    {0x92, 0x00},
+    {0x93, 0x00},
+    {0x94, 0x00},
+    {0x95, 0x01},
+    {0x96, 0xe0},
+    {0x97, 0x02},
+    {0x98, 0x80},
+    {0x99, 0x55},
+    {0x9a, 0x06},
+    {0x9b, 0x01},
+    {0x9c, 0x23},
+    {0x9d, 0x00},
+    {0x9e, 0x00},
+    {0x9f, 0x01},
+    {0xa0, 0x23},
+    {0xa1, 0x00},
+    {0xa2, 0x00},
+    /* Auto White Balance */
+    {0xfe, 0x00},
+    {0xec, 0x02},
+    {0xed, 0x02},
+    {0xee, 0x30},
+    {0xef, 0x48},
+    {0xfe, 0x02},
+    {0x9d, 0x08},
+    {0xfe, 0x01},
+    {0x74, 0x00},
+    /* Automatic Exposure Control */
+    {0xfe, 0x01},
+    {0x01, 0x04},
+    {0x02, 0x60},
+    {0x03, 0x02},
+    {0x04, 0x48},
+    {0x05, 0x18},
+    {0x06, 0x50},
+    {0x07, 0x10},
+    {0x08, 0x38},
+    // {0x0a, 0xc0},//[1:0]AEC Skip
+    {0x0a, 0x80},//[1:0]AEC Skip
+    {0x21, 0x04},
+    {0xfe, 0x00},
+    {0x20, 0x03},
+    {0xfe, 0x00},
+    {0x00, 0x00},
+};
+
 // Constructor
 const int GC2145_D[8] = {
   GC2145_D0, GC2145_D1, GC2145_D2, GC2145_D3, GC2145_D4, GC2145_D5, GC2145_D6, GC2145_D7
@@ -1122,6 +1178,30 @@ uint8_t GC2145::setFramesize(framesize_t framesize) {
     Serial.printf("Setting Resolution\n");
     Serial.printf("Resolution (w/h): %d, %d\n", w, h);
 
+    // Hack test
+    if (framesize == FRAMESIZE_VGA) {
+        Serial.println("\n$$Hack for hard coded windows");
+        //ret |= setWindow(0x09, 160, 120, 1618, 960);        
+        //ret |= setWindow(0x091, 0, 0, 640, 480);
+        ret |= setWindow(0x09, 0, 0, 1618, 1216);        
+        ret |= setWindow(0x091, 0, 0, 640, 480);
+        ret |= cameraWriteRegister(0x9c, 0x23);
+        ret |= cameraWriteRegister(0xa0, 0x23);
+        return ret;
+    }
+    else if (framesize == FRAMESIZE_QVGA) {
+        Serial.println("\n$$Hack for hard coded windows");
+        //ret |= setWindow(0x09, 160, 120, 1618, 960);        
+        //ret |= setWindow(0x091, 0, 0, 640, 480);
+        ret |= setWindow(0x09, 0, 0, 1618, 1216);        
+        ret |= setWindow(0x091, 0, 0, 320, 240);
+        ret |= cameraWriteRegister(0x9c, 0x0);
+        ret |= cameraWriteRegister(0xa0, 0x0);
+        return ret;
+    }
+
+
+
     switch (framesize) {
         case FRAMESIZE_QQVGA:
             win_w = w * 4;
@@ -1133,8 +1213,17 @@ uint8_t GC2145::setFramesize(framesize_t framesize) {
             win_h = h * 3;
             break;
         case FRAMESIZE_VGA:
+            {
             win_w = w * 2;
             win_h = h * 2;
+            #if 0
+            Serial.println("$$Experiment - try setting the ESP32 registers");
+            for (int i=0; gc2145_setting_vga[i][0] && ret == 0; i++) {
+                ret |=  cameraWriteRegister(gc2145_setting_vga[i][0], gc2145_setting_vga[i][1]);
+            }
+            #endif
+            }
+
             break;
 /*        case CAMERA_R800x600:
         case CAMERA_R1600x1200:
@@ -1164,7 +1253,7 @@ uint8_t GC2145::setFramesize(framesize_t framesize) {
 
     // Set readout window first.
     ret |= setWindow(0x09, win_x, win_y, win_w + 16, win_h + 8);
-    Serial.printf("setWindow (win_x, win_ywin_w + 16, win_h + 8): %d, %d\n", win_x, win_y, win_w + 16, win_h + 8);
+    Serial.printf("setWindow (win_x, win_ywin_w + 16, win_h + 8): %d, %d, %d, %d\n", win_x, win_y, win_w + 16, win_h + 8);
 
 
 
@@ -1248,365 +1337,369 @@ int GC2145::setColorbar(int enable)
 
 typedef struct {
   uint16_t reg;
+  uint8_t combine_with_previous;
   const __FlashStringHelper *reg_name;
 } GC2145_TO_NAME_t;
 
 static const GC2145_TO_NAME_t GC2145_reg_name_table[] PROGMEM {
-    {0x00f0, F(" chip_ID[15:8]")},
-    {0x00f1, F(" chip_ID[7:0]")},
-    {0x00f2, F(" pad_vb_hiz_mode data_pad_io sync_pad_io")},
-    {0x00f3, F(" I2C_open_en")},
-    {0x00f6, F(" Up_dn Pwd_dn")},
-    {0x00f7, F(" PLL_mode1")},
-    {0x00f8, F(" PLL_mode2")},
-    {0x00f9, F(" cm_mode")},
-    {0x00fa, F(" clk_div_mode")},
-    {0x00fb, F(" I2C_device_ID")},
-    {0x00fc, F(" analog_pwc")},
-    {0x00fd, F(" Scalar mode")},
-    {0x00fe, F(" Reset related")},
-    {0x0003, F("Exposure[12:8]")},
-    {0x0004, F("Exposure[7:0]")},
-    {0x0005, F("capt_hb[11:8]")},
-    {0x0006, F("capt_hb[7:0]")},
-    {0x0007, F("capt_vb[12:8]")},
-    {0x0008, F("capt_vb[7:0]")},
-    {0x0009, F("capt_row_start[10:8]")},
-    {0x000a, F("capt_row_start[7:0]")},
-    {0x000b, F("capt_col_start[10:8 ]")},
-    {0x000c, F("capt_col_start[7:1]")},
-    {0x000d, F("capt_win_height[10:8]")},
-    {0x000e, F("capt_win_height[7:0]")},
-    {0x000f, F("capt_win_width[10:8]")},
-    {0x0010, F("capt_win_width[7:1]")},
-    {0x0011, F("Sh_delay[9:8]")},
-    {0x0012, F("Sh_delay[7:0]")},
-    {0x0013, F("St -> Start time")},
-    {0x0014, F("Et -> End time")},
-    {0x0017, F("Analog mode1")},
-    {0x0018, F("Analog mode2")},
-    {0x0020, F("Analog mode3")},
-    {0x0024, F("Driver mode")},
-    {0x003f, F("dark_current_st able_th")},
-    {0x0040, F("Blk_mode1")},
-    {0x0042, F("BLK_limit_value")},
-    {0x0043, F("BLK_fame_cnt_TH")},
-    {0x005c, F("Exp_rate_darkc")},
-    {0x005e, F("current_G1_offset_odd_ratio")},
-    {0x005f, F("current_G1_offset_even_ratio")},
-    {0x0060, F("current_R1_offset_odd_ratio")},
-    {0x0061, F("current_R1_offset_even_ratio")},
-    {0x0062, F("current_B1_offset_odd_ratio")},
-    {0x0063, F("current_B1_offset_even_ratio")},
-    {0x0064, F("current_G2_offset_odd_ratio")},
-    {0x0065, F("current_G2_offset_even_ratio")},
-    {0x0066, F("Dark_current_G1_ratio")},
-    {0x0067, F("Dark_current_R_ratio")},
-    {0x0068, F("Dark_current_B_ratio")},
-    {0x0069, F("Dark_current_G2_ratio")},
-    {0x006a, F("manual_G1_odd_offset")},
-    {0x006b, F("manual_G1_even_offset")},
-    {0x006c, F("manual_R1_odd_offset")},
-    {0x006d, F("manual_R1_even_offset")},
-    {0x006e, F("manual_B2_odd_offset")},
-    {0x006f, F("manual_B2_even_offset")},
-    {0x0070, F("manual_G2_odd_offset")},
-    {0x0071, F("manual_G2_even_offset")},
-    {0x0072, F("BLK_DD_thBLK_various_th")},
-    {0x0080, F("Block_enable1")},
-    {0x0081, F("Block_enable2")},
-    {0x0082, F("Block enable")},
-    {0x0083, F("Special effect")},
-    {0x0084, F("Output format")},
-    {0x0085, F("Frame start")},
-    {0x0086, F("Sync mode")},
-    {0x0087, F("block_enable3_buf")},
-    {0x0088, F("module_gating")},
-    {0x0089, F("bypass_mode")},
-    {0x008c, F("debug_mode2")},
-    {0x008d, F("Debug_mode3")},
-    {0x0090, F("Crop enable")},
-    {0x0091, F("out_win_y1[10:8]")},
-    {0x0092, F("out_win_y1 [7:0]")},
-    {0x0093, F("out_win_x1[10:8]")},
-    {0x0094, F("out_win_x1[7:0]")},
-    {0x0095, F("out_win_height[10:8]")},
-    {0x0096, F("out_win_height[7:0]")},
-    {0x0097, F("out_win_width[10:8]")},
-    {0x0098, F("out_win_width[7:0]")},
-    {0x0099, F("subsample")},
-    {0x009a, F("Subsample mode")},
-    {0x009b, F("Sub_row_N1")},
-    {0x009c, F("Sub_row_N2")},
-    {0x009d, F("Sub_row_N3")},
-    {0x009e, F("Sub_row_N4")},
-    {0x009f, F("Sub_col_N1")},
-    {0x00a0, F("Sub_col_N2")},
-    {0x00a1, F("Sub_col_N3")},
-    {0x00a2, F("Sub_col_N4")},
-    {0x00a3, F("channel_gain_G1_odd")},
-    {0x00a4, F("channel_gain_G1_even")},
-    {0x00a5, F("channel_gain_R1_odd")},
-    {0x00a6, F("channel_gain_R1_even")},
-    {0x00a7, F("channel_gain_B2_odd")},
-    {0x00a8, F("channel_gain_")},
-    {0x00a9, F("channel_gain_G2_odd")},
-    {0x00aa, F("channel_gain_G2_even")},
-    {0x00ad, F("R_ratio")},
-    {0x00ae, F("G_ratio")},
-    {0x00af, F("B_ratio")},
-    {0x00b0, F("Global_gain")},
-    {0x00b1, F("Auto_pregain")},
-    {0x00b2, F("Auto_postgain")},
-    {0x00b3, F("AWB_R_gain")},
-    {0x00b4, F("AWB_G_gain")},
-    {0x00b5, F("AWB_B_gain")},
-    {0x00b6, F("AEC_enable")},
-    {0x00c2, F("output_buf_enable_buf")},
-    {0x0101, F("AEC_x1")},
-    {0x0102, F("AEC_x2")},
-    {0x0103, F("AEC_y1")},
-    {0x0104, F("AEC_y2")},
-    {0x0105, F("AEC_center_x1")},
-    {0x0106, F("AEC_center_x2")},
-    {0x0107, F("AEC_center_y1")},
-    {0x0108, F("AEC_center_y2")},
-    {0x010a, F("AEC_mode1")},
-    {0x010b, F("AEC_mode2")},
-    {0x010c, F("AEC_mode3")},
-    {0x010d, F("AEC_mode4")},
-    {0x010e, F("AEC_high_range")},
-    {0x010f, F("AEC_low_range")},
-    {0x0113, F("AEC_target_Y")},
-    {0x0114, F("Y_average")},
-    {0x0115, F("target_Y_limit_from_histogram")},
-    {0x0116, F("AEC_number_limit_high_range")},
-    {0x0118, F("AEC mode5")},
-    {0x0119, F("AEC mode 6")},
-    {0x011a, F("AEC gainmode")},
-    {0x011f, F("AEC_max_pre_dg_gain")},
-    {0x0120, F("AEC_max_post_dg_gain")},
-    {0x0125, F("AEC_anti_flicker_step[12:8]")},
-    {0x0126, F("AEC_anti_flicker_step[7:0]")},
-    {0x0127, F("AEC_exp_level_1[12:8]")},
-    {0x0128, F("AEC_exp_level_1[7:0]")},
-    {0x0129, F("AEC_exp_level_2[12:8]")},
-    {0x012a, F("AEC_exp_level_2[7:0]")},
-    {0x012b, F("AEC_exp_level_3[12:8]")},
-    {0x012c, F("AEC_exp_level_3[7:0]")},
-    {0x012d, F("AEC_exp_level_4[12:8]")},
-    {0x012e, F("AEC_exp_level_4[7:0]")},
-    {0x012f, F("AEC_exp_level_5[12:8]")},
-    {0x0130, F("AEC_exp_level_5[7:0]")},
-    {0x0131, F("AEC_exp_level_6[12:8]")},
-    {0x0132, F("AEC_exp_level_6[7:0]")},
-    {0x0133, F("AEC_exp_level_7[12:8]")},
-    {0x0134, F("AEC_exp_level_7[7:0]")},
-    {0x0135, F("AEC_max_dg_gain1")},
-    {0x0136, F("AEC_max_dg_gain2")},
-    {0x0137, F("AEC_max_dg_gain3")},
-    {0x0138, F("AEC_max_dg_gain4")},
-    {0x0139, F("AEC_max_dg_gain5")},
-    {0x013a, F("AEC_max_dg_gain6")},
-    {0x013b, F("AEC_max_dg_gain7")},
-    {0x013c, F("AEC_max_exp_level")},
-    {0x013d, F("AEC_exp_min_l[7:0]")},
-    {0x0150, F("AWB mode 1")},
-    {0x0151, F("AWBparameter")},
-    {0x0152, F("AWBparameter")},
-    {0x0153, F("AWBparameter")},
-    {0x0154, F("AWBparameter")},
-    {0x0155, F("AWBparameter")},
-    {0x0156, F("AWBparameter")},
-    {0x0157, F("AWBparameter")},
-    {0x0158, F("AWBparameter")},
-    {0x0159, F("AWB_PRE_RGB_low")},
-    {0x015a, F("AWB_PRE_RGB_high")},
-    {0x015b, F("AWBparameter")},
-    {0x0175, F("AWB_every_N")},
-    {0x0176, F("AWB_R_gain_limit")},
-    {0x0177, F("AWB_G_gain_limit")},
-    {0x0178, F("AWB_B_gain_limit")},
-    {0x0179, F("AWB_R_gain_out_h_limit")},
-    {0x017a, F("AWB_G_gain_out_h_limit")},
-    {0x017b, F("AWB_B_gain_out_h_limit")},
-    {0x017c, F("AWB_R_gain_out_l_limit")},
-    {0x017d, F("AWB_G_gain_out_l_limit")},
-    {0x017e, F("AWB_B_gain_out_l_limit")},
-    {0x019a, F("ABS_range_compesateABS_skip_frame")},
-    {0x019b, F("ABS_stop_margin")},
-    {0x019c, F("Y_S_compesateABS_manual_K")},
-    {0x019d, F("Y_stretch_limit")},
-    {0x01a0, F("LSC_row_x2LSC_col_x2LSC_pixel_array_select")},
-    {0x01a1, F("LSC_row_center")},
-    {0x01a2, F("LSC_col_cente")},
-    {0x01a4, F("LSC_Q12_RGB_sign")},
-    {0x01a5, F("LSC_Q34_RGB_SIGN")},
-    {0x01a6, F("LSC_right_left_rgb_b4_sign")},
-    {0x01a7, F("LSC_up_down_rgb_b4_sign")},
-    {0x01a8, F("LSC_right_up_down_rgb_b22_sign")},
-    {0x01a9, F("LSC_left_up_down_rgb_b22_sign")},
-    {0x01aa, F("LSC_Q1_red_b1")},
-    {0x01ab, F("LSC_Q1_green_b1")},
-    {0x01ac, F("LSC_Q1_blue_b1")},
-    {0x01ad, F("LSC_Q2_red_b1")},
-    {0x01ae, F("LSC_Q2_green_b1")},
-    {0x01af, F("LSC_Q2_blue_b1")},
-    {0x01b0, F("LSC_Q3_red_b1")},
-    {0x01b1, F("LSC_Q3_green_b1")},
-    {0x01b2, F("LSC_Q3_blue_b1")},
-    {0x01b3, F("LSC_Q4_red_b1")},
-    {0x01b4, F("LSC_Q4_green_b1")},
-    {0x01b5, F("LSC_Q4_blue_b1")},
-    {0x01b6, F("LSC_right_red_b2")},
-    {0x01b7, F("LSC_right_green_b2")},
-    {0x01b8, F("LSC_right_blue_b2")},
-    {0x01b9, F("LSC_right_red_b4")},
-    {0x01ba, F("LSC_right_green_b4")},
-    {0x01bb, F("LSC_right_blue_b4")},
-    {0x01bc, F("LSC_left_red_b2")},
-    {0x01bd, F("LSC_left_green_b2")},
-    {0x01be, F("LSC_left_blue_b2")},
-    {0x01bf, F("LSC_left_red_b4")},
-    {0x01c0, F("LSC_left_green_b4")},
-    {0x01c1, F("LSC_left_blue_")},
-    {0x01c2, F("LSC_up_red_b2")},
-    {0x01c3, F("LSC_up_green_b2")},
-    {0x01c4, F("LSC_up_blue_b2")},
-    {0x01c5, F("LSC_up_red_b4")},
-    {0x01c6, F("LSC_up_green_b4")},
-    {0x01c7, F("LSC_up_blue_b4")},
-    {0x01c8, F("LSC_down_red_b2")},
-    {0x01c9, F("LSC_down_green_b2")},
-    {0x01ca, F("LSC_down_blue_b2")},
-    {0x01cb, F("LSC_down_red_b4")},
-    {0x01cc, F("LSC_down_green_b4")},
-    {0x01cd, F("LSC_down_blue_b4")},
-    {0x01d0, F("LSC_right_up_red_b22")},
-    {0x01d1, F("LSC_right_up_green_b22")},
-    {0x01d2, F("LSC_right_up_blue_b22")},
-    {0x01d3, F("LSC_right_down_red_b22")},
-    {0x01d4, F("LSC_right_down_green_b22")},
-    {0x01d5, F("LSC_right_down_blue_b22")},
-    {0x01d6, F("LSC_left_up_red_b22")},
-    {0x01d7, F("LSC_left_up_green_b22")},
-    {0x01d8, F("LSC_left_up_blue_b22")},
-    {0x01d9, F("LSC_left_down_red_b22")},
-    {0x01da, F("LSC_left_down_green_b22")},
-    {0x01db, F("LSC_left_down_blue_b22")},
-    {0x01dc, F("LSC_Y_dark_th")},
-    {0x01dd, F("LSC_Y_dark_slope")},
-    {0x01df, F("LSC_U_B2G_stand_plus")},
-    {0x0210, F("Gamma_out1")},
-    {0x0211, F("Gamma_out2")},
-    {0x0212, F("Gamma_out3")},
-    {0x0213, F("Gamma_out4")},
-    {0x0214, F("Gamma_out5")},
-    {0x0215, F("Gamma_out6")},
-    {0x0216, F("Gamma_out7")},
-    {0x0217, F("Gamma_out8")},
-    {0x0218, F("Gamma_out9")},
-    {0x0219, F("Gamma_out10")},
-    {0x021a, F("Gamma_out11")},
-    {0x021b, F("Gamma_out12")},
-    {0x021c, F("Gamma_out13")},
-    {0x021d, F("Gamma_out14")},
-    {0x021e, F("Gamma_out15")},
-    {0x021f, F("Gamma_out16")},
-    {0x0220, F("Gamma_out17")},
-    {0x0221, F("Gamma_out18")},
-    {0x0222, F("Gamma_out19")},
-    {0x0223, F("Gamma_out20")},
-    {0x0224, F("Gamma_out21")},
-    {0x0225, F("Gamma_out22")},
-    {0x0284, F("DD_dark_th")},
-    {0x0285, F("ASDE_DN_B_slope")},
-    {0x0289, F("ASDE_low_luma_value_DD_th2")},
-    {0x028a, F("ASDE_low_luma_value_DD_th3")},
-    {0x028b, F("ASDE_low_luma_value_DD_th4")},
-    {0x0290, F("EEINTP")},
-    {0x0291, F("EEINTP")},
-    {0x0292, F("direction_TH1")},
-    {0x0293, F("Direction_TH2")},
-    {0x0294, F("diff_HV_mode")},
-    {0x0295, F("direction_diff_")},
-    {0x0296, F("edge level")},
-    {0x0297, F("Edge1 effect")},
-    {0x0298, F("Edge_pos_ratio")},
-    {0x0299, F("Edge1_max")},
-    {0x029a, F("Edge2_max")},
-    {0x029b, F("Edge1_th")},
-    {0x029c, F("Edge_pos_max")},
-    {0x029d, F("Edge_effect_sc")},
-    {0x02c0, F("CC_mode")},
-    {0x02c1, F("CC_CT1_11")},
-    {0x02c2, F("CC_CT1_12")},
-    {0x02c3, F("CC_CT1_13")},
-    {0x02c4, F("CC_CT1_21")},
-    {0x02c5, F("CC_CT1_22")},
-    {0x02c6, F("CC_CT1_23")},
-    {0x02d0, F("Global")},
-    {0x02d1, F("saturation_Cb")},
-    {0x02d2, F("saturation_Cr")},
-    {0x02d3, F("luma_contrast")},
-    {0x02d4, F("Contrast center")},
-    {0x02d5, F("Luma_offset")},
-    {0x02d6, F("skin_Cb_center")},
-    {0x02d7, F("skin_Cr_center")},
-    {0x02d9, F("Skin brightnessmode")},
-    {0x02da, F("Fixed_Cb")},
-    {0x02db, F("Fixed_Cr")},
-    {0x02e6, F("CC_R_offset")},
-    {0x02e7, F("CC_G_offset")},
-    {0x02e8, F("CC_B_offset")},
-    {0x0301, F("DPHY_analog_mode1")},
-    {0x0302, F("DPHY_analog_mode2")},
-    {0x0303, F("DPHY_analog_mode3")},
-    {0x0304, F("FIFO_prog_full_level[7:0]")},
-    {0x0305, F("FIFO_prog_full_level[11:8]")},
-    {0x0306, F("FIFO_mode")},
-    {0x0310, F("BUF_CSI2_mode")},
-    {0x0311, F("LDI_set")},
-    {0x0312, F("LWC_set[7:0]")},
-    {0x0313, F("LWC_set[15:8]")},
-    {0x0314, F("SYNC_set")},
-    {0x0315, F("DPHY_mode")},
-    {0x0316, F("LP_set")},
-    {0x0317, F("fifo_gate_modeMIPI_wdiv_set")},
-    {0x0320, F("T_init_set")},
-    {0x0321, F("T_LPX_set")},
-    {0x0322, F("T_CLK_HS_PREPARE_set")},
-    {0x0323, F("T_CLK_zero_set")},
-    {0x0324, F("T_CLK_PRE_set")},
-    {0x0325, F("T_CLK_POST_set")},
-    {0x0326, F("T_CLK_TRAIL_set")},
-    {0x0327, F("T_HS_exit_set")},
-    {0x0328, F("T_wakeup_set")},
-    {0x0329, F("T_HS_PREPARE_set")},
-    {0x032a, F("T_HS_Zero_set")},
-    {0x032b, F("T_HS_TRAIL_set")},
-    {0x0330, F("MIPI_Test")},
-    {0x0331, F("MIPI_Test_data0")},
-    {0x0332, F("MIPI_Test_data1")},
-    {0x0333, F("MIPI_Test_data2")},
-    {0x0334, F("MIPI_Test_data3")},
-    {0x033f, F("FIFO_error log")},
-    {0x0340, F("output_buf_mode1")},
-    {0x0341, F("output_buf_mode2")},
-    {0x0342, F("buf_win_width[7:0]")},
-    {0x0343, F("buf_win_width[11:8]")},
+    {0x00f0, 0, F(" chip_ID[15:8]")},
+    {0x00f1, 0, F(" chip_ID[7:0]")},
+    {0x00f2, 0, F(" pad_vb_hiz_mode data_pad_io sync_pad_io")},
+    {0x00f3, 0, F(" I2C_open_en")},
+    {0x00f6, 0, F(" Up_dn Pwd_dn")},
+    {0x00f7, 0, F(" PLL_mode1")},
+    {0x00f8, 0, F(" PLL_mode2")},
+    {0x00f9, 0, F(" cm_mode")},
+    {0x00fa, 0, F(" clk_div_mode")},
+    {0x00fb, 0, F(" I2C_device_ID")},
+    {0x00fc, 0, F(" analog_pwc")},
+    {0x00fd, 0, F(" Scalar mode")},
+    {0x00fe, 0, F(" Reset related")},
+    {0x0003, 0, F("Exposure[12:8]")},
+    {0x0004, 1, F("Exposure[7:0]")},
+    {0x0005, 0, F("capt_hb[11:8]")},
+    {0x0006, 1, F("capt_hb[7:0]")},
+    {0x0007, 0, F("capt_vb[12:8]")},
+    {0x0008, 1, F("capt_vb[7:0]")},
+    {0x0009, 0, F("capt_row_start[10:8]")},
+    {0x000a, 1, F("capt_row_start[7:0]")},
+    {0x000b, 0, F("capt_col_start[10:8 ]")},
+    {0x000c, 1, F("capt_col_start[7:1]")},
+    {0x000d, 0, F("capt_win_height[10:8]")},
+    {0x000e, 1, F("capt_win_height[7:0]")},
+    {0x000f, 0, F("capt_win_width[10:8]")},
+    {0x0010, 1, F("capt_win_width[7:1]")},
+    {0x0011, 0, F("Sh_delay[9:8]")},
+    {0x0012, 1, F("Sh_delay[7:0]")},
+    {0x0013, 0, F("St -> Start time")},
+    {0x0014, 1, F("Et -> End time")},
+    {0x0017, 0, F("Analog mode1")},
+    {0x0018, 0, F("Analog mode2")},
+    {0x0020, 0, F("Analog mode3")},
+    {0x0024, 0, F("Driver mode")},
+    {0x003f, 0, F("dark_current_st able_th")},
+    {0x0040, 0, F("Blk_mode1")},
+    {0x0042, 0, F("BLK_limit_value")},
+    {0x0043, 0, F("BLK_fame_cnt_TH")},
+    {0x005c, 0, F("Exp_rate_darkc")},
+    {0x005e, 0, F("current_G1_offset_odd_ratio")},
+    {0x005f, 0, F("current_G1_offset_even_ratio")},
+    {0x0060, 0, F("current_R1_offset_odd_ratio")},
+    {0x0061, 0, F("current_R1_offset_even_ratio")},
+    {0x0062, 0, F("current_B1_offset_odd_ratio")},
+    {0x0063, 0, F("current_B1_offset_even_ratio")},
+    {0x0064, 0, F("current_G2_offset_odd_ratio")},
+    {0x0065, 0, F("current_G2_offset_even_ratio")},
+    {0x0066, 0, F("Dark_current_G1_ratio")},
+    {0x0067, 0, F("Dark_current_R_ratio")},
+    {0x0068, 0, F("Dark_current_B_ratio")},
+    {0x0069, 0, F("Dark_current_G2_ratio")},
+    {0x006a, 0, F("manual_G1_odd_offset")},
+    {0x006b, 0, F("manual_G1_even_offset")},
+    {0x006c, 0, F("manual_R1_odd_offset")},
+    {0x006d, 0, F("manual_R1_even_offset")},
+    {0x006e, 0, F("manual_B2_odd_offset")},
+    {0x006f, 0, F("manual_B2_even_offset")},
+    {0x0070, 0, F("manual_G2_odd_offset")},
+    {0x0071, 0, F("manual_G2_even_offset")},
+    {0x0072, 0, F("BLK_DD_thBLK_various_th")},
+    {0x0080, 0, F("Block_enable1")},
+    {0x0081, 0, F("Block_enable2")},
+    {0x0082, 0, F("Block enable")},
+    {0x0083, 0, F("Special effect")},
+    {0x0084, 0, F("Output format")},
+    {0x0085, 0, F("Frame start")},
+    {0x0086, 0, F("Sync mode")},
+    {0x0087, 0, F("block_enable3_buf")},
+    {0x0088, 0, F("module_gating")},
+    {0x0089, 0, F("bypass_mode")},
+    {0x008c, 0, F("debug_mode2")},
+    {0x008d, 0, F("Debug_mode3")},
+    {0x0090, 0, F("Crop enable")},
+    {0x0091, 0, F("out_win_y1[10:8]")},
+    {0x0092, 1, F("out_win_y1 [7:0]")},
+    {0x0093, 0, F("out_win_x1[10:8]")},
+    {0x0094, 1, F("out_win_x1[7:0]")},
+    {0x0095, 0, F("out_win_height[10:8]")},
+    {0x0096, 1, F("out_win_height[7:0]")},
+    {0x0097, 0, F("out_win_width[10:8]")},
+    {0x0098, 1, F("out_win_width[7:0]")},
+    {0x0099, 0, F("subsample")},
+    {0x009a, 0, F("Subsample mode")},
+    {0x009b, 0, F("Sub_row_N1")},
+    {0x009c, 0, F("Sub_row_N2")},
+    {0x009d, 0, F("Sub_row_N3")},
+    {0x009e, 0, F("Sub_row_N4")},
+    {0x009f, 0, F("Sub_col_N1")},
+    {0x00a0, 0, F("Sub_col_N2")},
+    {0x00a1, 0, F("Sub_col_N3")},
+    {0x00a2, 0, F("Sub_col_N4")},
+    {0x00a3, 0, F("channel_gain_G1_odd")},
+    {0x00a4, 0, F("channel_gain_G1_even")},
+    {0x00a5, 0, F("channel_gain_R1_odd")},
+    {0x00a6, 0, F("channel_gain_R1_even")},
+    {0x00a7, 0, F("channel_gain_B2_odd")},
+    {0x00a8, 0, F("channel_gain_")},
+    {0x00a9, 0, F("channel_gain_G2_odd")},
+    {0x00aa, 0, F("channel_gain_G2_even")},
+    {0x00ad, 0, F("R_ratio")},
+    {0x00ae, 0, F("G_ratio")},
+    {0x00af, 0, F("B_ratio")},
+    {0x00b0, 0, F("Global_gain")},
+    {0x00b1, 0, F("Auto_pregain")},
+    {0x00b2, 0, F("Auto_postgain")},
+    {0x00b3, 0, F("AWB_R_gain")},
+    {0x00b4, 0, F("AWB_G_gain")},
+    {0x00b5, 0, F("AWB_B_gain")},
+    {0x00b6, 0, F("AEC_enable")},
+    {0x00c2, 0, F("output_buf_enable_buf")},
+    {0x0101, 0, F("AEC_x1")},
+    {0x0102, 0, F("AEC_x2")},
+    {0x0103, 0, F("AEC_y1")},
+    {0x0104, 0, F("AEC_y2")},
+    {0x0105, 0, F("AEC_center_x1")},
+    {0x0106, 0, F("AEC_center_x2")},
+    {0x0107, 0, F("AEC_center_y1")},
+    {0x0108, 0, F("AEC_center_y2")},
+    {0x010a, 0, F("AEC_mode1")},
+    {0x010b, 0, F("AEC_mode2")},
+    {0x010c, 0, F("AEC_mode3")},
+    {0x010d, 0, F("AEC_mode4")},
+    {0x010e, 0, F("AEC_high_range")},
+    {0x010f, 0, F("AEC_low_range")},
+    {0x0113, 0, F("AEC_target_Y")},
+    {0x0114, 0, F("Y_average")},
+    {0x0115, 0, F("target_Y_limit_from_histogram")},
+    {0x0116, 0, F("AEC_number_limit_high_range")},
+    {0x0118, 0, F("AEC mode5")},
+    {0x0119, 0, F("AEC mode 6")},
+    {0x011a, 0, F("AEC gainmode")},
+    {0x011f, 0, F("AEC_max_pre_dg_gain")},
+    {0x0120, 0, F("AEC_max_post_dg_gain")},
+    {0x0125, 0, F("AEC_anti_flicker_step[12:8]")},
+    {0x0126, 0, F("AEC_anti_flicker_step[7:0]")},
+    {0x0127, 0, F("AEC_exp_level_1[12:8]")},
+    {0x0128, 1, F("AEC_exp_level_1[7:0]")},
+    {0x0129, 0, F("AEC_exp_level_2[12:8]")},
+    {0x012a, 1, F("AEC_exp_level_2[7:0]")},
+    {0x012b, 0, F("AEC_exp_level_3[12:8]")},
+    {0x012c, 1, F("AEC_exp_level_3[7:0]")},
+    {0x012d, 0, F("AEC_exp_level_4[12:8]")},
+    {0x012e, 1, F("AEC_exp_level_4[7:0]")},
+    {0x012f, 0, F("AEC_exp_level_5[12:8]")},
+    {0x0130, 1, F("AEC_exp_level_5[7:0]")},
+    {0x0131, 0, F("AEC_exp_level_6[12:8]")},
+    {0x0132, 1, F("AEC_exp_level_6[7:0]")},
+    {0x0133, 0, F("AEC_exp_level_7[12:8]")},
+    {0x0134, 1, F("AEC_exp_level_7[7:0]")},
+    {0x0135, 0, F("AEC_max_dg_gain1")},
+    {0x0136, 0, F("AEC_max_dg_gain2")},
+    {0x0137, 0, F("AEC_max_dg_gain3")},
+    {0x0138, 0, F("AEC_max_dg_gain4")},
+    {0x0139, 0, F("AEC_max_dg_gain5")},
+    {0x013a, 0, F("AEC_max_dg_gain6")},
+    {0x013b, 0, F("AEC_max_dg_gain7")},
+    {0x013c, 0, F("AEC_max_exp_level")},
+    {0x013d, 0, F("AEC_exp_min_l[7:0]")},
+    {0x0150, 0, F("AWB mode 1")},
+    {0x0151, 0, F("AWBparameter")},
+    {0x0152, 0, F("AWBparameter")},
+    {0x0153, 0, F("AWBparameter")},
+    {0x0154, 0, F("AWBparameter")},
+    {0x0155, 0, F("AWBparameter")},
+    {0x0156, 0, F("AWBparameter")},
+    {0x0157, 0, F("AWBparameter")},
+    {0x0158, 0, F("AWBparameter")},
+    {0x0159, 0, F("AWB_PRE_RGB_low")},
+    {0x015a, 0, F("AWB_PRE_RGB_high")},
+    {0x015b, 0, F("AWBparameter")},
+    {0x0175, 0, F("AWB_every_N")},
+    {0x0176, 0, F("AWB_R_gain_limit")},
+    {0x0177, 0, F("AWB_G_gain_limit")},
+    {0x0178, 0, F("AWB_B_gain_limit")},
+    {0x0179, 0, F("AWB_R_gain_out_h_limit")},
+    {0x017a, 0, F("AWB_G_gain_out_h_limit")},
+    {0x017b, 0, F("AWB_B_gain_out_h_limit")},
+    {0x017c, 0, F("AWB_R_gain_out_l_limit")},
+    {0x017d, 0, F("AWB_G_gain_out_l_limit")},
+    {0x017e, 0, F("AWB_B_gain_out_l_limit")},
+    {0x019a, 0, F("ABS_range_compesateABS_skip_frame")},
+    {0x019b, 0, F("ABS_stop_margin")},
+    {0x019c, 0, F("Y_S_compesateABS_manual_K")},
+    {0x019d, 0, F("Y_stretch_limit")},
+    {0x01a0, 0, F("LSC_row_x2LSC_col_x2LSC_pixel_array_select")},
+    {0x01a1, 0, F("LSC_row_center")},
+    {0x01a2, 0, F("LSC_col_cente")},
+    {0x01a4, 0, F("LSC_Q12_RGB_sign")},
+    {0x01a5, 0, F("LSC_Q34_RGB_SIGN")},
+    {0x01a6, 0, F("LSC_right_left_rgb_b4_sign")},
+    {0x01a7, 0, F("LSC_up_down_rgb_b4_sign")},
+    {0x01a8, 0, F("LSC_right_up_down_rgb_b22_sign")},
+    {0x01a9, 0, F("LSC_left_up_down_rgb_b22_sign")},
+    {0x01aa, 0, F("LSC_Q1_red_b1")},
+    {0x01ab, 0, F("LSC_Q1_green_b1")},
+    {0x01ac, 0, F("LSC_Q1_blue_b1")},
+    {0x01ad, 0, F("LSC_Q2_red_b1")},
+    {0x01ae, 0, F("LSC_Q2_green_b1")},
+    {0x01af, 0, F("LSC_Q2_blue_b1")},
+    {0x01b0, 0, F("LSC_Q3_red_b1")},
+    {0x01b1, 0, F("LSC_Q3_green_b1")},
+    {0x01b2, 0, F("LSC_Q3_blue_b1")},
+    {0x01b3, 0, F("LSC_Q4_red_b1")},
+    {0x01b4, 0, F("LSC_Q4_green_b1")},
+    {0x01b5, 0, F("LSC_Q4_blue_b1")},
+    {0x01b6, 0, F("LSC_right_red_b2")},
+    {0x01b7, 0, F("LSC_right_green_b2")},
+    {0x01b8, 0, F("LSC_right_blue_b2")},
+    {0x01b9, 0, F("LSC_right_red_b4")},
+    {0x01ba, 0, F("LSC_right_green_b4")},
+    {0x01bb, 0, F("LSC_right_blue_b4")},
+    {0x01bc, 0, F("LSC_left_red_b2")},
+    {0x01bd, 0, F("LSC_left_green_b2")},
+    {0x01be, 0, F("LSC_left_blue_b2")},
+    {0x01bf, 0, F("LSC_left_red_b4")},
+    {0x01c0, 0, F("LSC_left_green_b4")},
+    {0x01c1, 0, F("LSC_left_blue_")},
+    {0x01c2, 0, F("LSC_up_red_b2")},
+    {0x01c3, 0, F("LSC_up_green_b2")},
+    {0x01c4, 0, F("LSC_up_blue_b2")},
+    {0x01c5, 0, F("LSC_up_red_b4")},
+    {0x01c6, 0, F("LSC_up_green_b4")},
+    {0x01c7, 0, F("LSC_up_blue_b4")},
+    {0x01c8, 0, F("LSC_down_red_b2")},
+    {0x01c9, 0, F("LSC_down_green_b2")},
+    {0x01ca, 0, F("LSC_down_blue_b2")},
+    {0x01cb, 0, F("LSC_down_red_b4")},
+    {0x01cc, 0, F("LSC_down_green_b4")},
+    {0x01cd, 0, F("LSC_down_blue_b4")},
+    {0x01d0, 0, F("LSC_right_up_red_b22")},
+    {0x01d1, 0, F("LSC_right_up_green_b22")},
+    {0x01d2, 0, F("LSC_right_up_blue_b22")},
+    {0x01d3, 0, F("LSC_right_down_red_b22")},
+    {0x01d4, 0, F("LSC_right_down_green_b22")},
+    {0x01d5, 0, F("LSC_right_down_blue_b22")},
+    {0x01d6, 0, F("LSC_left_up_red_b22")},
+    {0x01d7, 0, F("LSC_left_up_green_b22")},
+    {0x01d8, 0, F("LSC_left_up_blue_b22")},
+    {0x01d9, 0, F("LSC_left_down_red_b22")},
+    {0x01da, 0, F("LSC_left_down_green_b22")},
+    {0x01db, 0, F("LSC_left_down_blue_b22")},
+    {0x01dc, 0, F("LSC_Y_dark_th")},
+    {0x01dd, 0, F("LSC_Y_dark_slope")},
+    {0x01df, 0, F("LSC_U_B2G_stand_plus")},
+    {0x0210, 0, F("Gamma_out1")},
+    {0x0211, 0, F("Gamma_out2")},
+    {0x0212, 0, F("Gamma_out3")},
+    {0x0213, 0, F("Gamma_out4")},
+    {0x0214, 0, F("Gamma_out5")},
+    {0x0215, 0, F("Gamma_out6")},
+    {0x0216, 0, F("Gamma_out7")},
+    {0x0217, 0, F("Gamma_out8")},
+    {0x0218, 0, F("Gamma_out9")},
+    {0x0219, 0, F("Gamma_out10")},
+    {0x021a, 0, F("Gamma_out11")},
+    {0x021b, 0, F("Gamma_out12")},
+    {0x021c, 0, F("Gamma_out13")},
+    {0x021d, 0, F("Gamma_out14")},
+    {0x021e, 0, F("Gamma_out15")},
+    {0x021f, 0, F("Gamma_out16")},
+    {0x0220, 0, F("Gamma_out17")},
+    {0x0221, 0, F("Gamma_out18")},
+    {0x0222, 0, F("Gamma_out19")},
+    {0x0223, 0, F("Gamma_out20")},
+    {0x0224, 0, F("Gamma_out21")},
+    {0x0225, 0, F("Gamma_out22")},
+    {0x0284, 0, F("DD_dark_th")},
+    {0x0285, 0, F("ASDE_DN_B_slope")},
+    {0x0289, 0, F("ASDE_low_luma_value_DD_th2")},
+    {0x028a, 0, F("ASDE_low_luma_value_DD_th3")},
+    {0x028b, 0, F("ASDE_low_luma_value_DD_th4")},
+    {0x0290, 0, F("EEINTP")},
+    {0x0291, 0, F("EEINTP")},
+    {0x0292, 0, F("direction_TH1")},
+    {0x0293, 0, F("Direction_TH2")},
+    {0x0294, 0, F("diff_HV_mode")},
+    {0x0295, 0, F("direction_diff_")},
+    {0x0296, 0, F("edge level")},
+    {0x0297, 0, F("Edge1 effect")},
+    {0x0298, 0, F("Edge_pos_ratio")},
+    {0x0299, 0, F("Edge1_max")},
+    {0x029a, 0, F("Edge2_max")},
+    {0x029b, 0, F("Edge1_th")},
+    {0x029c, 0, F("Edge_pos_max")},
+    {0x029d, 0, F("Edge_effect_sc")},
+    {0x02c0, 0, F("CC_mode")},
+    {0x02c1, 0, F("CC_CT1_11")},
+    {0x02c2, 0, F("CC_CT1_12")},
+    {0x02c3, 0, F("CC_CT1_13")},
+    {0x02c4, 0, F("CC_CT1_21")},
+    {0x02c5, 0, F("CC_CT1_22")},
+    {0x02c6, 0, F("CC_CT1_23")},
+    {0x02d0, 0, F("Global")},
+    {0x02d1, 0, F("saturation_Cb")},
+    {0x02d2, 0, F("saturation_Cr")},
+    {0x02d3, 0, F("luma_contrast")},
+    {0x02d4, 0, F("Contrast center")},
+    {0x02d5, 0, F("Luma_offset")},
+    {0x02d6, 0, F("skin_Cb_center")},
+    {0x02d7, 0, F("skin_Cr_center")},
+    {0x02d9, 0, F("Skin brightnessmode")},
+    {0x02da, 0, F("Fixed_Cb")},
+    {0x02db, 0, F("Fixed_Cr")},
+    {0x02e6, 0, F("CC_R_offset")},
+    {0x02e7, 0, F("CC_G_offset")},
+    {0x02e8, 0, F("CC_B_offset")},
+    {0x0301, 0, F("DPHY_analog_mode1")},
+    {0x0302, 0, F("DPHY_analog_mode2")},
+    {0x0303, 0, F("DPHY_analog_mode3")},
+    {0x0304, 0, F("FIFO_prog_full_level[7:0]")},
+    {0x0305, 0, F("FIFO_prog_full_level[11:8]")},
+    {0x0306, 0, F("FIFO_mode")},
+    {0x0310, 0, F("BUF_CSI2_mode")},
+    {0x0311, 0, F("LDI_set")},
+    {0x0312, 0, F("LWC_set[7:0]")},
+    {0x0313, 0, F("LWC_set[15:8]")},
+    {0x0314, 0, F("SYNC_set")},
+    {0x0315, 0, F("DPHY_mode")},
+    {0x0316, 0, F("LP_set")},
+    {0x0317, 0, F("fifo_gate_modeMIPI_wdiv_set")},
+    {0x0320, 0, F("T_init_set")},
+    {0x0321, 0, F("T_LPX_set")},
+    {0x0322, 0, F("T_CLK_HS_PREPARE_set")},
+    {0x0323, 0, F("T_CLK_zero_set")},
+    {0x0324, 0, F("T_CLK_PRE_set")},
+    {0x0325, 0, F("T_CLK_POST_set")},
+    {0x0326, 0, F("T_CLK_TRAIL_set")},
+    {0x0327, 0, F("T_HS_exit_set")},
+    {0x0328, 0, F("T_wakeup_set")},
+    {0x0329, 0, F("T_HS_PREPARE_set")},
+    {0x032a, 0, F("T_HS_Zero_set")},
+    {0x032b, 0, F("T_HS_TRAIL_set")},
+    {0x0330, 0, F("MIPI_Test")},
+    {0x0331, 0, F("MIPI_Test_data0")},
+    {0x0332, 0, F("MIPI_Test_data1")},
+    {0x0333, 0, F("MIPI_Test_data2")},
+    {0x0334, 0, F("MIPI_Test_data3")},
+    {0x033f, 0, F("FIFO_error log")},
+    {0x0340, 0, F("output_buf_mode1")},
+    {0x0341, 0, F("output_buf_mode2")},
+    {0x0342, 0, F("buf_win_width[7:0]")},
+    {0x0343, 0, F("buf_win_width[11:8]")},
 };
 
 uint16_t gc2145_reg_page = 0;
 uint32_t gc2145_registers_set[32] = {0};
 
-#if (0)
+#define USE_PRINTREGISTERS
+
 void GC2145::printRegisters(bool only_ones_set)
 {
+    #ifdef USE_PRINTREGISTERS
     uint8_t reg;
     Serial.println("\n*** Camera Registers ***");
     if (only_ones_set) {
         uint8_t current_page = 0;
+        uint8_t previous_reg_value = 0;
         for (uint16_t ii = 3; ii < 1024; ii++) {
             if (gc2145_registers_set[ii >> 5] & (1 << (ii & 0x1f))) {
                 uint8_t page = ii >> 8;
@@ -1618,11 +1711,16 @@ void GC2145::printRegisters(bool only_ones_set)
                 Serial.printf("(%u:0x%x): (0x%x - %d)", page, ii & 0xff, reg, reg);
                 for (uint16_t jj=0; jj < (sizeof(GC2145_reg_name_table)/sizeof(GC2145_reg_name_table[0])); jj++) {
                     if (ii == GC2145_reg_name_table[jj].reg) {
-                        Serial.print("\t: ");
+                        if (GC2145_reg_name_table[jj].combine_with_previous) {
+                            uint16_t reg16_value = (previous_reg_value << 8) | reg;
+                            Serial.printf(" :: %u(%x)", reg16_value, reg16_value);
+                        }
+                        Serial.print("\t// ");
                         Serial.print(GC2145_reg_name_table[jj].reg_name);
                         break;
                     }
                 }
+                previous_reg_value = reg;
                 Serial.println();
             }
         }
@@ -1643,15 +1741,27 @@ void GC2145::printRegisters(bool only_ones_set)
             Serial.println();
         }
     }
-}
 #endif
+}
 
 void GC2145::showRegisters(void) {
+  #ifdef USE_PRINTREGISTERS
+    printRegisters(true);
+  #else    
   Serial.println("\n*** Camera Registers ***");
+  uint8_t previous_reg_value = 0;
   for (uint16_t ii = 0; ii < (sizeof(GC2145_reg_name_table) / sizeof(GC2145_reg_name_table[0])); ii++) {
     uint8_t reg_value = cameraReadRegister(GC2145_reg_name_table[ii].reg);
-    Serial.printf("%s(%x): %u(%x)\n", GC2145_reg_name_table[ii].reg_name, GC2145_reg_name_table[ii].reg, reg_value, reg_value);
+    Serial.printf("%s(%x): %u(%x)", GC2145_reg_name_table[ii].reg_name, GC2145_reg_name_table[ii].reg, reg_value, reg_value);
+    if (GC2145_reg_name_table[ii].combine_with_previous) {
+        uint16_t reg16_value = (previous_reg_value << 8) | reg_value;
+        Serial.printf(" :: %u(%x)\n", reg16_value, reg16_value);
+    } else {
+        Serial.println();
+    }
+    previous_reg_value = reg_value;
   }
+  #endif
 }
 
 
@@ -1719,11 +1829,12 @@ void GC2145::readFrame(void* buffer, bool use_dma){
     }
 }
 
-void GC2145::readFrameMultiBuffer(void* buffer1, size_t size1, void* buffer2, size_t size2) {
+void GC2145::readFrameSplitBuffer(void* buffer1, size_t size1, void* buffer2, size_t size2, bool use_dma) {
+    if (_debug) Serial.printf("\n$$readFrameSplitBuffer(%p, %u, %p, %u, %d) %u\n", buffer1, size1, buffer2, size2, use_dma, _use_gpio);
     if(!_use_gpio) {
-        readFrameMultiBufferFlexIO(buffer1, size1, buffer2, size2);
+        readFrameFlexIO(buffer1, size1, buffer2, size2, use_dma);
     } else {
-        //readFrameGPIO(buffer1);
+        readFrameGPIO(buffer1, size1, buffer2, size2);
     }
 }
 
@@ -1802,6 +1913,7 @@ void GC2145::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
     while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
   } while (emHigh < 2);
 
+  digitalWriteFast(0, HIGH);
   for (int i = 0; i < _height; i++) {
     // rising edge indicates start of line
     while ((*_hrefPort & _hrefMask) == 0); // wait for HIGH
@@ -1832,7 +1944,7 @@ void GC2145::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
     while ((*_hrefPort & _hrefMask) != 0) ;  // wait for LOW
     interrupts();
   }
-
+  digitalWriteFast(0, LOW); 
 }
 
 
@@ -2125,6 +2237,7 @@ void dumpDMA_TCD_GC(DMABaseClass *dmabc, const char *psz_title) {
       dmabc->TCD->CSR, dmabc->TCD->BITER);
 }
 
+#if 0
 void GC2145::readFrameFlexIO(void* buffer, bool use_dma)
 {
     //flexio_configure(); // one-time hardware setup
@@ -2326,12 +2439,13 @@ void GC2145::readFrameFlexIO(void* buffer, bool use_dma)
 //    dumpDMA_TCD_GC(&_dmasettings[0], " 0: ");
 //    dumpDMA_TCD_GC(&_dmasettings[1], " 1: ");
 }
+#endif
 
-
-void GC2145::readFrameMultiBufferFlexIO(void* buffer1, size_t size1, void* buffer2, size_t size2) 
+void GC2145::readFrameFlexIO(void* buffer1, size_t size1, void* buffer2, size_t size2, bool fUseDMA) 
 {
     //flexio_configure(); // one-time hardware setup
     // wait for VSYNC to go high and then low with a sort of glitch filter
+    if (_debug)Serial.printf("$$GC2145::readFrameFlexIO(%p, %u, %p, %u)\n", buffer1, size1, buffer2, size2);
     const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
     if ((size1 + size2) < frame_size_bytes) return; // not big enough to hold frame.
 
@@ -2354,7 +2468,7 @@ void GC2145::readFrameMultiBufferFlexIO(void* buffer1, size_t size1, void* buffe
     //----------------------------------------------------------------------
     // Use DMA FlexIO version
     //----------------------------------------------------------------------
-    digitalWriteFast(2, HIGH);
+    digitalWriteFast(0, HIGH);
 
     // Lets try like other implementation.
     //uint32_t length_uint32 = frame_size_bytes / 4;
@@ -2369,44 +2483,72 @@ void GC2145::readFrameMultiBufferFlexIO(void* buffer1, size_t size1, void* buffe
     // do it over 2 
     // first pass split each buffer into two parts
     uint32_t *p = (uint32_t *)buffer1;
-    if (size1 > frame_size_bytes) size1 = frame_size_bytes;
-    _dmasettings[0].source(_pflexio->SHIFTBUF[_fshifter]);
-    _dmasettings[0].destinationBuffer(p, size1 / 2);
-    _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
+    uint32_t cb_left = 0;
+    if (_debug)Serial.printf("\tframe Size:%u size1: %u\n", frame_size_bytes, size1);
 
-    _dmasettings[1].source(_pflexio->SHIFTBUF[_fshifter]);
-    _dmasettings[1].destinationBuffer(&p[size1 / 8], size1 / 2);
+    if ((buffer2 == nullptr) ||  frame_size_bytes < size1) {
+      _dmasettings[0].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[0].destinationBuffer(p, frame_size_bytes / 2);
+      _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
 
-    uint32_t cb_left = frame_size_bytes - size1;
-    if (cb_left) {
-        p = (uint32_t *)buffer2;
-
-        _dmasettings[1].TCD->CSR &= ~(DMA_TCD_CSR_DREQ | DMA_TCD_CSR_INTMAJOR); // Don't disable or interrupt on this one
-    
-
-        _dmasettings[2].source(_pflexio->SHIFTBUF[_fshifter]);
-        _dmasettings[2].destinationBuffer(p, cb_left / 2);
-        _dmasettings[2].replaceSettingsOnCompletion(_dmasettings[1]);
-
-        _dmasettings[3].source(_pflexio->SHIFTBUF[_fshifter]);
-        _dmasettings[3].destinationBuffer(&p[cb_left / 8], cb_left / 2);
-        _dmasettings[3].replaceSettingsOnCompletion(_dmasettings[0]);
-        _dmasettings[3].disableOnCompletion();
-        _dmasettings[3].interruptAtCompletion();
+      _dmasettings[1].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[1].destinationBuffer(&p[frame_size_bytes / 8], frame_size_bytes / 2);
+      _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
+      _dmasettings[1].disableOnCompletion();
+      _dmasettings[1].interruptAtCompletion();
     } else {
-        _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
-        _dmasettings[1].disableOnCompletion();
-        _dmasettings[1].interruptAtCompletion();
+      // Note: in this part we are going to use 3 
+      // use the first two for the first buffer
+      uint32_t cb_per_setting = ((size1 / 3) + 4) & 0xfffffffc; // round up to next multiple of 4.
+      _dmasettings[0].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[0].destinationBuffer(p, cb_per_setting);
+      _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
+
+      _dmasettings[1].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[1].destinationBuffer(&p[cb_per_setting / 4], cb_per_setting);
+      _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[2]);
+
+      _dmasettings[2].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[2].destinationBuffer(&p[cb_per_setting / 2], size1 - 2 * cb_per_setting);
+      _dmasettings[2].replaceSettingsOnCompletion(_dmasettings[3]);
+
+      p = (uint32_t *)buffer2;
+      cb_left = frame_size_bytes - size1;
+      cb_per_setting = ((cb_left / 3) + 4) & 0xfffffffc; // round up to next multiple of 4.
+
+      _dmasettings[3].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[3].destinationBuffer(p, cb_per_setting);
+      _dmasettings[3].replaceSettingsOnCompletion(_dmasettings[4]);
+
+      _dmasettings[4].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[4].destinationBuffer(&p[cb_per_setting / 4],cb_per_setting);
+      _dmasettings[4].replaceSettingsOnCompletion(_dmasettings[5]);
+
+      _dmasettings[5].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[5].destinationBuffer(&p[cb_per_setting / 2], cb_left - 2 * cb_per_setting);
+      _dmasettings[5].replaceSettingsOnCompletion(_dmasettings[0]);
+
+      _dmasettings[1].TCD->CSR &= ~(DMA_TCD_CSR_DREQ | DMA_TCD_CSR_INTMAJOR); // Don't disable or interrupt on this one
+      _dmasettings[5].disableOnCompletion();
+      _dmasettings[5].interruptAtCompletion();
     }
+
     _dmachannel = _dmasettings[0];
 
     _dmachannel.clearComplete();
+
 #ifdef DEBUG_FLEXIO
-    dumpDMA_TCD_GC(&_dmachannel," CH: ");
-    dumpDMA_TCD_GC(&_dmasettings[0], " 0: ");
-    dumpDMA_TCD_GC(&_dmasettings[1], " 1: ");
-    dumpDMA_TCD_GC(&_dmasettings[2], " 2: ");
-    dumpDMA_TCD_GC(&_dmasettings[3], " 3: ");
+    if (_debug) {
+      dumpDMA_TCD_GC(&_dmachannel," CH: ");
+      dumpDMA_TCD_GC(&_dmasettings[0], " 0: ");
+      dumpDMA_TCD_GC(&_dmasettings[1], " 1: ");
+      if (cb_left) {
+        dumpDMA_TCD_GC(&_dmasettings[2], " 2: ");
+        dumpDMA_TCD_GC(&_dmasettings[3], " 3: ");      
+        dumpDMA_TCD_GC(&_dmasettings[4], " 4: ");      
+        dumpDMA_TCD_GC(&_dmasettings[5], " 5: ");      
+      }
+    }
 #endif
 
 
@@ -2415,7 +2557,7 @@ void GC2145::readFrameMultiBufferFlexIO(void* buffer1, size_t size1, void* buffe
     _dmachannel.enable();
     
 #ifdef DEBUG_FLEXIO
-    Serial.printf("Flexio DMA: length: %d\n", frame_size_bytes);
+    if (_debug)Serial.printf("Flexio DMA: length: %d\n", frame_size_bytes);
 #endif
     
     elapsedMillis timeout = 0;
@@ -2445,12 +2587,13 @@ void GC2145::readFrameMultiBufferFlexIO(void* buffer1, size_t size1, void* buffe
         }
     }
     #ifdef GC2145_USE_DEBUG_PINS
-        digitalWriteFast(2, LOW);
+        digitalWriteFast(0, LOW);
     #endif
+    digitalWriteFast(0, LOW);
     arm_dcache_delete(buffer1, size1);
     arm_dcache_delete(buffer2, size2);
 #ifdef DEBUG_FLEXIO
-    dumpDMA_TCD_GC(&_dmachannel,"CM: ");
+    if (_debug)dumpDMA_TCD_GC(&_dmachannel,"CM: ");
 #endif
 //    dumpDMA_TCD_GC(&_dmasettings[0], " 0: ");
 //    dumpDMA_TCD_GC(&_dmasettings[1], " 1: ");
@@ -2699,7 +2842,7 @@ bool GC2145::stopReadFlexIO()
 //================================================================================
 // Define our DMA structure.
 DMAChannel GC2145::_dmachannel;
-DMASetting GC2145::_dmasettings[4];
+DMASetting GC2145::_dmasettings[6];
 uint32_t GC2145::_dmaBuffer1[DMABUFFER_SIZE] __attribute__ ((used, aligned(32)));
 uint32_t GC2145::_dmaBuffer2[DMABUFFER_SIZE] __attribute__ ((used, aligned(32)));
 extern "C" void xbar_connect(unsigned int input, unsigned int output); // in pwm.c

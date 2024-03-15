@@ -34,6 +34,13 @@ bool Camera::debug() {
   return sensor->debug();
 }
 
+uint8_t Camera::readRegister(uint8_t reg) {
+  return sensor->readRegister(reg);
+}
+bool Camera::writeRegister(uint8_t reg, uint8_t data) {
+  return sensor->writeRegister(reg, data);
+}
+
 uint8_t Camera::setFramesize(framesize_t framesize) {
   return sensor->setFramesize(framesize);
 }

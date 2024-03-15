@@ -10,8 +10,8 @@
 //#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
-#define ARDUCAM_CAMERA_OV7675
-//#define ARDUCAM_CAMERA_GC2145
+//#define ARDUCAM_CAMERA_OV7675
+#define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
 #include "TMM_HM0360/HM0360.h"
@@ -37,7 +37,7 @@ Camera camera(omni);
   #include "TMM_GC2145/GC2145.h"
   GC2145 galaxycore;
   Camera camera(galaxycore);
-  #define CameraID 0x7673
+  #define CameraID 0x2145
 #endif
 
 File file;
@@ -112,7 +112,7 @@ ILI9488_t3 tft = ILI9488_t3(TFT_CS, TFT_DC, TFT_RST);
 
 // Setup framebuffers
 DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
 // only half buffer will fit in each of the two main memory regions
 // split into two parts, part dmamem and part fast mememory to fit 640x480x2
 DMAMEM uint16_t frameBuffer[640 * 240] __attribute__((aligned(32)));
@@ -138,6 +138,8 @@ bool g_dma_mode = false;
 ae_cfg_t aecfg;
 
 void setup() {
+  pinMode(0, OUTPUT);
+  digitalWriteFast(0, LOW);
   while (!Serial && millis() < 5000) {}
   Serial.begin(921600);
   SerialUSB1.begin(921600);
@@ -221,7 +223,7 @@ void setup() {
 
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
   // VGA mode
-  camera.begin(FRAMESIZE_VGA, RGB565, 15, true);
+  camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
 #elif defined(ARDUCAM_CAMERA_HM0360) 
   camera.begin(FRAMESIZE_VGA, 15);
 #else
@@ -243,7 +245,8 @@ void setup() {
     while (1) {}
   }
 
-#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
+#ifndef CAMERA_USES_MONO_PALETTE
+//#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
   camera.setContrast(0x30);
   camera.setBrightness(0x80);
   camera.autoExposure(1);
@@ -261,6 +264,19 @@ void setup() {
   Serial.println(camera.width());
   Serial.print("\theight = ");
   Serial.println(camera.height());
+
+#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
+  uint8_t href = camera.readRegister(OV767X::REG_HREF);
+  uint8_t vref = camera.readRegister(OV767X::REG_VREF);
+  Serial.printf("\tHorizontal Frame START:%u STOP:%u\n", 
+      (camera.readRegister(OV767X::REG_HSTART) << 3) | (href & 0x7),
+      (camera.readRegister(OV767X::REG_HSTOP) << 3) | ((href >> 3) & 0x7));
+  Serial.printf("\tVertical Frame START:%u STOP:%u\n", 
+      (camera.readRegister(OV767X::REG_VSTART) << 2) | (vref & 0x3),
+      (camera.readRegister(OV767X::REG_VSTOP) << 2) | ((vref >> 2) & 0x3));
+
+ 
+#endif
   //Serial.print("\tbits per pixel = NA");
   //Serial.println(camera.bitsPerPixel());
   Serial.println();
@@ -432,7 +448,8 @@ void loop() {
           //camera.readFrame(frameBuffer);
           camera.readFrameSplitBuffer(frameBuffer, sizeof(frameBuffer), frameBuffer2, sizeof(frameBuffer2));
 
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
+#ifndef CAMERA_USES_MONO_PALETTE
+//#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
           int numPixels = camera.width() * camera.height();
           //for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
           int numPixels1 = min((int)(sizeof(frameBuffer) / 2), numPixels);
@@ -752,7 +769,9 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
     memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
     memset((uint8_t *)frameBuffer2, 0, sizeof(frameBuffer2));
   }
+//  digitalWriteFast(24, HIGH);
   camera.readFrameSplitBuffer(frameBuffer, sizeof(frameBuffer), frameBuffer2, sizeof(frameBuffer2), use_dma);
+//  digitalWriteFast(24, LOW);
 
   if (show_debug_info) {
     Serial.println("Finished reading frame");
@@ -769,7 +788,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
       for (uint16_t i = camera.width() - 8; i < camera.width(); i++) Serial.printf("%04x ", pfb[i]);
     }
     Serial.println("\n");
-#if 0  // Figure this out later... \
+#if 0  // Figure this out later...
        // Lets dump out some of center of image.
             Serial.println("Show Center pixels\n");
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
@@ -794,7 +813,8 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
   }
   //tft.setOrigin(-2, -2);
   int numPixels = camera.width() * camera.height();
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+#ifndef CAMERA_USES_MONO_PALETTE
+//#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
 
 //int camera_width = Camera.width();
 #if 1
@@ -808,7 +828,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
 
   if (numPixels2 == 0) {
     if ((camera.width() <= tft.width()) && (camera.height() <= tft.height())) {
-      if ((camera.width() != tft.width()) || (camera.height() != tft.height())) tft.fillScreen(TFT_BLACK);
+      //if ((camera.width() != tft.width()) || (camera.height() != tft.height())) tft.fillScreen(TFT_BLACK);
       tft.writeRect(CENTER, CENTER, camera.width(), camera.height(), frameBuffer);
     } else {
       Serial.println("sub image");
@@ -881,7 +901,7 @@ void read_display_multiple_frames(bool use_frame_buffer) {
     if (use_frame_buffer) tft.waitUpdateAsyncComplete();
 
     if ((camera.width() <= tft.width()) && (camera.height() <= tft.height())) {
-      if ((camera.width() != tft.width()) || (camera.height() != tft.height())) tft.fillScreen(TFT_BLACK);
+      //if ((camera.width() != tft.width()) || (camera.height() != tft.height())) tft.fillScreen(TFT_BLACK);
       tft.writeRect(CENTER, CENTER, camera.width(), camera.height(), frameBuffer);
     } else {
       tft.writeSubImageRect(0, 0, tft.width(), tft.height(), (camera.width() - tft.width()) / 2, (camera.height() - tft.height()),
