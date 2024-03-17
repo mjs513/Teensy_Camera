@@ -223,7 +223,7 @@ void setup() {
 
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
   // VGA mode
-  camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
+  camera.begin(FRAMESIZE_QVGA, RGB565, 15, false);
 #elif defined(ARDUCAM_CAMERA_HM0360) 
   camera.begin(FRAMESIZE_VGA, 15);
 #else
@@ -234,6 +234,7 @@ void setup() {
   //camera.begin(FRAMESIZE_QVGA, 30);
   camera.begin(FRAMESIZE_QVGA4BIT, 15);
 #endif
+  //galaxycore.setFramesize(480, 320);
 
   Serial.println("getting model id");
   uint16_t ModelID;

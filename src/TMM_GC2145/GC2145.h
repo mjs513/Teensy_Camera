@@ -230,6 +230,7 @@ public:
   int sleep(int enable);
   int setPixelFormat(pixformat_t pixformat);
   uint8_t setFramesize(framesize_t framesize);
+  uint8_t setFramesize(int w, int h);
   int setHmirror(int enable);
   int setVflip(int enable);
   int setAutoExposure(int enable, int exposure_us);

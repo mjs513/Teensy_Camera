@@ -1665,3 +1665,13 @@ void OV767X::showRegisters() {
   ov7670_printRegs();
 
 }
+
+bool OV767X::writeRegister(uint8_t reg, uint8_t data) {
+  Wire.beginTransmission(0x42>>1);
+  Wire.write(reg);
+  Wire.write(data);
+ 
+  if (Wire.endTransmission() != 0) return false;
+  return true;
+}
+

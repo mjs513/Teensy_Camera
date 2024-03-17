@@ -221,6 +221,9 @@ public:
   void debug(bool debug_on) {_debug = debug_on;}
   bool debug() {return _debug;}
 
+  uint8_t readRegister(uint8_t reg) {return cameraReadRegister(reg);}
+  bool writeRegister(uint8_t reg, uint8_t data);
+
 
   // must be called before Camera.begin()
   //void setPins(int vsync, int href, int pclk, int xclk, int rst, const int dpins[8]);
@@ -253,6 +256,77 @@ public:
   // unique to GC2145................................
   void printRegisters(bool only_ones_set = true) {} ;
   int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db) { return 0;};
+
+  // Experiment add some of the register names here:
+  enum {
+    REG_GAIN=  0x00,  /* Gain lower 8 bits (rest in vref) */
+    REG_BLUE=  0x01,  /* blue gain */
+    REG_RED=   0x02,  /* red gain */
+    REG_VREF=  0x03,  /* Pieces of GAIN, VSTART, VSTOP */
+    REG_COM1=  0x04,  /* Control 1 */
+    COM1_CCIR656=   0x40,  /* CCIR656 enable */
+    REG_BAVE=  0x05,  /* U/B Average level */
+    REG_GbAVE= 0x06,  /* Y/Gb Average level */
+    REG_AECHH= 0x07,  /* AEC MS 5 bits */
+    REG_RAVE=  0x08,  /* V/R Average level */
+    REG_COM2=  0x09,  /* Control 2 */
+    COM2_SSLEEP=    0x10,  /* Soft sleep mode */
+    REG_PID=   0x0a,  /* Product ID MSB */
+    REG_VER=   0x0b,  /* Product ID LSB */
+    REG_COM3=  0x0c,  /* Control 3 */
+    COM3_SWAP=    0x40,    /* Byte swap */
+    COM3_SCALEEN=   0x08,    /* Enable scaling */
+    COM3_DCWEN=   0x04,    /* Enable downsamp/crop/window */
+    REG_COM4=  0x0d,  /* Control 4 */
+    REG_COM5=  0x0e,  /* All "reserved" */
+    REG_COM6=  0x0f,  /* Control 6 */
+    REG_AECH=  0x10,  /* More bits of AEC value */
+    REG_CLKRC= 0x11,  /* Clocl control */
+    CLK_EXT=   0x40,    /* Use external clock directly */
+    CLK_SCALE=   0x3f,    /* Mask for internal clock scale */
+    REG_COM7=  0x12,  /* Control 7 */
+    COM7_RESET=    0x80,    /* Register reset */
+    COM7_FMT_MASK=   0x38,
+    COM7_FMT_VGA=    0x00,
+    COM7_FMT_CIF=    0x20,    /* CIF format */
+    COM7_FMT_QVGA=   0x10,    /* QVGA format */
+    COM7_FMT_QCIF=   0x08,    /* QCIF format */
+    COM7_RGB=    0x04,    /* bits 0 and 2 - RGB format */
+    COM7_YUV=    0x00,    /* YUV */
+    COM7_BAYER=    0x01,    /* Bayer format */
+    COM7_PBAYER=   0x05,    /* "Processed bayer" */
+    REG_COM8=  0x13,  /* Control 8 */
+    COM8_FASTAEC=    0x80,    /* Enable fast AGC/AEC */
+    COM8_AECSTEP=    0x40,    /* Unlimited AEC step size */
+    COM8_BFILT=    0x20,    /* Band filter enable */
+    COM8_AGC=    0x04,    /* Auto gain enable */
+    COM8_AWB=    0x02,    /* White balance enable */
+    COM8_AEC=    0x01,    /* Auto exposure enable */
+    REG_COM9=  0x14,  /* Control 9  - gain ceiling */
+    REG_COM10= 0x15,  /* Control 10 */
+    COM10_HSYNC=   0x40,    /* HSYNC instead of HREF */
+    COM10_PCLK_HB=   0x20,    /* Suppress PCLK on horiz blank */
+    COM10_HREF_REV=  0x08,    /* Reverse HREF */
+    COM10_VS_LEAD=   0x04,    /* VSYNC on clock leading edge */
+    COM10_VS_NEG=    0x02,    /* VSYNC negative */
+    COM10_HS_NEG=    0x01,    /* HSYNC negative */
+    REG_HSTART=  0x17,  /* Horiz start high bits */
+    REG_HSTOP= 0x18,  /* Horiz stop high bits */
+    REG_VSTART=  0x19,  /* Vert start high bits */
+    REG_VSTOP= 0x1a,  /* Vert stop high bits */
+    REG_PSHFT= 0x1b,  /* Pixel delay after HREF */
+    REG_MIDH=  0x1c,  /* Manuf. ID high */
+    REG_MIDL=  0x1d,  /* Manuf. ID low */
+    REG_MVFP=  0x1e,  /* Mirror / vflip */
+    MVFP_MIRROR=   0x20,    /* Mirror image */
+    MVFP_FLIP=   0x10,    /* Vertical flip */
+    REG_AEW = 0x24,  /* AGC upper limit */
+    REG_AEB = 0x25, /* AGC lower limit */
+    REG_VPT = 0x26, /* AGC/AEC fast mode op region */
+    REG_HSYST = 0x3,  /* HSYNC rising edge delay */
+    REG_HSYEN = 0x31, /* HSYNC falling edge delay */
+    REG_HREF = 0x32 /* HREF pieces */
+  };
 
   
 private:

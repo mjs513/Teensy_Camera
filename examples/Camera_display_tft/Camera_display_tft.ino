@@ -47,7 +47,7 @@ File file;
  * does not work.  Arduino breakout only brings out  *
  * the lower 4 bits.                                 *
  ****************************************************/
-#define _hmConfig 1 // select mode string below
+#define _hmConfig 0 // select mode string below
 
 PROGMEM const char hmConfig[][48] = {
  "FLEXIO_CUSTOM_LIKE_8_BIT",
@@ -110,8 +110,8 @@ ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
 // Setup framebuffers
 DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
-  uint16_t DMAMEM frameBuffer[(320) * 240] __attribute__((aligned(32))); 
-  uint16_t DMAMEM frameBuffer2[(320) * 240] __attribute__((aligned(32))); 
+  uint16_t DMAMEM frameBuffer[(320) * 260] __attribute__((aligned(32))); 
+  uint16_t DMAMEM frameBuffer2[(320) * 260] __attribute__((aligned(32))); 
 #else
   uint8_t DMAMEM frameBuffer[(324) * 244] __attribute__((aligned(32))); 
   uint8_t DMAMEM frameBuffer2[(324) * 244] __attribute__((aligned(32))); 
@@ -189,6 +189,9 @@ void setup()
 //    uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3,
 //    uint8_t g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
 #ifdef USE_MMOD_ATP_ADAPTER
+  pinMode(30, INPUT_PULLUP);
+  pinMode(31, INPUT_PULLUP);
+
   if ((_hmConfig == 0) || (_hmConfig == 2)) {
     camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
   } else if( _hmConfig == 1) {
@@ -205,7 +208,7 @@ void setup()
 #endif
 
   #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
-    camera.begin(FRAMESIZE_QVGA, RGB565, 30, true);
+    camera.begin(FRAMESIZE_QVGA, RGB565, 30, false);
   #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
@@ -275,13 +278,13 @@ void setup()
     GC2145_SOLID_CYAN,
     GC2145_SOLID_MAGENTA
   ****************************************************************************/
-  camera.setColorbar(GC2145_DISABLED);
+  camera.setColorbar(0);
 #else
   /**************************************************************************
     0 = disabled
     1 = enabled
    *************************************************************************/
-  camera.setColorbar(GC2145_COLOR_BARS);
+  camera.setColorbar(0);
 #endif
 
 }

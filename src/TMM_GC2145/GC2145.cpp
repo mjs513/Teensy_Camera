@@ -73,6 +73,7 @@ const int resolution[][2] = {
     {640,  480 },    /* VGA       */
     {160,  120 },    /* QQVGA     */
     {320,  240 },    /* QVGA      */
+    {480,  320 },    /* ILI9488   */
     {320,  320 },    /* 320x320   */
     {320,  240 },    /* QVGA      */
     {176,  144 },    /* QCIF      */
@@ -1164,98 +1165,89 @@ int GC2145::setWindow(uint16_t reg, uint16_t x, uint16_t y, uint16_t w, uint16_t
 }
 
 uint8_t GC2145::setFramesize(framesize_t framesize) {
-    int ret = 0;
+    return setFramesize(resolution[framesize][0], resolution[framesize][1]);
+}
 
-    uint16_t win_w;
-    uint16_t win_h;
-
-    uint16_t w = resolution[framesize][0];
-    uint16_t h = resolution[framesize][1];
-    
+uint8_t GC2145::setFramesize(int w, int h) {
+    uint8_t ret = 0;
     _width = w;
     _height = h;
     
     Serial.printf("Setting Resolution\n");
     Serial.printf("Resolution (w/h): %d, %d\n", w, h);
-
-    // Hack test
-    if (framesize == FRAMESIZE_VGA) {
-        Serial.println("\n$$Hack for hard coded windows");
-        //ret |= setWindow(0x09, 160, 120, 1618, 960);        
-        //ret |= setWindow(0x091, 0, 0, 640, 480);
-        ret |= setWindow(0x09, 0, 0, 1618, 1216);        
-        ret |= setWindow(0x091, 0, 0, 640, 480);
-        ret |= cameraWriteRegister(0x9c, 0x23);
-        ret |= cameraWriteRegister(0xa0, 0x23);
-        return ret;
-    }
-    else if (framesize == FRAMESIZE_QVGA) {
-        Serial.println("\n$$Hack for hard coded windows");
-        //ret |= setWindow(0x09, 160, 120, 1618, 960);        
-        //ret |= setWindow(0x091, 0, 0, 640, 480);
-        ret |= setWindow(0x09, 0, 0, 1618, 1216);        
-        ret |= setWindow(0x091, 0, 0, 320, 240);
-        ret |= cameraWriteRegister(0x9c, 0x0);
-        ret |= cameraWriteRegister(0xa0, 0x0);
-        return ret;
-    }
-
-
-
-    switch (framesize) {
-        case FRAMESIZE_QQVGA:
-            win_w = w * 4;
-            win_h = h * 4;
-            break;
-        case FRAMESIZE_QVGA:
-        case FRAMESIZE_320X320:
-            win_w = w * 3;
-            win_h = h * 3;
-            break;
-        case FRAMESIZE_VGA:
-            {
-            win_w = w * 2;
-            win_h = h * 2;
-            #if 0
-            Serial.println("$$Experiment - try setting the ESP32 registers");
-            for (int i=0; gc2145_setting_vga[i][0] && ret == 0; i++) {
-                ret |=  cameraWriteRegister(gc2145_setting_vga[i][0], gc2145_setting_vga[i][1]);
-            }
-            #endif
-            }
-
-            break;
-/*        case CAMERA_R800x600:
-        case CAMERA_R1600x1200:
-            // For frames bigger than subsample using full UXGA window.
-            win_w = 1600;
-            win_h = 1200;
-            break;
-*/
-        default:
-            return -1;
-    }
-
-    Serial.printf("Window (win_w, win_h): %d, %d\n", win_w, win_h);
-
-    uint16_t c_ratio = win_w / w;
-    uint16_t r_ratio = win_h / h;
-
-    uint16_t x = (((win_w / c_ratio) - w) / 2);
-    uint16_t y = (((win_h / r_ratio) - h) / 2);
-
-    uint16_t win_x = ((ACTIVE_SENSOR_WIDTH - win_w) / 2);
-    uint16_t win_y = ((ACTIVE_SENSOR_HEIGHT - win_h) / 2);
     
-    Serial.printf("Window Ratios (c/r, x/y): %d, %d, %d, %d\n", c_ratio, r_ratio, x, y);
-    Serial.printf("Window size (win_x, win_y): %d, %d\n", x, y, win_x, win_y);
+    // Invalid resolution.
+    if ((w > ACTIVE_SENSOR_WIDTH) || (h > ACTIVE_SENSOR_HEIGHT)) {
+        return -1;
+    }
+
+    // Step 0: Clamp readout settings.
+
+    readout_w = max(readout_w, w);
+    readout_h = max(readout_h, h);
     
+    int readout_x_max = (ACTIVE_SENSOR_WIDTH - readout_w) / 2;
+    int readout_y_max = (ACTIVE_SENSOR_HEIGHT - readout_h) / 2;
+    readout_x = max(min(readout_x, readout_x_max), -readout_x_max);
+    readout_y = max(min(readout_y, readout_y_max), -readout_y_max);
 
-    // Set readout window first.
-    ret |= setWindow(0x09, win_x, win_y, win_w + 16, win_h + 8);
-    Serial.printf("setWindow (win_x, win_ywin_w + 16, win_h + 8): %d, %d, %d, %d\n", win_x, win_y, win_w + 16, win_h + 8);
 
+    // Step 1: Determine sub-readout window.
+    uint16_t ratio = fast_floorf(min(readout_w / ((float) w), readout_h / ((float) h)));
 
+    // Limit the maximum amount of scaling allowed to keep the frame rate up.
+    ratio = min(ratio, (fov_wide ? 5 : 3));
+
+    if (!(ratio % 2)) {
+        // camera outputs messed up bayer images at even ratios for some reason...
+        ratio -= 1;
+    }
+    
+    uint16_t sub_readout_w = w * ratio;
+    uint16_t sub_readout_h = h * ratio;
+
+    // Step 2: Determine horizontal and vertical start and end points.
+    uint16_t sensor_w = sub_readout_w + DUMMY_WIDTH_BUFFER; // camera hardware needs dummy pixels to sync
+    uint16_t sensor_h = sub_readout_h + DUMMY_HEIGHT_BUFFER; // camera hardware needs dummy lines to sync
+
+    uint16_t sensor_x = max(min((((ACTIVE_SENSOR_WIDTH - sensor_w) / 4) - (readout_x / 2)) * 2,
+                                      ACTIVE_SENSOR_WIDTH - sensor_w), -(DUMMY_WIDTH_BUFFER / 2)) + DUMMY_COLUMNS; // must be multiple of 2
+
+    uint16_t sensor_y = max(min((((ACTIVE_SENSOR_HEIGHT - sensor_h) / 4) - (readout_y / 2)) * 2,
+                                      ACTIVE_SENSOR_HEIGHT - sensor_h), -(DUMMY_HEIGHT_BUFFER / 2)) + DUMMY_LINES; // must be multiple of 2
+
+    // Step 3: Write regs.
+    // Set Readout window first.
+
+#if defined(DEBUG_CAMERA)
+    Serial.println("\nSet Framesize:");
+    Serial.println("Step 0: Clamp readout settings");
+    Serial.printf("ActSenWidth: %d, ActSenHeight: %d\n", ACTIVE_SENSOR_WIDTH, ACTIVE_SENSOR_HEIGHT);
+    Serial.printf("Width: %d, Height: %d\n", w, h);
+    Serial.printf("ReadoutW: %d, ReadoutH: %d\n", readout_w, readout_h);
+    Serial.printf("ReadoutXmax: %d, ReadoutYmax: %d\n", readout_x_max, readout_y_max);
+    Serial.printf("ReadoutX: %d, ReadoutY: %d\n", readout_x, readout_y);
+    Serial.println("\nStep 1: Determine sub-readout window.");
+    Serial.printf("Ratio: %d\n", ratio);
+    Serial.printf("Ratio after test: %d\n", ratio);
+    Serial.printf("sub_readout_w: %d, sub_readout_h: %d\n", sub_readout_w, sub_readout_h);
+    Serial.println("\nStep 2: Determine horizontal and vertical start and end points");
+    Serial.printf("sensor_w: %d, sensor_h: %d, sensor_x: %d, sensor_y: %d\n", sensor_w,sensor_h, sensor_x, sensor_y);
+    Serial.println("\nStep 3: Write Regs - call set window");
+    Serial.printf("SensorX: %d, SensorY: %d, SensorW: %d, SensorH: %d\n\n", sensor_x, sensor_y, sensor_w, sensor_h);
+#endif
+    
+    ret |= setWindow(0x09, sensor_x, sensor_y, sensor_w, sensor_h);
+
+    // Set cropping window next.
+    ret |= setWindow(0x91, 0, 0, w, h);
+
+    // Enable crop
+    ret |= cameraWriteRegister(0x90, 0x01);
+
+    // Set Sub-sampling ratio and mode
+    ret |= cameraWriteRegister(0x99, ((ratio << 4) | (ratio)));
+    ret |= cameraWriteRegister(0x9A, 0x0E);
 
     return ret;
 }
