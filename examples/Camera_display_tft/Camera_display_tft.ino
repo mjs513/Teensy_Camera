@@ -110,8 +110,8 @@ ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
 // Setup framebuffers
 DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
-  uint16_t DMAMEM frameBuffer[(320) * 260] __attribute__((aligned(32))); 
-  uint16_t DMAMEM frameBuffer2[(320) * 260] __attribute__((aligned(32))); 
+  uint16_t DMAMEM frameBuffer[(320) * 240] __attribute__((aligned(32))); 
+  uint16_t DMAMEM frameBuffer2[(320) * 240] __attribute__((aligned(32))); 
 #else
   uint8_t DMAMEM frameBuffer[(324) * 244] __attribute__((aligned(32))); 
   uint8_t DMAMEM frameBuffer2[(324) * 244] __attribute__((aligned(32))); 
@@ -141,7 +141,7 @@ void setup()
       while(1);
     }
 
-  tft.begin(15000000);
+  tft.begin();
 
   tft.setRotation(3);
   tft.fillScreen(TFT_RED);
@@ -208,13 +208,13 @@ void setup()
 #endif
 
   #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
-    camera.begin(FRAMESIZE_QVGA, RGB565, 30, false);
+    camera.begin(FRAMESIZE_QVGA, RGB565, 30);
   #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
   //HM01B0(4pin only) 15/30/60 works, 120 not supported
   //camera.begin(FRAMESIZE_QVGA, 30);
-    camera.begin(FRAMESIZE_QVGA4BIT, 15);
+    camera.begin(FRAMESIZE_QVGA4BIT, 15, true);
   #endif
   
   Serial.println("getting model id");
