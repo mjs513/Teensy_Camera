@@ -647,18 +647,24 @@ uint8_t HM01B0::setFramesize(framesize_t new_framesize)
             for (int i=0; FULL_regs[i][0] && ret == 0; i++) {
                 ret |=  cameraWriteRegister(FULL_regs[i][0], FULL_regs[i][1]);  //cambus_writeb2(&sensor->bus, sensor->slv_addr, FULL_regs[i][0], FULL_regs[i][1]
             }
+            if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT ) 
+                    ret = cameraWriteRegister(BIT_CONTROL, 0x42);
             break;
         case FRAMESIZE_QVGA:
 			_width = 324; _height = 244;
             for (int i=0; QVGA_regs[i][0] && ret == 0; i++) {
                 ret |= cameraWriteRegister( QVGA_regs[i][0], QVGA_regs[i][1]);
             }
+            if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT ) 
+                    ret |= cameraWriteRegister(BIT_CONTROL, 0x42);
             break;
         case FRAMESIZE_QQVGA:
 			_width = 160; _height = 120;
             for (int i=0; QQVGA_regs[i][0] && ret == 0; i++) {
                 ret |= cameraWriteRegister( QQVGA_regs[i][0], QQVGA_regs[i][1]);
             }
+            if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT ) 
+                    ret |= cameraWriteRegister(BIT_CONTROL, 0x42);
             break;
         case FRAMESIZE_QVGA4BIT:
 			_width = 324; _height = 244;
@@ -1203,7 +1209,11 @@ void HM01B0::readFrame(void* buffer, bool fUseDMA){
     if(!_use_gpio) {
         readFrameFlexIO(buffer, (size_t)-1, nullptr, 0, fUseDMA);
     } else {
-        readFrameGPIO(buffer);
+        if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT) {
+            readFrame4BitGPIO(buffer);
+        } else {
+            readFrameGPIO(buffer);
+        }
     }
 }
 

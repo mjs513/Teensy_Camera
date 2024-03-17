@@ -201,6 +201,8 @@ uint8_t HM0360::setFramesize(framesize_t new_framesize) {
       for (int i = 0; himax_qvga_regs[i][0] && ret == 0; i++) {
         ret |= cameraWriteRegister(himax_qvga_regs[i][0], himax_qvga_regs[i][1]);
       }
+      if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT ) 
+         ret |= cameraWriteRegister(0x310F, 0x40);
       break;
     case FRAMESIZE_QVGA4BIT:
       _width = 320;
@@ -215,6 +217,8 @@ uint8_t HM0360::setFramesize(framesize_t new_framesize) {
       for (int i = 0; himax_qqvga_regs[i][0] && ret == 0; i++) {
         ret |= cameraWriteRegister(himax_qqvga_regs[i][0], himax_qqvga_regs[i][1]);
       }
+      if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT ) 
+         ret |= cameraWriteRegister(0x310F, 0x40);
       break;
     case FRAMESIZE_VGA:
       _width = 640;
@@ -222,6 +226,8 @@ uint8_t HM0360::setFramesize(framesize_t new_framesize) {
       for (int i = 0; himax_vga_regs[i][0] && ret == 0; i++) {
         ret |= cameraWriteRegister(himax_vga_regs[i][0], himax_vga_regs[i][1]);
       }
+      if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT ) 
+         ret |= cameraWriteRegister(0x310F, 0x40);
       break;
     default:
       ret = -1;
@@ -630,7 +636,11 @@ void HM0360::readFrame(void *buffer, bool fUseDMA) {
     readFrameFlexIO(buffer, (size_t)-1, nullptr, 0, fUseDMA);
 #endif
   } else {
-    readFrameGPIO(buffer);
+    if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT) {
+        readFrame4BitGPIO(buffer);
+    } else {
+        readFrameGPIO(buffer);
+    }
   }
 }
 
