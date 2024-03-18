@@ -7,9 +7,9 @@
 #define USE_MMOD_ATP_ADAPTER
 //#define USE_SDCARD
 
-//#define ARDUCAM_CAMERA_HM01B0
+#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
-#define ARDUCAM_CAMERA_OV7670
+//#define ARDUCAM_CAMERA_OV7670
 //#define ARDUCAM_CAMERA_OV7675
 //#define ARDUCAM_CAMERA_GC2145
 
@@ -47,7 +47,7 @@ File file;
  * does not work.  Arduino breakout only brings out  *
  * the lower 4 bits.                                 *
  ****************************************************/
-#define _hmConfig 0  // select mode string below
+#define _hmConfig 1  // select mode string below
 
 PROGMEM const char hmConfig[][48] = {
   "FLEXIO_CUSTOM_LIKE_8_BIT",
@@ -460,7 +460,7 @@ void loop() {
 #if defined(USE_SDCARD)
           memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
           camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
-          camera.readFrame(frameBuffer);
+          camera.readFrame(frameBuffer, sizeof(frameBuffer));
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
           int numPixels = camera.width() * camera.height();
           for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
@@ -495,7 +495,7 @@ void loop() {
           Serial.println("Reading frame");
           Serial.printf("Buffer: %p halfway: %p end:%p\n", frameBuffer, &frameBuffer[camera.width() * camera.height() / 2], &frameBuffer[camera.width() * camera.height()]);
           memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
-          camera.readFrame(frameBuffer);
+          camera.readFrame(frameBuffer, sizeof(frameBuffer));
           Serial.println("Finished reading frame");
           Serial.flush();
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
@@ -665,7 +665,7 @@ uint16_t color565(uint8_t r, uint8_t g, uint8_t b) {
 void send_image(Stream *imgSerial) {
   memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
   camera.setHmirror(1);
-  camera.readFrame(frameBuffer);
+  camera.readFrame(frameBuffer, sizeof(frameBuffer));
 
   imgSerial->write(0xFF);
   imgSerial->write(0xAA);
@@ -704,7 +704,7 @@ void send_image(Stream *imgSerial) {
 
 void send_raw() {
   memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
-  camera.readFrame(frameBuffer);
+  camera.readFrame(frameBuffer, sizeof(frameBuffer));
   uint32_t idx = 0;
 #ifdef CAMERA_USES_MONO_PALETTE
   uint32_t image_idx = 0;
@@ -855,7 +855,7 @@ void read_display_multiple_frames(bool use_frame_buffer) {
 
   for (;;) {
 
-    camera.readFrame(frameBuffer);
+    camera.readFrame(frameBuffer, sizeof(frameBuffer));
 
     int numPixels = camera.width() * camera.height();
 
