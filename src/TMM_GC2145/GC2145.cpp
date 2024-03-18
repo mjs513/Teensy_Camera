@@ -974,8 +974,8 @@ Serial.printf("F1: 0x%x\n", Data);
 }
 
 //bool GC2145::begin(framesize_t resolution, int format, bool use_gpio)
-bool GC2145::begin_omnivision(framesize_t resolution, pixformat_t format, int fps, bool use_gpio)
-{
+bool GC2145::begin_omnivision(framesize_t resolution, pixformat_t format, int fps, int camera_name, bool use_gpio)
+{ 
     //_wire = &Wire;
     _wire->begin();
 
@@ -1036,6 +1036,8 @@ bool GC2145::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
     for(volatile uint32_t i=0; i<100000; i++)
     {}
   }
+  
+  if( getModelid() != 0x2145) return 0;
   
   reset();
   

@@ -216,7 +216,7 @@ public:
                      uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4, uint8_t g5, uint8_t g6, uint8_t g7, TwoWire &wire);
 
   //bool begin(framesize_t resolution, int format, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
-  bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, bool use_gpio = false); 
+  bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, int camera_name = OV7670, bool use_gpio = false); 
   void end();
   uint16_t getModelid();
 

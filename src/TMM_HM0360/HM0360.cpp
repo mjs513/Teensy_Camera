@@ -588,6 +588,8 @@ bool HM0360::begin(framesize_t framesize, int framerate, bool use_gpio) {
   }
   setVSyncISRPriority(102);
   setDMACompleteISRPriority(192);
+  
+  if(getModelid() != 0x0360) return 0;
 
   reset();
 

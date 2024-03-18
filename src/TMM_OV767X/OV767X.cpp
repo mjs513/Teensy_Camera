@@ -78,8 +78,9 @@ OV767X::~OV767X()
 }
 */
 //int OV767X::begin(int resolution, int format, int fps,  int camera_name, bool use_gpio)
-bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format, int fps, bool use_gpio)
+bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format, int fps, int camera_name, bool use_gpio)
 {
+
   int _framesize = 0;
   int _format = 0;
   
@@ -203,18 +204,6 @@ bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
     return 0;
   }
   
-  int camera_name;
-  uint16_t _cameraID = getModelid();
-  //Serial.printf("Camera ID = 0x%x\n", _cameraID);
-  if(_cameraID == 0x7676) {
-      camera_name = OV7670;
-  } else if(_cameraID == 0x7673) {
-      camera_name = OV7675;
-  } else {
-      Serial.println("Omivision Camera Not Supported !");
-      return 0;
-  }
-
   if(camera_name == OV7670) {
       _xclk_freq = 14;  //was 16Mhz
   } else {
@@ -224,6 +213,7 @@ bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
       _xclk_freq = 16;
       }
   }
+  
   Serial.printf("Calling ov7670_configure\n");
   Serial.printf("Cam Name: %d, Format: %d, Resolution: %d, Clock: %d\n", camera_name, _format, _framesize, _xclk_freq);
   Serial.printf("Frame rate: %d\n", fps);
@@ -447,7 +437,7 @@ void OV767X::readFrame(void* buffer, bool fUseDMA){
     if(!_use_gpio) {
         readFrameFlexIO(buffer, (size_t)-1, nullptr, 0, fUseDMA);
     } else {
-        readFrameGPIO(buffer);
+        readFrameGPIO(buffer, (size_t)-1, nullptr, 0);
     }
 }
 

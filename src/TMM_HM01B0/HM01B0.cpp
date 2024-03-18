@@ -1165,7 +1165,9 @@ bool HM01B0::begin(framesize_t framesize, int framerate, bool use_gpio)
     }
 	setVSyncISRPriority(102);
 	setDMACompleteISRPriority(192);
-	
+    
+  if(getModelid() != 0x01B0) return 0;
+  
 	reset();
     
     setFramesize(framesize);   

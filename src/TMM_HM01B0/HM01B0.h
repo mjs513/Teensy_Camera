@@ -86,7 +86,7 @@ public:
   uint16_t getModelid();
 
   // covers ov functions
-  bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, bool use_gpio = false){ return 0;};
+  bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, int camera_name = OV7670, bool use_gpio = false){ return 0;};
   void setSaturation(int saturation) {}; // 0 - 255
   void setHue(int hue) {}; // -180 - 180
   void setContrast(int contrast) {}; // 0 - 127

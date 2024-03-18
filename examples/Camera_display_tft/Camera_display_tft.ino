@@ -8,8 +8,8 @@
 //#define USE_SDCARD
 
 //#define ARDUCAM_CAMERA_HM01B0
-#define ARDUCAM_CAMERA_HM0360
-//#define ARDUCAM_CAMERA_OV7670
+//#define ARDUCAM_CAMERA_HM0360
+#define ARDUCAM_CAMERA_OV7670
 //#define ARDUCAM_CAMERA_OV7675
 //#define ARDUCAM_CAMERA_GC2145
 
@@ -27,17 +27,17 @@ Camera camera(himax);
 #include "TMM_OV767X/OV767X.h"
 OV767X omni;
 Camera camera(omni);
-#define CameraID 0x7676
+#define CameraID OV7670
 #elif defined(ARDUCAM_CAMERA_OV7675)
 #include "TMM_OV767X/OV767X.h"
 OV767X omni;
 Camera camera(omni);
-#define CameraID 0x7673
+#define CameraID OV7675
 #elif defined(ARDUCAM_CAMERA_GC2145)
 #include "TMM_GC2145/GC2145.h"
 GC2145 galaxycore;
 Camera camera(galaxycore);
-#define CameraID 0x2145
+#define CameraID GC2145a
 #endif
 
 File file;
@@ -236,24 +236,25 @@ void setup() {
   }
 #endif
 
-#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
-  camera.begin(FRAMESIZE_QVGA, RGB565, 30);
+// OV7675 Framerate = 15, 30, 60 (F command does not work)
+//        Framezize_CIF only works for snapshots, 
+//        FRAMESIZE_QCIF doesn't work with flexio but works with GPIO
+//
+uint8_t status = 1;
+#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145))
+  status = camera.begin(FRAMESIZE_QVGA, RGB565, 30, CameraID);
 #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
   //HM01B0(4pin only) 15/30/60 works, 120 not supported
-  camera.begin(FRAMESIZE_QVGA, 15, true);
+  status = camera.begin(FRAMESIZE_QVGA, 15);
 #endif
 
-  Serial.println("getting model id");
-  uint16_t ModelID;
-  ModelID = camera.getModelid();
-  if (ModelID == CameraID) {
-    Serial.printf("SENSOR DETECTED :-) MODEL %X\n", ModelID);
-  } else {
-    Serial.println("SENSOR NOT DETECTED! :-(");
-    while (1) {}
-  }
+Serial.printf("Begin status: %d\n", status);
+if(!status) {
+  Serial.println("Camera failed to start!!!");
+  while(1){}
+}
 
 #if defined(ARDUINO_TEENSY_DEVBRD4)
   // we need to allocate bufers

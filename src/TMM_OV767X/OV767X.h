@@ -136,11 +136,13 @@ enum
   GRAYSCALE = 4
 };
 */
+/*
 enum
 {
   OV7670 = 0,
   OV7675 = 1
 };
+*/
 /*
 enum
 {
@@ -157,7 +159,7 @@ public:
   OV767X();
 
   //int begin(int resolution, int format, int fps,  int camera_name = OV7670, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
-  bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
+  bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, int camera_name = OV7670, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
   void end();
 
   // must be called after Camera.begin():

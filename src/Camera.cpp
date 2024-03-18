@@ -237,8 +237,8 @@ void Camera::autoExposure(int enable) {
     sensor->autoExposure(enable);
 }
 
-bool Camera::begin(framesize_t resolution, pixformat_t format, int fps, bool use_gpio) { // Supported FPS: 1, 5, 10, 15, 30
-    return sensor->begin_omnivision(resolution, format, fps, use_gpio);
+bool Camera::begin(framesize_t resolution, pixformat_t format, int fps, int camera_name, bool use_gpio) { // Supported FPS: 1, 5, 10, 15, 30
+    return sensor->begin_omnivision(resolution, format, fps, camera_name, use_gpio);
 }
 
 int Camera::setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db) {

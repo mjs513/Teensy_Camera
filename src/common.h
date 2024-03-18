@@ -72,3 +72,10 @@ typedef enum {
     HIMAX_ERR_PARAMS,
     HIMAX_NUM_ERR
 } status_e;
+
+enum
+{
+  OV7670 = 0,
+  OV7675 = 1,
+  GC2145a = 2
+};

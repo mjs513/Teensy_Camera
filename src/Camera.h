@@ -47,7 +47,7 @@ public:
   virtual uint16_t getModelid() = 0;
   virtual void captureFrameStatistics() = 0;
   
-  virtual bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
+  virtual bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, int camera_name = OV7670, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
   virtual void setSaturation(int saturation) = 0; // 0 - 255
   virtual void setHue(int hue) = 0; // -180 - 180
   virtual void setContrast(int contrast) = 0; // 0 - 127
@@ -145,8 +145,7 @@ public:
 
   
   /***********  OV specific ************************/
-  bool begin(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30,
-                        bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
+  bool begin(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, int camera_name = OV7670, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
   void setSaturation(int saturation); // 0 - 255
   void setHue(int hue); // -180 - 180
   void setContrast(int contrast); // 0 - 127
