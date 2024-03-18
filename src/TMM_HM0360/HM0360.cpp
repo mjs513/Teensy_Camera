@@ -1049,6 +1049,7 @@ bool HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
   //flexio_configure(); // one-time hardware setup
   // wait for VSYNC to be low
   const uint32_t frame_size_bytes = _width*_height*/*_bytesPerPixel*/;
+  if ((cb1 + cb2) < frame_size_bytes) return false; // not big enough
   while ((*_vsyncPort & _vsyncMask) != 0)
     ;
 
@@ -1082,7 +1083,6 @@ bool HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
   // read FlexIO by DMA
   dma_flexio.begin();
   const uint32_t length = _width * _height;
-  if ((cb1 + cb2) < frame_size_bytes) return; // not big enough
   // Will it fit into one DMA object. 
   if ((_width <= 320) && (buffer2 == nullptr)) {
     dma_flexio.source(_pflexio->SHIFTBUF[_fshifter]);
@@ -1865,6 +1865,7 @@ bool HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
   // lets wait for a vsync that is high long enough to not be pin noise
   elapsedMillis timeout = 0;
   const uint32_t frame_size_bytes = _width*_height /* * _bytesPerPixel*/;
+  if ((cb1 + cb2) < frame_size_bytes) return false; // not big enough
 
   for (;;) {
     if (((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0)) break;
@@ -1966,7 +1967,6 @@ bool HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
       _dmasettings[2].interruptAtCompletion();
       dmas_index = 2;
     } else {
-      if ((cb1 + cb2) < frame_size_bytes) return; // not big enough
       // have two buffers - see how we may need to distribute the dma settings.
       uint8_t count_dma_settings = (cb1 / (32767 * 4)) + 1;
       uint32_t cb_per_setting = ((cb1 / count_dma_settings) + 4) & 0xfffffffc; // round up to next multiple of 4.
@@ -2143,7 +2143,7 @@ extern "C" void xbar_connect(unsigned int input, unsigned int output);  // in pw
 
 HM0360 *HM0360::active_dma_camera = nullptr;
 
-void dumpDMA_TCD1(DMABaseClass *dmabc, const char *psz_title=nullptr) {
+void dumpDMA_TCD1(DMABaseClass *dmabc, const char *psz_title) {
   if (psz_title)
     Serial.print(psz_title);
   Serial.printf("%x %x: ", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
