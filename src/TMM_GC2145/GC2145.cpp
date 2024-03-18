@@ -1901,7 +1901,7 @@ bool GC2145::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
     while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
   } while (emHigh < 2);
 
-  digitalWriteFast(0, HIGH);
+//  digitalWriteFast(0, HIGH);
   for (int i = 0; i < _height; i++) {
     // rising edge indicates start of line
     while ((*_hrefPort & _hrefMask) == 0); // wait for HIGH
@@ -1932,7 +1932,7 @@ bool GC2145::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
     while ((*_hrefPort & _hrefMask) != 0) ;  // wait for LOW
     interrupts();
   }
-  digitalWriteFast(0, LOW); 
+  //digitalWriteFast(0, LOW); 
   return true;
 }
 
@@ -2226,217 +2226,13 @@ void dumpDMA_TCD_GC(DMABaseClass *dmabc, const char *psz_title) {
       dmabc->TCD->CSR, dmabc->TCD->BITER);
 }
 
-#if 0
-void GC2145::readFrameFlexIO(void* buffer, bool use_dma)
+bool GC2145::readFrameFlexIO(void* buffer1, size_t cb1, void* buffer2, size_t cb2) 
 {
     //flexio_configure(); // one-time hardware setup
     // wait for VSYNC to go high and then low with a sort of glitch filter
-    elapsedMillis emWaitSOF;
-    elapsedMicros emGlitch;
-    for (;;) {
-      if (emWaitSOF > 2000) {
-        Serial.println("Timeout waiting for Start of Frame");
-        return;
-      }
-      while ((*_vsyncPort & _vsyncMask) == 0);
-      emGlitch = 0;
-      while ((*_vsyncPort & _vsyncMask) != 0);
-      if (emGlitch > 5) break;
-    }
-
-    _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
-    _pflexio->SHIFTERR = _fshifter_mask;
-    uint32_t *p = (uint32_t *)buffer;
-
-    //----------------------------------------------------------------------
-    // Polling FlexIO version
-    //----------------------------------------------------------------------
-    if (!use_dma) {
-    digitalWriteFast(2, HIGH);
-      // read FlexIO by polling
-      uint32_t *p_end = (uint32_t *)buffer + (_width*_height/4)*_bytesPerPixel;
-
-      while (p < p_end) {
-          while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
-              // wait for FlexIO shifter data
-          }
-          // Lets try to load in multiple shifters
-          for (uint8_t i = 0; i < CNT_SHIFTERS; i++) {
-            *p++ = _pflexio->SHIFTBUF[_fshifter+i]; // should use DMA...
-          }
-      }
-      digitalWriteFast(2, LOW);
-      return;
-    }
-
-    //----------------------------------------------------------------------
-    // Use DMA FlexIO version
-    //----------------------------------------------------------------------
-    digitalWriteFast(2, HIGH);
-
-    // Lets try like other implementation.
+    if (_debug)Serial.printf("$$GC2145::readFrameFlexIO(%p, %u, %p, %u)\n", buffer1, cb1, buffer2, cb2);
     const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
-    //uint32_t length_uint32 = frame_size_bytes / 4;
-
-    _dmachannel.begin();
-    _dmachannel.triggerAtHardwareEvent(_dma_source);
-    active_dma_camera = this;
-    _dmachannel.attachInterrupt(dmaInterruptFlexIO);
-
-
-#if (CNT_SHIFTERS == 4)
-#define FXIO_SHFT_COUNT         4u          /* 4 shifters */
-#define DMA_TRSF_SIZE           8u          /* 8 bytes */
-#define DMA_MINOR_LOOP_SIZE     16u         /* 16 bytes */
-#define DMA_MAJOR_LOOP_SIZE     (frame_size_bytes / DMA_MINOR_LOOP_SIZE)
-
-
-    uint32_t soff, smod = 0u, size=0u;
-    while(1u << size < DMA_TRSF_SIZE) /* size = log2(DMA_TRSF_SIZE) */
-    {
-        size++;
-    }
-
-    if(DMA_TRSF_SIZE == DMA_MINOR_LOOP_SIZE)
-    {
-        soff = 0u;
-    }
-    else
-    {
-        soff = DMA_TRSF_SIZE;
-        while(1u << smod < DMA_MINOR_LOOP_SIZE) /* smod = log2(DMA_MINOR_LOOP_SIZE) */
-        {
-            smod++;
-        }
-    }
-    /* Configure DMA TCD */
-    _dmachannel.TCD->SADDR = &_pflexio->SHIFTBUF[_fshifter];
-    _dmachannel.TCD->SOFF = soff;
-    _dmachannel.TCD->ATTR = DMA_TCD_ATTR_SMOD(smod) |
-                            DMA_TCD_ATTR_SSIZE(size) |
-                            DMA_TCD_ATTR_DMOD(0u) |
-                            DMA_TCD_ATTR_DSIZE(size);
-    _dmachannel.TCD->NBYTES_MLNO = DMA_MINOR_LOOP_SIZE;
-    _dmachannel.TCD->SLAST = 0u;
-    _dmachannel.TCD->DADDR = p;
-    _dmachannel.TCD->DOFF = DMA_TRSF_SIZE;
-    _dmachannel.TCD->CITER_ELINKNO = DMA_MAJOR_LOOP_SIZE;
-    _dmachannel.TCD->DLASTSGA = -frame_size_bytes;
-    _dmachannel.TCD->CSR = 0u;
-    _dmachannel.TCD->CSR |= DMA_TCD_CSR_DREQ;
-    _dmachannel.TCD->BITER_ELINKNO = DMA_MAJOR_LOOP_SIZE;
-#elif  (CNT_SHIFTERS == 8)
-    // see if I configure for all 8 buffers
-    #define SHIFT_BUFFERS_SIZE 32u
-    #define SHIFT_BUFFERS_MOD 5u
-    _dmachannel.TCD->SADDR = &_pflexio->SHIFTBUF[_fshifter];
-    _dmachannel.TCD->SOFF = 0;
-    _dmachannel.TCD->ATTR = DMA_TCD_ATTR_SMOD(0u) |
-                            DMA_TCD_ATTR_SSIZE(SHIFT_BUFFERS_MOD) |
-                            DMA_TCD_ATTR_DMOD(0u) |
-                            DMA_TCD_ATTR_DSIZE(SHIFT_BUFFERS_MOD);
-    _dmachannel.TCD->NBYTES_MLNO = SHIFT_BUFFERS_SIZE;
-    _dmachannel.TCD->SLAST = 0u;
-    _dmachannel.TCD->DADDR = p;
-    _dmachannel.TCD->DOFF = SHIFT_BUFFERS_SIZE;
-    _dmachannel.TCD->CITER_ELINKNO = (frame_size_bytes / SHIFT_BUFFERS_SIZE);
-    _dmachannel.TCD->DLASTSGA = -frame_size_bytes;
-    _dmachannel.TCD->CSR = 0u;
-    _dmachannel.TCD->CSR |= DMA_TCD_CSR_DREQ;
-    _dmachannel.TCD->BITER_ELINKNO = (frame_size_bytes / SHIFT_BUFFERS_SIZE);
-#endif    
-    /* Configure DMA MUX Source */
-    //DMAMUX->CHCFG[FLEXIO_CAMERA_DMA_CHN] = DMAMUX->CHCFG[FLEXIO_CAMERA_DMA_CHN] &
-    //                                        (~DMAMUX_CHCFG_SOURCE_MASK) | 
-    //                                        DMAMUX_CHCFG_SOURCE(FLEXIO_CAMERA_DMA_MUX_SRC);
-    /* Enable DMA channel. */
-#if (CNT_SHIFTERS > 1)    
-    _dmachannel.disableOnCompletion();
-    _dmachannel.interruptAtCompletion();
-    _dmachannel.clearComplete();
-
-    volatile uint32_t *mux = &DMAMUX_CHCFG0 +  _dmachannel.channel;
-    Serial.printf("\nDMA CR: %08X Channel: %u %08X\n", DMA_CR, _dmachannel.channel, *mux);
-    dumpDMA_TCD_GC(&_dmachannel,"CH: ");
-#else
-
-    // Total length of bytes transfered
-    // do it over 2 
-    // first pass split into two
-    _dmasettings[0].source(_pflexio->SHIFTBUF[_fshifter]);
-    _dmasettings[0].destinationBuffer(p, frame_size_bytes / 2);
-    _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
-
-    _dmasettings[1].source(_pflexio->SHIFTBUF[_fshifter]);
-    _dmasettings[1].destinationBuffer(&p[frame_size_bytes / 8], frame_size_bytes / 2);
-    _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
-    _dmasettings[1].disableOnCompletion();
-    _dmasettings[1].interruptAtCompletion();
-
-    _dmachannel = _dmasettings[0];
-
-    _dmachannel.clearComplete();
-#ifdef DEBUG_FLEXIO
-    dumpDMA_TCD_GC(&_dmachannel," CH: ");
-    dumpDMA_TCD_GC(&_dmasettings[0], " 0: ");
-    dumpDMA_TCD_GC(&_dmasettings[1], " 1: ");
-#endif
-#endif
-
-
-    _dma_state = DMA_STATE_ONE_FRAME;
-    _pflexio->SHIFTSDEN = _fshifter_mask;
-    _dmachannel.enable();
-    
-#ifdef DEBUG_FLEXIO
-    Serial.printf("Flexio DMA: length: %d\n", frame_size_bytes);
-#endif
-    
-    elapsedMillis timeout = 0;
-    //while (!_dmachannel.complete()) {
-    while (_dma_state == DMA_STATE_ONE_FRAME) {
-        // wait - we should not need to actually do anything during the DMA transfer
-        if (_dmachannel.error()) {
-            Serial.println("DMA error");
-            if (_pflexio->SHIFTSTAT) Serial.printf(" SHIFTSTAT %08X\n", _pflexio->SHIFTSTAT);
-            Serial.flush();
-            uint32_t i = _pflexio->SHIFTBUF[_fshifter];
-            Serial.printf("Result: %x\n", i);
-
-
-            _dmachannel.clearError();
-            break;
-        }
-        if (timeout > 500) {
-            Serial.println("Timeout waiting for DMA");
-            if (_pflexio->SHIFTSTAT & _fshifter_mask) Serial.printf(" SHIFTSTAT bit was set (%08X)\n", _pflexio->SHIFTSTAT);
-            Serial.printf(" DMA channel #%u\n", _dmachannel.channel);
-            Serial.printf(" DMAMUX = %08X\n", *(&DMAMUX_CHCFG0 + _dmachannel.channel));
-            Serial.printf(" _pflexio->SHIFTSDEN = %02X\n", _pflexio->SHIFTSDEN);
-            Serial.printf(" TCD CITER = %u\n", _dmachannel.TCD->CITER_ELINKNO);
-            Serial.printf(" TCD CSR = %08X\n", _dmachannel.TCD->CSR);
-            break;
-        }
-    }
-    #ifdef GC2145_USE_DEBUG_PINS
-        digitalWriteFast(2, LOW);
-    #endif
-    arm_dcache_delete(buffer, frame_size_bytes);
-#ifdef DEBUG_FLEXIO
-    dumpDMA_TCD_GC(&_dmachannel,"CM: ");
-#endif
-//    dumpDMA_TCD_GC(&_dmasettings[0], " 0: ");
-//    dumpDMA_TCD_GC(&_dmasettings[1], " 1: ");
-}
-#endif
-
-bool GC2145::readFrameFlexIO(void* buffer1, size_t size1, void* buffer2, size_t size2) 
-{
-    //flexio_configure(); // one-time hardware setup
-    // wait for VSYNC to go high and then low with a sort of glitch filter
-    if (_debug)Serial.printf("$$GC2145::readFrameFlexIO(%p, %u, %p, %u)\n", buffer1, size1, buffer2, size2);
-    const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
-    if ((size1 + size2) < frame_size_bytes) return false; // not big enough to hold frame.
+    if ((cb1 + cb2) < frame_size_bytes) return false; // not big enough to hold frame.
 
     elapsedMillis emWaitSOF;
     elapsedMicros emGlitch;
@@ -2453,11 +2249,12 @@ bool GC2145::readFrameFlexIO(void* buffer1, size_t size1, void* buffer2, size_t 
 
     _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
     _pflexio->SHIFTERR = _fshifter_mask;
+    uint32_t *p = (uint32_t *)buffer1;
 
     //----------------------------------------------------------------------
     // Use DMA FlexIO version
     //----------------------------------------------------------------------
-    digitalWriteFast(0, HIGH);
+    //digitalWriteFast(0, HIGH);
 
     // Lets try like other implementation.
     //uint32_t length_uint32 = frame_size_bytes / 4;
@@ -2467,75 +2264,55 @@ bool GC2145::readFrameFlexIO(void* buffer1, size_t size1, void* buffer2, size_t 
     active_dma_camera = this;
     _dmachannel.attachInterrupt(dmaInterruptFlexIO);
 
+    uint8_t dmas_index = 0;
+    // We will do like above with both buffers, maybe later try to merge the two sections.
+    uint32_t cb_left = min(frame_size_bytes, cb1);
+    uint8_t count_dma_settings = (cb_left / (32767 * 4)) + 1;
+    uint32_t cb_per_setting = ((cb_left / count_dma_settings) + 3) & 0xfffffffc; // round up to next multiple of 4.
+    if (_debug) Serial.printf("frame size: %u, cb1:%u cnt dma: %u CB per: %u\n", frame_size_bytes, cb1, count_dma_settings, cb_per_setting);
 
-    // Total length of bytes transfered
-    // do it over 2 
-    // first pass split each buffer into two parts
-    uint32_t *p = (uint32_t *)buffer1;
-    uint32_t cb_left = 0;
-    if (_debug)Serial.printf("\tframe Size:%u size1: %u\n", frame_size_bytes, size1);
-
-    if ((buffer2 == nullptr) ||  frame_size_bytes < size1) {
-      _dmasettings[0].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[0].destinationBuffer(p, frame_size_bytes / 2);
-      _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
-
-      _dmasettings[1].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[1].destinationBuffer(&p[frame_size_bytes / 8], frame_size_bytes / 2);
-      _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
-      _dmasettings[1].disableOnCompletion();
-      _dmasettings[1].interruptAtCompletion();
-    } else {
-      // Note: in this part we are going to use 3 
-      // use the first two for the first buffer
-      uint32_t cb_per_setting = ((size1 / 3) + 4) & 0xfffffffc; // round up to next multiple of 4.
-      _dmasettings[0].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[0].destinationBuffer(p, cb_per_setting);
-      _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
-
-      _dmasettings[1].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[1].destinationBuffer(&p[cb_per_setting / 4], cb_per_setting);
-      _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[2]);
-
-      _dmasettings[2].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[2].destinationBuffer(&p[cb_per_setting / 2], size1 - 2 * cb_per_setting);
-      _dmasettings[2].replaceSettingsOnCompletion(_dmasettings[3]);
-
-      p = (uint32_t *)buffer2;
-      cb_left = frame_size_bytes - size1;
-      cb_per_setting = ((cb_left / 3) + 4) & 0xfffffffc; // round up to next multiple of 4.
-
-      _dmasettings[3].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[3].destinationBuffer(p, cb_per_setting);
-      _dmasettings[3].replaceSettingsOnCompletion(_dmasettings[4]);
-
-      _dmasettings[4].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[4].destinationBuffer(&p[cb_per_setting / 4],cb_per_setting);
-      _dmasettings[4].replaceSettingsOnCompletion(_dmasettings[5]);
-
-      _dmasettings[5].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[5].destinationBuffer(&p[cb_per_setting / 2], cb_left - 2 * cb_per_setting);
-      _dmasettings[5].replaceSettingsOnCompletion(_dmasettings[0]);
-
-      _dmasettings[1].TCD->CSR &= ~(DMA_TCD_CSR_DREQ | DMA_TCD_CSR_INTMAJOR); // Don't disable or interrupt on this one
-      _dmasettings[5].disableOnCompletion();
-      _dmasettings[5].interruptAtCompletion();
+    for (; dmas_index < count_dma_settings; dmas_index++) {
+      _dmasettings[dmas_index].TCD->CSR = 0;
+      _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[dmas_index].destinationBuffer(p, cb_per_setting);
+      _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
+      p += (cb_per_setting / 4);
+      cb_left -= cb_per_setting;
+      if (cb_left < cb_per_setting) cb_per_setting = cb_left;
     }
+    if (frame_size_bytes > cb1) {
+      cb_left = frame_size_bytes - cb1;
+      count_dma_settings = (cb_left / (32767 * 4)) + 1;
+      cb_per_setting = ((cb_left / count_dma_settings) + 3) & 0xfffffffc; // round up to next multiple of 4.
+      if (_debug) Serial.printf("frame size left: %u, cb2:%u cnt dma: %u CB per: %u\n", cb_left, cb2, count_dma_settings, cb_per_setting);
+      
+      p = (uint32_t *)buffer2;
 
+      for (uint8_t i=0; i < count_dma_settings; i++, dmas_index++) {
+        _dmasettings[dmas_index].TCD->CSR = 0;
+        _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
+        _dmasettings[dmas_index].destinationBuffer(p, cb_per_setting);
+        _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
+        p += (cb_per_setting / 4);
+        cb_left -= cb_per_setting;
+        if (cb_left < cb_per_setting) cb_per_setting = cb_left;
+      }
+    }  
+    dmas_index--; // lets point back to the last one
+    _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[0]);
+    _dmasettings[dmas_index].disableOnCompletion();
+    _dmasettings[dmas_index].interruptAtCompletion();
     _dmachannel = _dmasettings[0];
 
     _dmachannel.clearComplete();
 
+
 #ifdef DEBUG_FLEXIO
     if (_debug) {
       dumpDMA_TCD_GC(&_dmachannel," CH: ");
-      dumpDMA_TCD_GC(&_dmasettings[0], " 0: ");
-      dumpDMA_TCD_GC(&_dmasettings[1], " 1: ");
-      if (cb_left) {
-        dumpDMA_TCD_GC(&_dmasettings[2], " 2: ");
-        dumpDMA_TCD_GC(&_dmasettings[3], " 3: ");      
-        dumpDMA_TCD_GC(&_dmasettings[4], " 4: ");      
-        dumpDMA_TCD_GC(&_dmasettings[5], " 5: ");      
+      for (uint8_t i = 0; i <= dmas_index; i++) {
+        Serial.printf(" %u: ", i);
+        dumpDMA_TCD_GC(&_dmasettings[i], nullptr);
       }
     }
 #endif
@@ -2578,9 +2355,12 @@ bool GC2145::readFrameFlexIO(void* buffer1, size_t size1, void* buffer2, size_t 
     #ifdef GC2145_USE_DEBUG_PINS
         digitalWriteFast(0, LOW);
     #endif
-    digitalWriteFast(0, LOW);
-    arm_dcache_delete(buffer1, size1);
-    arm_dcache_delete(buffer2, size2);
+    //digitalWriteFast(0, LOW);
+    if ((uint32_t)buffer1 >= 0x20200000u) arm_dcache_delete(buffer1, min(cb1, frame_size_bytes));
+    if (frame_size_bytes > cb1) {
+      if ((uint32_t)buffer2 >= 0x20200000u) arm_dcache_delete(buffer2, frame_size_bytes - cb1);
+    } 
+
 #ifdef DEBUG_FLEXIO
     if (_debug)dumpDMA_TCD_GC(&_dmachannel,"CM: ");
 #endif
