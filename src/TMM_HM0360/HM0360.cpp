@@ -1150,7 +1150,7 @@ void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
         _dmasettings[dmas_index].destinationBuffer(p, min(cb_per_setting, cb_left));
         _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
         p += (cb_per_setting / 4);
-        cb_left -= cb_per_setting
+        cb_left -= cb_per_setting;
       }
       dmas_index--; // lets point back to the last one
       _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[0]);

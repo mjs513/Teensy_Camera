@@ -1817,7 +1817,7 @@ uint8_t GC2145::cameraWriteRegister(uint8_t reg, uint8_t data) {
 #define FLEXIO_USE_DMA
 void GC2145::readFrame(void* buffer, bool use_dma){
     if(!_use_gpio) {
-        readFrameFlexIO(buffer);
+        readFrameFlexIO(buffer, -1, nullptr, 0, use_dma);
     } else {
         readFrameGPIO(buffer);
     }

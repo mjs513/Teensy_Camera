@@ -10,8 +10,8 @@
 //#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
-//#define ARDUCAM_CAMERA_OV7675
-#define ARDUCAM_CAMERA_GC2145
+#define ARDUCAM_CAMERA_OV7675
+//#define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
 #include "TMM_HM0360/HM0360.h"
@@ -91,7 +91,14 @@ const char bmp_header[BMPIMAGEOFFSET] PROGMEM = {
 };
 
 //Set up ILI9488
-#ifdef USE_MMOD_ATP_ADAPTER
+#ifdef ARDUINO_TEENSY_DEVBRD4
+#undef USE_MMOD_ATP_ADAPTER
+
+#define TFT_CS 10  // AD_B0_02
+#define TFT_DC 25  // AD_B0_03
+#define TFT_RST 24
+
+#elif defined(USE_MMOD_ATP_ADAPTER)
 #define TFT_DC 4   //0   // "TX1" on left side of Sparkfun ML Carrier
 #define TFT_CS 5   //4   // "CS" on left side of Sparkfun ML Carrier
 #define TFT_RST 2  //1  // "RX1" on left side of Sparkfun ML Carrier
@@ -112,6 +119,29 @@ ILI9488_t3 tft = ILI9488_t3(TFT_CS, TFT_DC, TFT_RST);
 
 // Setup framebuffers
 DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
+#ifdef ARDUINO_TEENSY_DEVBRD4
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
+uint16_t *frameBuffer = nullptr;
+uint16_t *frameBuffer2 = nullptr;
+uint16_t *frameBufferSDRAM = nullptr;
+uint16_t *frameBufferSDRAM2 = nullptr;
+DMAMEM uint16_t frameBufferM[640 * 240] __attribute__((aligned(32)));
+uint16_t frameBufferM2[640 * 240] __attribute__((aligned(32)));
+
+#define SCREEN_ROTATION 3
+#else
+uint8_t *frameBuffer = nullptr;
+uint8_t *frameBuffer2 = nullptr;
+DMAMEM uint8_t frameBufferM[640 * 480] __attribute__((aligned(32)));
+// mono can fit one in each.
+uint8_t frameBufferM2[640 * 480] __attribute__((aligned(32)));
+#define SCREEN_ROTATION 1
+#define CAMERA_USES_MONO_PALETTE
+#endif
+uint32_t sizeof_framebuffer = 0;
+uint32_t sizeof_framebuffer2 = 0;
+uint32_t sizeof_framebufferSDRAM = 0;
+#else
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
 // only half buffer will fit in each of the two main memory regions
 // split into two parts, part dmamem and part fast mememory to fit 640x480x2
@@ -125,6 +155,9 @@ DMAMEM uint8_t frameBuffer[640 * 480] __attribute__((aligned(32)));
 uint8_t frameBuffer2[640 * 480] __attribute__((aligned(32)));
 #define CAMERA_USES_MONO_PALETTE
 #define SCREEN_ROTATION 1
+#endif
+const uint32_t sizeof_framebuffer = sizeof(frameBuffer);
+const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
 #endif
 
 // Setup display modes frame / video
@@ -152,7 +185,7 @@ void setup() {
     while (Serial.read() != -1) {}
   }
 
-  tft.begin(15000000);
+  tft.begin(12000000);
 
   tft.setRotation(SCREEN_ROTATION);
   tft.fillScreen(TFT_RED);
@@ -211,6 +244,14 @@ void setup() {
     //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
     camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
   }
+#elif defined(ARDUINO_TEENSY_DEVBRD4)
+  if ((_hmConfig == 0) || (_hmConfig == 2)) {
+    camera.setPins(7, 8, 21, 46, 23, 40, 41, 42, 43, 44, 45, 6, 9);
+  } else if (_hmConfig == 1) {
+    //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
+    camera.setPins(7, 8, 21, 46, 31, 40, 41, 42, 43);
+  }
+
 #else
   if (_hmConfig == 0) {
     //camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
@@ -223,7 +264,7 @@ void setup() {
 
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
   // VGA mode
-  camera.begin(FRAMESIZE_QVGA, RGB565, 15, false);
+  camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
 #elif defined(ARDUCAM_CAMERA_HM0360) 
   camera.begin(FRAMESIZE_VGA, 15);
 #else
@@ -245,6 +286,21 @@ void setup() {
     Serial.println("SENSOR NOT DETECTED! :-(");
     while (1) {}
   }
+#if defined(ARDUINO_TEENSY_DEVBRD4)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
+
+  sizeof_framebufferSDRAM = sizeof_framebuffer = sizeof_framebuffer2 = camera.width() * camera.height() * 2;
+  frameBufferSDRAM = frameBuffer = (uint16_t *)((((uint32_t)(sdram_malloc(camera.width() * camera.height() * 2 + 32)) + 32) & 0xffffffe0));
+  frameBufferSDRAM2 = frameBuffer2 = (uint16_t *)((((uint32_t)(sdram_malloc(camera.width() * camera.height() * 2 + 32)) + 32) & 0xffffffe0));
+#else
+  sizeof_framebufferSDRAM = sizeof_framebuffer = sizeof_framebuffer2 = camera.width() * camera.height();
+  frameBufferSDRAM = frameBuffer = (uint8_t *)((((uint32_t)(sdram_malloc(camera.width() * camera.height() + 32)) + 32) & 0xffffffe0));
+  frameBufferSDRAM2 = frameBuffer2 = (uint8_t *)((((uint32_t)(sdram_malloc(camera.width() * camera.height() + 32)) + 32) & 0xffffffe0));
+#endif
+  Serial.printf("Camera Buffers: %p %p\n", frameBuffer, frameBuffer2);
+#endif
+
+
 
 #ifndef CAMERA_USES_MONO_PALETTE
 //#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
@@ -317,7 +373,7 @@ void setup() {
     0 = disabled
     1 = enabled
    *************************************************************************/
-  camera.setColorbar(GC2145_COLOR_BARS);
+//  camera.setColorbar(GC2145_COLOR_BARS);
 #endif
 }
 
@@ -444,17 +500,17 @@ void loop() {
       case 'b':
         {
 #if defined(USE_SDCARD)
-          memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
+          memset((uint8_t *)frameBuffer, 0, sizeof_framebuffer);
           camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
           //camera.readFrame(frameBuffer);
-          camera.readFrameSplitBuffer(frameBuffer, sizeof(frameBuffer), frameBuffer2, sizeof(frameBuffer2));
+          camera.readFrameSplitBuffer(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
 
 #ifndef CAMERA_USES_MONO_PALETTE
 //#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
           int numPixels = camera.width() * camera.height();
           //for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
-          int numPixels1 = min((int)(sizeof(frameBuffer) / 2), numPixels);
-          int numPixels2 = min((int)(sizeof(frameBuffer2) / 2), numPixels - numPixels1);
+          int numPixels1 = min((int)(sizeof_framebuffer / 2), numPixels);
+          int numPixels2 = min((int)(sizeof_framebuffer2 / 2), numPixels - numPixels1);
           for (int i = 0; i < numPixels1; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
           for (int i = 0; i < numPixels2; i++) frameBuffer2[i] = HTONS(frameBuffer2[i]);
 
@@ -486,6 +542,27 @@ void loop() {
         if (camera.debug()) Serial.println("Camera Debug turned on");
         else Serial.println("Camera debug turned off");
         break;
+#ifdef ARDUINO_TEENSY_DEVBRD4
+      case 's':
+        {
+          if (frameBuffer == frameBufferSDRAM) {
+            Serial.print("Switching to NON SDRam buffers: ");
+            frameBuffer = frameBufferM;
+            frameBuffer2 = frameBufferM2;
+            sizeof_framebuffer = sizeof(frameBufferM);
+            sizeof_framebuffer2 = sizeof(frameBufferM2);
+          } else {
+            Serial.print("Switching to SDRam buffers: ");
+            frameBuffer = frameBufferSDRAM;
+            frameBuffer2 = frameBufferSDRAM2;
+            sizeof_framebuffer = sizeof_framebufferSDRAM;
+            sizeof_framebuffer2 = sizeof_framebufferSDRAM;
+          }
+          Serial.printf("%p(%u) %p(%u)\n", frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+
+        }
+        break;
+        #endif
       case 'f':
         tft.useFrameBuffer(false);
         tft.fillScreen(TFT_BLACK);
@@ -602,7 +679,7 @@ uint16_t color565(uint8_t r, uint8_t g, uint8_t b) {
 
 #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
 void send_image(Stream *imgSerial) {
-  memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
+  memset((uint8_t *)frameBuffer, 0, sizeof_framebuffer);
   camera.setHmirror(1);
   camera.readFrame(frameBuffer);
 
@@ -629,7 +706,7 @@ void send_image(Stream *imgSerial) {
 
 //#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
 void send_raw() {
-  memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
+  memset((uint8_t *)frameBuffer, 0, sizeof_framebuffer);
   camera.readFrame(frameBuffer);
   uint32_t idx = 0;
   for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
@@ -705,7 +782,7 @@ void save_image_SD() {
 // Handle possible split buffer.
 #ifdef CAMERA_USES_MONO_PALETTE
   uint8_t *pfb = frameBuffer;
-  uint32_t count_y_first_buffer = sizeof(frameBuffer) / w;
+  uint32_t count_y_first_buffer = sizeof_framebuffer / w;
   uint8_t img[3];
   for (int y = h - 1; y >= 0; y--) {  // iterate image array
     if (y < count_y_first_buffer) pfb = &frameBuffer[y * w];
@@ -721,7 +798,7 @@ void save_image_SD() {
 #else
   uint16_t *pfb = frameBuffer;
   uint8_t img[3];
-  uint32_t count_y_first_buffer = sizeof(frameBuffer) / (w * 2);
+  uint32_t count_y_first_buffer = sizeof_framebuffer / (w * 2);
   for (int y = h - 1; y >= 0; y--) {  // iterate image array
     if (y < count_y_first_buffer) pfb = &frameBuffer[y * w];
     else pfb = &frameBuffer2[(y - count_y_first_buffer) * w];
@@ -754,6 +831,9 @@ void showCommandList() {
   Serial.println("Send the 'z' character to send current screen BMP to SD");
   Serial.println("Send the 't' character to send Check the display");
   Serial.println("Send the 'd' character to toggle camera debug on and off");
+#ifdef ARDUINO_TEENSY_DEVBRD4
+  Serial.println("Send the 's' to change if using SDRAM or other memory");
+#endif  
   Serial.println();
 }
 
@@ -761,17 +841,21 @@ void showCommandList() {
 //=============================================================================
 void read_display_one_frame(bool use_dma, bool show_debug_info) {
   camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
-  uint32_t count_pixels_in_buffer = sizeof(frameBuffer) / sizeof(frameBuffer[0]);
+  uint32_t count_pixels_in_buffer = sizeof_framebuffer / sizeof(frameBuffer[0]);
   if (show_debug_info) {
     Serial.println("Reading frame");
-    Serial.printf("Buffer1: %p(%u) halfway: %p end:%p\n", frameBuffer, sizeof(frameBuffer), &frameBuffer[count_pixels_in_buffer / 2], &frameBuffer[count_pixels_in_buffer]);
-    count_pixels_in_buffer = sizeof(frameBuffer2) / sizeof(frameBuffer2[0]);
-    Serial.printf("Buffer2: %p(%u) halfway: %p end:%p\n", frameBuffer2, sizeof(frameBuffer2), &frameBuffer2[count_pixels_in_buffer / 2], &frameBuffer2[count_pixels_in_buffer]);
-    memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
-    memset((uint8_t *)frameBuffer2, 0, sizeof(frameBuffer2));
+    Serial.printf("Buffer1: %p(%u) halfway: %p end:%p\n", frameBuffer, sizeof_framebuffer, &frameBuffer[count_pixels_in_buffer / 2], &frameBuffer[count_pixels_in_buffer]);
+    count_pixels_in_buffer = sizeof_framebuffer2 / sizeof(frameBuffer2[0]);
+    Serial.printf("Buffer2: %p(%u) halfway: %p end:%p\n", frameBuffer2, sizeof_framebuffer2, &frameBuffer2[count_pixels_in_buffer / 2], &frameBuffer2[count_pixels_in_buffer]);
+    memset((uint8_t *)frameBuffer, 0, sizeof_framebuffer);
+    memset((uint8_t *)frameBuffer2, 0, sizeof_framebuffer2);
   }
 //  digitalWriteFast(24, HIGH);
-  camera.readFrameSplitBuffer(frameBuffer, sizeof(frameBuffer), frameBuffer2, sizeof(frameBuffer2), use_dma);
+#if 0 // defined(ARDUINO_TEENSY_DEVBRD4)
+  camera.readFrame(frameBuffer, use_dma);
+#else
+  camera.readFrameSplitBuffer(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2, use_dma);
+#endif
 //  digitalWriteFast(24, LOW);
 
   if (show_debug_info) {
@@ -818,12 +902,20 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
 //#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
 
 //int camera_width = Camera.width();
+#if 0 //def ARDUINO_TEENSY_DEVBRD4
+  for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
+  tft.writeRect(CENTER, CENTER, camera.width(), camera.height(), frameBuffer);
+  return;
+#endif
+
 #if 1
   //byte swap
   //for (int i = 0; i < numPixels; i++) frameBuffer[i] = (frameBuffer[i] >> 8) | (((frameBuffer[i] & 0xff) << 8));
   // now see if all fit into one buffer or part in second...
-  int numPixels1 = min((int)(sizeof(frameBuffer) / 2), numPixels);
-  int numPixels2 = min((int)(sizeof(frameBuffer2) / 2), numPixels - numPixels1);
+  int numPixels1 = min((int)(sizeof_framebuffer / 2), numPixels);
+  int numPixels2 = min((int)(sizeof_framebuffer2 / 2), numPixels - numPixels1);
+  if (show_debug_info) Serial.printf("\tBuffers:%p(%u) %p(%u)\n", frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+  if (show_debug_info)Serial.printf("\tnumpixels %u %u %u\n", numPixels, numPixels1, numPixels2);
   for (int i = 0; i < numPixels1; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
   for (int i = 0; i < numPixels2; i++) frameBuffer2[i] = HTONS(frameBuffer2[i]);
 
@@ -854,8 +946,8 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
 #endif
 #else
   //tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBuffer, mono_palette);
-  int numPixels1 = min((int)(sizeof(frameBuffer)), numPixels);
-  int numPixels2 = min((int)(sizeof(frameBuffer)), numPixels - numPixels1);
+  int numPixels1 = min((int)(sizeof_framebuffer), numPixels);
+  int numPixels2 = min((int)(sizeof_framebuffer), numPixels - numPixels1);
   int start_x = (tft.width() - camera.width()) / 2;
   int start_y = (tft.height() - camera.height()) / 2;
   tft.writeRect8BPP(start_x, start_y, camera.width(), numPixels1 / camera.width(), frameBuffer, mono_palette);

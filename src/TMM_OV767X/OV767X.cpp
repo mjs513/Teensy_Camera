@@ -884,17 +884,73 @@ void OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     uint32_t cb_left = 0;
     if (_debug)Serial.printf("\tframe Size:%u cb1: %u\n", frame_size_bytes, cb1);
 
+    uint8_t dmas_index = 0;
     if ((buffer2 == nullptr) ||  frame_size_bytes < cb1) {
-      _dmasettings[0].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[0].destinationBuffer(p, frame_size_bytes / 2);
-      _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
+      // quick and dirty test that > buffer can maybe fit into memory...
+      if (cb1 == (uint32_t)-1) {
+        uint32_t buffer_end = (uint32_t)p + frame_size_bytes; 
+        if (_debug) Serial.printf("$$ %p %x\n", p, buffer_end);
+        if (((uint32_t)p >= 0x20000000) && ((uint32_t)p < 0x2007FFFF) && (buffer_end >= 0x2007FFFF)) return; // DTCM check
+        if (((uint32_t)p >= 0x20200000) && ((uint32_t)p < 0x2027FFFF) && (buffer_end >= 0x2027FFFF)) return; // RAM check
+      }
 
-      _dmasettings[1].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[1].destinationBuffer(&p[frame_size_bytes / 8], frame_size_bytes / 2);
-      _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
-      _dmasettings[1].disableOnCompletion();
-      _dmasettings[1].interruptAtCompletion();
+      uint8_t count_dma_settings = (frame_size_bytes / (32767 * 4)) + 1;
+      uint32_t cb_per_setting = ((frame_size_bytes / count_dma_settings) + 3) & 0xfffffffc; // round up to next multiple of 4.
+      if (_debug) Serial.printf("frame size: %u, cnt dma: %u CB per: %u\n", frame_size_bytes, count_dma_settings, cb_per_setting);
+
+      uint32_t cb_left = frame_size_bytes;
+      for (; dmas_index < count_dma_settings; dmas_index++) {
+        _dmasettings[dmas_index].TCD->CSR = 0;
+        _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
+        _dmasettings[dmas_index].destinationBuffer(p, cb_per_setting);
+        _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
+        p += (cb_per_setting / 4);
+        cb_left -= cb_per_setting;
+        if (cb_left < cb_per_setting) cb_per_setting = cb_left;
+      }
+      dmas_index--; // lets point back to the last one
+      _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[0]);
+      _dmasettings[dmas_index].disableOnCompletion();
+      _dmasettings[dmas_index].interruptAtCompletion();
     } else {
+      // We will do like above with both buffers, maybe later try to merge the two sections.
+      uint32_t cb_left = min(frame_size_bytes, cb1);
+      uint8_t count_dma_settings = (cb_left / (32767 * 4)) + 1;
+      uint32_t cb_per_setting = ((cb_left / count_dma_settings) + 3) & 0xfffffffc; // round up to next multiple of 4.
+      if (_debug) Serial.printf("frame size: %u, cb1:%u cnt dma: %u CB per: %u\n", frame_size_bytes, cb1, count_dma_settings, cb_per_setting);
+
+      for (; dmas_index < count_dma_settings; dmas_index++) {
+        _dmasettings[dmas_index].TCD->CSR = 0;
+        _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
+        _dmasettings[dmas_index].destinationBuffer(p, cb_per_setting);
+        _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
+        p += (cb_per_setting / 4);
+        cb_left -= cb_per_setting;
+        if (cb_left < cb_per_setting) cb_per_setting = cb_left;
+      }
+      if (frame_size_bytes > cb1) {
+        cb_left = frame_size_bytes - cb1;
+        count_dma_settings = (cb_left / (32767 * 4)) + 1;
+        cb_per_setting = ((cb_left / count_dma_settings) + 3) & 0xfffffffc; // round up to next multiple of 4.
+        if (_debug) Serial.printf("frame size left: %u, cb2:%u cnt dma: %u CB per: %u\n", cb_left, cb2, count_dma_settings, cb_per_setting);
+        
+        p = (uint32_t *)buffer2;
+
+        for (uint8_t i=0; i < count_dma_settings; i++, dmas_index++) {
+          _dmasettings[dmas_index].TCD->CSR = 0;
+          _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
+          _dmasettings[dmas_index].destinationBuffer(p, cb_per_setting);
+          _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
+          p += (cb_per_setting / 4);
+          cb_left -= cb_per_setting;
+          if (cb_left < cb_per_setting) cb_per_setting = cb_left;
+        }
+      }  
+      dmas_index--; // lets point back to the last one
+      _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[0]);
+      _dmasettings[dmas_index].disableOnCompletion();
+      _dmasettings[dmas_index].interruptAtCompletion();
+#if 0
       // Note: in this part we are going to use 3 
       // use the first two for the first buffer
       uint32_t cb_per_setting = ((cb1 / 3) + 4) & 0xfffffffc; // round up to next multiple of 4.
@@ -929,21 +985,18 @@ void OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
       _dmasettings[1].TCD->CSR &= ~(DMA_TCD_CSR_DREQ | DMA_TCD_CSR_INTMAJOR); // Don't disable or interrupt on this one
       _dmasettings[5].disableOnCompletion();
       _dmasettings[5].interruptAtCompletion();
+      dmas_index = 5;
+#endif
     }
-
     _dmachannel = _dmasettings[0];
 
     _dmachannel.clearComplete();
 #ifdef DEBUG_FLEXIO
     if (_debug) {
       dumpDMA_TCD(&_dmachannel," CH: ");
-      dumpDMA_TCD(&_dmasettings[0], " 0: ");
-      dumpDMA_TCD(&_dmasettings[1], " 1: ");
-      if (cb_left) {
-        dumpDMA_TCD(&_dmasettings[2], " 2: ");
-        dumpDMA_TCD(&_dmasettings[3], " 3: ");      
-        dumpDMA_TCD(&_dmasettings[4], " 4: ");      
-        dumpDMA_TCD(&_dmasettings[5], " 5: ");      
+      for (uint8_t i = 0; i <= dmas_index; i++) {
+        Serial.printf(" %u: ", i);
+        dumpDMA_TCD(&_dmasettings[i], nullptr);
       }
     }
 #endif
