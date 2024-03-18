@@ -629,28 +629,16 @@ void HM0360::endXClk()
 }
 
 #define FLEXIO_USE_DMA
-void HM0360::readFrame(void *buffer, bool fUseDMA) {
-  setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
-  if (!_use_gpio) {
-#if defined(_use_original)
-    readFrameFlexIO(buffer);
-#else
-    readFrameFlexIO(buffer, (size_t)-1, nullptr, 0, fUseDMA);
-#endif
-  } else {
-    if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT) {
-        readFrame4BitGPIO(buffer);
-    } else {
-        readFrameGPIO(buffer);
-    }
-  }
-}
 
-void HM0360::readFrameSplitBuffer(void *buffer1, size_t cb1, void *buffer2, size_t cb2, bool fUseDMA) {
+bool HM0360::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
     if(!_use_gpio) {
-        readFrameFlexIO(buffer1, cb1, buffer2, cb2, fUseDMA);
+        return readFrameFlexIO(buffer1, cb1, buffer2, cb2);
     } else {
-        readFrameGPIO(buffer1, cb1, buffer2, cb2);
+      if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT) {
+          readFrame4BitGPIO(buffer1);
+          return true;
+      }
+      return readFrameGPIO(buffer1, cb1, buffer2, cb2);
     }
 
 }
@@ -668,7 +656,7 @@ void HM0360::stopReadContinuous() {
   stopReadFlexIO();
 }
 
-void HM0360::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
+bool HM0360::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 {
   uint8_t *b = (uint8_t *)buffer;
   uint32_t cb = (uint32_t)cb1;
@@ -731,6 +719,7 @@ void HM0360::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
   }
 
   setMode(HIMAX_MODE_STREAMING, 0);
+  return true;
 }
 
 void HM0360::readFrame4BitGPIO(void *buffer) {
@@ -1056,7 +1045,7 @@ bool HM0360::flexio_configure() {
 }
 
 
-void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2, bool use_dma)
+bool HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2)
   //flexio_configure(); // one-time hardware setup
   // wait for VSYNC to be low
   const uint32_t frame_size_bytes = _width*_height*/*_bytesPerPixel*/;
@@ -1067,7 +1056,7 @@ void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
   _pflexio->SHIFTERR = _fshifter_mask;
 
   uint32_t *p = (uint32_t *)buffer;
-  if (!use_dma) {
+  if (!_fuse_dma) {
     // read FlexIO by polling
     //uint32_t *p_end = (uint32_t *)buffer + _width*_height/4; ???
 
@@ -1088,11 +1077,12 @@ void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
         count_items_left_in_buffer = (uint32_t)cb2 / 4;
       }
     }
-    return;
+    return true;
   }
   // read FlexIO by DMA
   dma_flexio.begin();
   const uint32_t length = _width * _height;
+  if ((cb1 + cb2) < frame_size_bytes) return; // not big enough
   // Will it fit into one DMA object. 
   if ((_width <= 320) && (buffer2 == nullptr)) {
     dma_flexio.source(_pflexio->SHIFTBUF[_fshifter]);
@@ -1185,6 +1175,7 @@ void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     }
   }
   arm_dcache_delete(buffer, length);
+  return true;
 }
 
 
@@ -1866,8 +1857,8 @@ bool HM0360::flexio_configure() {
 
 extern void dumpDMA_TCD1(DMABaseClass *dmabc, const char *psz_title=nullptr);
 
-void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2, bool use_dma) {
-  if (_debug) Serial.printf("$$HM0360::readFrameFlexIO(%p, %u, %p, %u, %u)\n", buffer, cb1, buffer2, cb2, use_dma);
+bool HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2) {
+  if (_debug) Serial.printf("$$HM0360::readFrameFlexIO(%p, %u, %p, %u, %u)\n", buffer, cb1, buffer2, cb2, _fuse_dma);
   //flexio_configure(); // one-time hardware setup
   // wait for VSYNC to be low
   //while ((*_vsyncPort & _vsyncMask) != 0);
@@ -1879,7 +1870,7 @@ void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     if (((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0)) break;
     if (timeout > 500) {
       Serial.println("Timeout waiting for VSYNC");
-      return;
+      return false;
     }
   }
 
@@ -1891,7 +1882,7 @@ void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
   // read FlexIO by polling
   uint32_t *p = (uint32_t *)buffer;
 
-  if (!use_dma) {
+  if (!_fuse_dma) {
     _pflexio->SHIFTSDEN = _fshifter_mask;
 
     uint32_t count_items_left = (_width*_height/4)/**_bytesPerPixel */;
@@ -1937,7 +1928,7 @@ void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
         }
       }
     }
-    return;
+    return true;
   }
   //#else
   // read FlexIO by DMA
@@ -2047,8 +2038,7 @@ void HM0360::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
   if (frame_size_bytes > cb1) {
     if ((uint32_t)buffer2 >= 0x20200000u) arm_dcache_delete(buffer2, frame_size_bytes - cb1);
   } 
-  //arm_dcache_delete(buffer, length);
-  //#endif
+  return true;
 }
 
 

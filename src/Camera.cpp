@@ -121,17 +121,22 @@ uint8_t Camera::calAE(uint8_t CalFrames, uint8_t *Buffer, uint32_t ui32BufferLen
 
 //-------------------------------------------------------
 //Generic Read Frame base on _hw_config
-void Camera::readFrame(void *buffer, bool fUseDMA) {
-  sensor->readFrame(buffer, fUseDMA);
+bool Camera::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
+  return sensor->readFrame(buffer1, cb1, buffer2, cb2);
 }
 
-void Camera::readFrameSplitBuffer(void *buffer1, size_t cb1, void *buffer2, size_t cb2, bool fUseDMA ) {
-  sensor->readFrameSplitBuffer(buffer1, cb1, buffer2, cb2, fUseDMA);
+
+void Camera::useDMA(bool f) {
+  sensor->useDMA(f);
+}
+
+bool Camera::useDMA() {
+  return sensor->useDMA();
 }
 
 
 //normal Read mode
-void Camera::readFrameGPIO(void* buffer, size_t cb1, void* buffer2, size_t cb2) {
+bool Camera::readFrameGPIO(void* buffer, size_t cb1, void* buffer2, size_t cb2) {
     return sensor->readFrameGPIO(buffer, cb1, buffer2, cb2);
 }
 
@@ -155,8 +160,8 @@ void Camera::readFrameFlexIO(void* buffer)
 }
 */
 
-void Camera::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2, bool fUseDMA) {
-  return sensor->readFrameFlexIO(buffer, cb1, buffer2, cb2, fUseDMA);
+bool Camera::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2) {
+  return sensor->readFrameFlexIO(buffer, cb1, buffer2, cb2);
 }
 
 bool Camera::startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2) {

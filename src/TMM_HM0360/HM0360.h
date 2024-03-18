@@ -101,17 +101,20 @@ public:
 
   //-------------------------------------------------------
   //Generic Read Frame base on _hw_config
-  void readFrame(void *buffer, bool fUseDMA = true);
-  void readFrameSplitBuffer(void *buffer1, size_t cb1, void *buffer2, size_t cb2, bool fUseDMA = true);
+  bool readFrame(void *buffer1, size_t cb1, void *buffer2=nullptr, size_t cb2=0);
+
+  void useDMA(bool f) {_fuse_dma = f;}
+  bool useDMA() {return _fuse_dma; }
+
 
   //normal Read mode
-  void readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
+  bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
   void readFrame4BitGPIO(void *buffer);
   bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
   void stopReadContinuous();
 
   //FlexIO is default mode for the camera
-  void readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0, bool fUseDMA=true);
+  bool readFrameFlexIO(void *buffer, size_t cb1, void* buffer2=nullptr, size_t cb2=0);
 //  void readFrameFlexIO(void *buffer);
 //  void readFrameFlexIO(void *buffer, bool fUseDMA);
   bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
@@ -206,6 +209,7 @@ private:
   uint8_t _ftimer;
   uint8_t _dma_source;
   bool _debug = true;
+  bool _fuse_dma = true;
 
 #if defined(ARDUINO_TEENSY_MICROMOD)
   uint32_t _save_IOMUXC_GPR_GPR27;

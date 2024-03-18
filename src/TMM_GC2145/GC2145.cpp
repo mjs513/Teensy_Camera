@@ -1815,20 +1815,14 @@ uint8_t GC2145::cameraWriteRegister(uint8_t reg, uint8_t data) {
 
 
 #define FLEXIO_USE_DMA
-void GC2145::readFrame(void* buffer, bool use_dma){
-    if(!_use_gpio) {
-        readFrameFlexIO(buffer, -1, nullptr, 0, use_dma);
-    } else {
-        readFrameGPIO(buffer);
-    }
-}
 
-void GC2145::readFrameSplitBuffer(void* buffer1, size_t size1, void* buffer2, size_t size2, bool use_dma) {
-    if (_debug) Serial.printf("\n$$readFrameSplitBuffer(%p, %u, %p, %u, %d) %u\n", buffer1, size1, buffer2, size2, use_dma, _use_gpio);
+bool GC2145::readFrame(void* buffer1, size_t size1, void* buffer2, size_t size2) {
+    if (_debug) Serial.printf("\n$$readFrameSplitBuffer(%p, %u, %p, %u, %d)\n", buffer1, size1, buffer2, size2);
     if(!_use_gpio) {
-        readFrameFlexIO(buffer1, size1, buffer2, size2, use_dma);
+        return readFrameFlexIO(buffer1, size1, buffer2, size2);
     } else {
         readFrameGPIO(buffer1, size1, buffer2, size2);
+        return true;
     }
 }
 
@@ -1889,7 +1883,7 @@ void GC2145::readFrameGPIO(void* buffer)
 
 }
 */
-void GC2145::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
+bool GC2145::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 {    
   Serial.printf("$$readFrameGPIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
   uint8_t* b = (uint8_t*)buffer;
@@ -1939,6 +1933,7 @@ void GC2145::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
     interrupts();
   }
   digitalWriteFast(0, LOW); 
+  return true;
 }
 
 
@@ -2435,20 +2430,20 @@ void GC2145::readFrameFlexIO(void* buffer, bool use_dma)
 }
 #endif
 
-void GC2145::readFrameFlexIO(void* buffer1, size_t size1, void* buffer2, size_t size2, bool fUseDMA) 
+bool GC2145::readFrameFlexIO(void* buffer1, size_t size1, void* buffer2, size_t size2) 
 {
     //flexio_configure(); // one-time hardware setup
     // wait for VSYNC to go high and then low with a sort of glitch filter
     if (_debug)Serial.printf("$$GC2145::readFrameFlexIO(%p, %u, %p, %u)\n", buffer1, size1, buffer2, size2);
     const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
-    if ((size1 + size2) < frame_size_bytes) return; // not big enough to hold frame.
+    if ((size1 + size2) < frame_size_bytes) return false; // not big enough to hold frame.
 
     elapsedMillis emWaitSOF;
     elapsedMicros emGlitch;
     for (;;) {
       if (emWaitSOF > 2000) {
         Serial.println("Timeout waiting for Start of Frame");
-        return;
+        return false;
       }
       while ((*_vsyncPort & _vsyncMask) == 0);
       emGlitch = 0;
@@ -2591,6 +2586,7 @@ void GC2145::readFrameFlexIO(void* buffer1, size_t size1, void* buffer2, size_t 
 #endif
 //    dumpDMA_TCD_GC(&_dmasettings[0], " 0: ");
 //    dumpDMA_TCD_GC(&_dmasettings[1], " 1: ");
+    return true;
 }
 
 

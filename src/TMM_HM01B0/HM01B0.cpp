@@ -1033,7 +1033,7 @@ uint8_t HM01B0::calAE( uint8_t CalFrames, uint8_t* Buffer, uint32_t ui32BufferLe
     for (uint8_t i = 0; i < CalFrames; i++)
     {
 		setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
-        readFrame(Buffer);
+        readFrame(Buffer, ui32BufferLen);
         ui32Err = getAE(pAECfg);
 
         // // todo: could report out intermediate results here (without using printing - perhaps a callback function)
@@ -1206,24 +1206,17 @@ void HM01B0::endXClk()
 
 
 #define FLEXIO_USE_DMA
-void HM01B0::readFrame(void* buffer, bool fUseDMA){
-	setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
+
+bool HM01B0::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
     if(!_use_gpio) {
-        readFrameFlexIO(buffer, (size_t)-1, nullptr, 0, fUseDMA);
+        return readFrameFlexIO(buffer1, cb1, buffer2, cb2);
     } else {
         if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT) {
-            readFrame4BitGPIO(buffer);
+            readFrame4BitGPIO(buffer1);
+            return true;
         } else {
-            readFrameGPIO(buffer);
+            return readFrameGPIO(buffer1, cb1, buffer2, cb2);
         }
-    }
-}
-
-void HM01B0::readFrameSplitBuffer(void *buffer1, size_t cb1, void *buffer2, size_t cb2, bool fUseDMA) {
-    if(!_use_gpio) {
-        readFrameFlexIO(buffer1, cb1, buffer2, cb2, fUseDMA);
-    } else {
-        readFrameGPIO(buffer1, cb1, buffer2, cb2);
     }
 
 }
@@ -1297,7 +1290,7 @@ void HM01B0::readFrameGPIO(void* buffer)
 }
 */
 
-void HM01B0::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
+bool HM01B0::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 {
   uint8_t *b = (uint8_t *)buffer;
   uint32_t cb = (uint32_t)cb1;
@@ -1360,6 +1353,7 @@ void HM01B0::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
   }
 
   setMode(HIMAX_MODE_STREAMING, 0);
+  return true;
 }
 
 void HM01B0::readFrame4BitGPIO(void* buffer)
@@ -1696,20 +1690,21 @@ static void dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title=nullptr)
 
 
 
-void HM01B0::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2, bool use_dma) {
-  if (_debug) Serial.printf("$$HM0360::readFrameFlexIO(%p, %u, %p, %u, %u)\n", buffer, cb1, buffer2, cb2, use_dma);
+bool HM01B0::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2) {
+  if (_debug) Serial.printf("$$HM0360::readFrameFlexIO(%p, %u, %p, %u, %u)\n", buffer, cb1, buffer2, cb2, _fuse_dma);
   //flexio_configure(); // one-time hardware setup
   // wait for VSYNC to be low
   //while ((*_vsyncPort & _vsyncMask) != 0);
   // lets wait for a vsync that is high long enough to not be pin noise
   elapsedMillis timeout = 0;
   const uint32_t frame_size_bytes = _width*_height /* * _bytesPerPixel*/;
+  if ((cb1 + cb2) < frame_size_bytes) return false; // not big enough
 
   for (;;) {
     if (((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0)) break;
     if (timeout > 500) {
       Serial.println("Timeout waiting for VSYNC");
-      return;
+      return false;
     }
   }
 
@@ -1721,7 +1716,7 @@ void HM01B0::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
   // read FlexIO by polling
   uint32_t *p = (uint32_t *)buffer;
 
-  if (!use_dma) {
+  if (!_fuse_dma) {
     _pflexio->SHIFTSDEN = _fshifter_mask;
 
     uint32_t count_items_left = (_width*_height/4)/**_bytesPerPixel */;
@@ -1767,7 +1762,7 @@ void HM01B0::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
         }
       }
     }
-    return;
+    return true;
   }
   //#else
   // read FlexIO by DMA
@@ -1787,7 +1782,6 @@ void HM01B0::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     }
   } else {
     // We need to use dma settings.
-    if ((cb1 + cb2) < frame_size_bytes) return; // not big enough
     
     _dmasettings[0].TCD->CSR = 0;
     _dmasettings[0].source(_pflexio->SHIFTBUF[_fshifter]);
@@ -1840,7 +1834,7 @@ void HM01B0::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
   if (frame_size_bytes > cb1) {
     if ((uint32_t)buffer2 >= 0x20200000u) arm_dcache_delete(buffer2, frame_size_bytes - cb1);
   } 
-
+  return true;
   //arm_dcache_delete(buffer, length);
   //#endif
 }

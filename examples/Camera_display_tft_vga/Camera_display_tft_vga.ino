@@ -503,7 +503,7 @@ void loop() {
           memset((uint8_t *)frameBuffer, 0, sizeof_framebuffer);
           camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
           //camera.readFrame(frameBuffer);
-          camera.readFrameSplitBuffer(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+          camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
 
 #ifndef CAMERA_USES_MONO_PALETTE
 //#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
@@ -681,7 +681,7 @@ uint16_t color565(uint8_t r, uint8_t g, uint8_t b) {
 void send_image(Stream *imgSerial) {
   memset((uint8_t *)frameBuffer, 0, sizeof_framebuffer);
   camera.setHmirror(1);
-  camera.readFrame(frameBuffer);
+  camera.readFrame(frameBuffer, sizeof_framebuffer);
 
   imgSerial->write(0xFF);
   imgSerial->write(0xAA);
@@ -707,7 +707,7 @@ void send_image(Stream *imgSerial) {
 //#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
 void send_raw() {
   memset((uint8_t *)frameBuffer, 0, sizeof_framebuffer);
-  camera.readFrame(frameBuffer);
+  camera.readFrame(frameBuffer, sizeof_framebuffer);
   uint32_t idx = 0;
   for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
     idx = i * 2;
@@ -851,11 +851,8 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
     memset((uint8_t *)frameBuffer2, 0, sizeof_framebuffer2);
   }
 //  digitalWriteFast(24, HIGH);
-#if 0 // defined(ARDUINO_TEENSY_DEVBRD4)
-  camera.readFrame(frameBuffer, use_dma);
-#else
-  camera.readFrameSplitBuffer(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2, use_dma);
-#endif
+  camera.useDMA(use_dma);
+  camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
 //  digitalWriteFast(24, LOW);
 
   if (show_debug_info) {
@@ -980,7 +977,7 @@ void read_display_multiple_frames(bool use_frame_buffer) {
 #if 1
     read_display_one_frame(true, false);
 #else
-    camera.readFrame(frameBuffer);
+    camera.readFrame(frameBuffer, sizeof_framebuffer);
 
     int numPixels = camera.width() * camera.height();
 

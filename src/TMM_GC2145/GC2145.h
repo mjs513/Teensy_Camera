@@ -269,25 +269,28 @@ public:
   void setExposure(int exposure) {  } // 0 - 65535
   void autoExposure(int enable) {}
   bool begin(framesize_t resolution, int format, bool use_gpio = false){return 0;}
-  void readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0, bool fUseDMA=true);
 /********************************************************************************************/
 	//-------------------------------------------------------
 	//Generic Read Frame base on _hw_config
-	void readFrame(void* buffer, bool use_dma=true);
-  void readFrameSplitBuffer(void *buffer1, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0, bool fUseDMA = true); // give default one for now
+  bool readFrame(void *buffer1, size_t cb1, void* buffer2=nullptr, size_t cb2=0); // give default one for now
 
 	// quick and dirty attempt to read in images larger than can fit into one region of memory...
 //	void readFrameMultiBuffer(void* buffer1, size_t size1, void* buffer2, size_t size2);
+
+  void useDMA(bool f) {_fuse_dma = f;}
+  bool useDMA() {return _fuse_dma; }
+
 	
 	//normal Read mode
 	//void readFrameGPIO(void* buffer);
-    void readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
+  bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
 
 	bool readContinuous(bool(*callback)(void *frame_buffer), void *fb1, void *fb2);
 	void stopReadContinuous();
 
 	//FlexIO is default mode for the camera
 	//void readFrameFlexIO(void* buffer, bool use_dma=true);
+  bool readFrameFlexIO(void *buffer, size_t cb1, void* buffer2=nullptr, size_t cb2=0);
 	void readFrameMultiBufferFlexIO(void* buffer1, size_t size1, void* buffer2, size_t size2);
 	bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
 	bool stopReadFlexIO();
@@ -332,6 +335,7 @@ private:
 
     bool _use_gpio = false;
     bool _debug = true;
+    bool _fuse_dma = true;
 	  TwoWire *_wire;
 
     int _width;

@@ -62,18 +62,20 @@ public:
   // grab Frame functions
   //-------------------------------------------------------
   //Generic Read Frame base on _hw_config
-  virtual void readFrame(void *buffer, bool fUseDMA = true) = 0;
-  virtual void readFrameSplitBuffer(void *buffer1, size_t cb1, void *buffer2, size_t cb2, bool fUseDMA = true) {}; // give default one for now
+  virtual bool readFrame(void *buffer1, size_t cb1, void *buffer2=nullptr, size_t cb2=0); // give default one for now
+
+  virtual void useDMA(bool f) {}
+  virtual bool useDMA() {return false;}
 
   //normal Read mode
-  virtual void readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0) = 0;
+  virtual bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0) = 0;
   virtual void readFrame4BitGPIO(void *buffer) = 0;
   virtual bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1, void *fb2) = 0;
   virtual void stopReadContinuous() = 0;
 
   //FlexIO is default mode for the camera
   //virtual void readFrameFlexIO(void* buffer);
-  virtual void readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0, bool fUseDMA=true) = 0;
+  virtual bool readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0) = 0;
 
   virtual bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2) = 0;
   virtual bool stopReadFlexIO() = 0;
@@ -159,11 +161,14 @@ public:
   // grab Frame functions
   //-------------------------------------------------------
   //Generic Read Frame base on _hw_config
-  void readFrame(void *buffer, bool fUseDMA = true);
-  void readFrameSplitBuffer(void *buffer1, size_t cb1, void *buffer2, size_t cb2, bool fUseDMA = true);
+  bool readFrame(void *buffer1, size_t cb1, void *buffer2 = nullptr, size_t cb2=0);
+
+  // enable/disable DMA
+  void useDMA(bool f);
+  bool useDMA();
 
   //normal Read mode
-  void readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
+  bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
   void readFrame4BitGPIO(void *buffer);
 
   bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
@@ -171,7 +176,7 @@ public:
 
   //FlexIO is default mode for the camera
   //void readFrameFlexIO(void* buffer);
-  void readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0, bool fUseDMA=true);
+  bool readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
 
   bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
   bool stopReadFlexIO();
