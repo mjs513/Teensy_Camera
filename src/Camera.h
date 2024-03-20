@@ -18,7 +18,12 @@ public:
   virtual bool begin(framesize_t framesize = FRAMESIZE_QVGA, int framerate = 30, bool use_gpio = false) = 0;
   virtual void end() = 0;
   virtual int reset() = 0;
-  virtual void showRegisters(void);
+  virtual void showRegisters(void) = 0;
+  virtual void debug(bool debug_on) {}; // 
+  virtual bool debug() { return false; }
+  // debug and experimenting support
+  virtual uint8_t readRegister(uint8_t reg) {return (uint8_t)-1;}
+  virtual bool writeRegister(uint8_t reg, uint8_t data) {return false;}
   virtual int setPixformat(pixformat_t pfmt) = 0;
   virtual uint8_t setFramesize(framesize_t framesize) = 0;
   virtual int setFramerate(int framerate) = 0;
@@ -42,7 +47,7 @@ public:
   virtual uint16_t getModelid() = 0;
   virtual void captureFrameStatistics() = 0;
   
-  virtual bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
+  virtual bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, int camera_name = OV7670, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
   virtual void setSaturation(int saturation) = 0; // 0 - 255
   virtual void setHue(int hue) = 0; // -180 - 180
   virtual void setContrast(int contrast) = 0; // 0 - 127
@@ -50,20 +55,27 @@ public:
   virtual void autoGain(int enable, float gain_db, float gain_db_ceiling) = 0;
   virtual void setExposure(int exposure) = 0; // 0 - 65535
   virtual void autoExposure(int enable) = 0;
+  
+  virtual int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db);
 
+  
   // grab Frame functions
   //-------------------------------------------------------
   //Generic Read Frame base on _hw_config
-  virtual void readFrame(void *buffer, bool fUseDMA = true) = 0;
+  virtual bool readFrame(void *buffer1, size_t cb1, void *buffer2=nullptr, size_t cb2=0); // give default one for now
+
+  virtual void useDMA(bool f) {}
+  virtual bool useDMA() {return false;}
+
   //normal Read mode
-  virtual void readFrameGPIO(void *buffer) = 0;
+  virtual bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0) = 0;
   virtual void readFrame4BitGPIO(void *buffer) = 0;
   virtual bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1, void *fb2) = 0;
   virtual void stopReadContinuous() = 0;
 
   //FlexIO is default mode for the camera
   //virtual void readFrameFlexIO(void* buffer);
-  virtual void readFrameFlexIO(void *buffer, bool fUseDMA) = 0;
+  virtual bool readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0) = 0;
 
   virtual bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2) = 0;
   virtual bool stopReadFlexIO() = 0;
@@ -105,6 +117,8 @@ public:
   void end();
   int reset();
   void showRegisters(void);
+  void debug(bool debug_on);
+  bool debug();
   int setPixformat(pixformat_t pfmt);
   uint8_t setFramesize(framesize_t framesize);
   int setFramerate(int framerate);
@@ -126,10 +140,14 @@ public:
   uint8_t getAE(ae_cfg_t *psAECfg);
   uint8_t calAE(uint8_t CalFrames, uint8_t *Buffer, uint32_t ui32BufferLen, ae_cfg_t *pAECfg);
   uint16_t getModelid();
+
+  // debug and experimenting support
+  uint8_t readRegister(uint8_t reg);
+  bool writeRegister(uint8_t reg, uint8_t data);
+
   
   /***********  OV specific ************************/
-  bool begin(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30,
-                        bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
+  bool begin(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, int camera_name = OV7670, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
   void setSaturation(int saturation); // 0 - 255
   void setHue(int hue); // -180 - 180
   void setContrast(int contrast); // 0 - 127
@@ -137,14 +155,20 @@ public:
   void autoGain(int enable, float gain_db, float gain_db_ceiling);
   void setExposure(int exposure); // 0 - 65535
   void autoExposure(int enable);
+  /***********  GC2145 specific ************************/
+  int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db);
 
   // grab Frame functions
   //-------------------------------------------------------
   //Generic Read Frame base on _hw_config
-  void readFrame(void *buffer, bool fUseDMA = true);
+  bool readFrame(void *buffer1, size_t cb1, void *buffer2 = nullptr, size_t cb2=0);
+
+  // enable/disable DMA
+  void useDMA(bool f);
+  bool useDMA();
 
   //normal Read mode
-  void readFrameGPIO(void* buffer);
+  bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
   void readFrame4BitGPIO(void *buffer);
 
   bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
@@ -152,7 +176,7 @@ public:
 
   //FlexIO is default mode for the camera
   //void readFrameFlexIO(void* buffer);
-  void readFrameFlexIO(void *buffer, bool fUseDMA);
+  bool readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
 
   bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
   bool stopReadFlexIO();

@@ -27,6 +27,20 @@ int Camera::setPixformat(pixformat_t pfmt) {
   return sensor->setPixformat(pfmt);
 }
 
+void Camera::debug(bool debug_on) {
+  sensor->debug(debug_on);
+}
+bool Camera::debug() {
+  return sensor->debug();
+}
+
+uint8_t Camera::readRegister(uint8_t reg) {
+  return sensor->readRegister(reg);
+}
+bool Camera::writeRegister(uint8_t reg, uint8_t data) {
+  return sensor->writeRegister(reg, data);
+}
+
 uint8_t Camera::setFramesize(framesize_t framesize) {
   return sensor->setFramesize(framesize);
 }
@@ -107,13 +121,23 @@ uint8_t Camera::calAE(uint8_t CalFrames, uint8_t *Buffer, uint32_t ui32BufferLen
 
 //-------------------------------------------------------
 //Generic Read Frame base on _hw_config
-void Camera::readFrame(void *buffer, bool fUseDMA) {
-  sensor->readFrame(buffer, fUseDMA);
+bool Camera::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
+  return sensor->readFrame(buffer1, cb1, buffer2, cb2);
 }
 
+
+void Camera::useDMA(bool f) {
+  sensor->useDMA(f);
+}
+
+bool Camera::useDMA() {
+  return sensor->useDMA();
+}
+
+
 //normal Read mode
-void Camera::readFrameGPIO(void *buffer) {
-  return sensor->readFrameGPIO(buffer);
+bool Camera::readFrameGPIO(void* buffer, size_t cb1, void* buffer2, size_t cb2) {
+    return sensor->readFrameGPIO(buffer, cb1, buffer2, cb2);
 }
 
 void Camera::readFrame4BitGPIO(void *buffer) {
@@ -136,8 +160,8 @@ void Camera::readFrameFlexIO(void* buffer)
 }
 */
 
-void Camera::readFrameFlexIO(void *buffer, bool fUseDMA) {
-  return sensor->readFrameFlexIO(buffer, fUseDMA);
+bool Camera::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2) {
+  return sensor->readFrameFlexIO(buffer, cb1, buffer2, cb2);
 }
 
 bool Camera::startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2) {
@@ -218,6 +242,10 @@ void Camera::autoExposure(int enable) {
     sensor->autoExposure(enable);
 }
 
-bool Camera::begin(framesize_t resolution, pixformat_t format, int fps, bool use_gpio) { // Supported FPS: 1, 5, 10, 15, 30
-    return sensor->begin_omnivision(resolution, format, fps, use_gpio);
+bool Camera::begin(framesize_t resolution, pixformat_t format, int fps, int camera_name, bool use_gpio) { // Supported FPS: 1, 5, 10, 15, 30
+    return sensor->begin_omnivision(resolution, format, fps, camera_name, use_gpio);
+}
+
+int Camera::setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db) {
+    return sensor->setAutoWhitebal(enable, r_gain_db, g_gain_db, b_gain_db);
 }

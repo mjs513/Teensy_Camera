@@ -62,6 +62,8 @@ public:
   void end();
   int reset();
   void showRegisters(void);
+  void debug(bool debug_on) {_debug = debug_on;}
+  bool debug() {return _debug;}
   int setPixformat( pixformat_t pfmt);
   uint8_t setFramesize(framesize_t framesize);
   int setFramerate(int framerate);
@@ -84,7 +86,7 @@ public:
   uint16_t getModelid();
 
   // covers ov functions
-  bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, bool use_gpio = false){ return 0;};
+  bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, int camera_name = OV7670, bool use_gpio = false){ return 0;};
   void setSaturation(int saturation) {}; // 0 - 255
   void setHue(int hue) {}; // -180 - 180
   void setContrast(int contrast) {}; // 0 - 127
@@ -92,18 +94,27 @@ public:
   void autoGain(int enable, float gain_db, float gain_db_ceiling) {};
   void setExposure(int exposure) {}; // 0 - 65535
   void autoExposure(int enable) {};
+  void printRegisters(bool only_ones_set = true) {} ;
+  int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db) { return 0;};
+
   //-------------------------------------------------------
   //Generic Read Frame base on _hw_config
-  void readFrame(void* buffer, bool fUseDMA = true);
+  bool readFrame(void *buffer1, size_t cb1, void *buffer2=nullptr, size_t cb2=0);
   
+  void useDMA(bool f) {_fuse_dma = f;}
+  bool useDMA() {return _fuse_dma; }
+
+
   //normal Read mode
-  void readFrameGPIO(void* buffer);
+  //void readFrameGPIO(void* buffer);
+  bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
+
   void readFrame4BitGPIO(void* buffer);
   bool readContinuous(bool(*callback)(void *frame_buffer), void *fb1, void *fb2);
   void stopReadContinuous();
 
   //FlexIO is default mode for the camera
-  void readFrameFlexIO(void* buffer, bool fUseDMA);
+  bool readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
   bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
   bool stopReadFlexIO();
 
@@ -175,11 +186,13 @@ private:
 
   // Added settings for configurable flexio
   FlexIOHandler *_pflex;
-    IMXRT_FLEXIO_t *_pflexio;
+  IMXRT_FLEXIO_t *_pflexio;
   uint8_t _fshifter;
   uint8_t _fshifter_mask;
-    uint8_t _ftimer;
-    uint8_t _dma_source;
+  uint8_t _ftimer;
+  uint8_t _dma_source;
+  bool _debug = true;
+  bool _fuse_dma = true;
 
 
 

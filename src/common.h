@@ -5,6 +5,7 @@ typedef enum {
     YUV422,
     RGB444,
     RGB565,
+    BAYER,
     GRAYSCALE,
 } pixformat_t;
 
@@ -13,6 +14,7 @@ typedef enum {
     FRAMESIZE_VGA = 0,
     FRAMESIZE_QQVGA,    // 160x120
     FRAMESIZE_QVGA,     // 320x240
+    FRAMESIZE_480X320,
 	FRAMESIZE_320X320,  // 320x320
 	FRAMESIZE_QVGA4BIT,
     FRAMESIZE_QCIF,
@@ -70,3 +72,10 @@ typedef enum {
     HIMAX_ERR_PARAMS,
     HIMAX_NUM_ERR
 } status_e;
+
+enum
+{
+  OV7670 = 0,
+  OV7675 = 1,
+  GC2145a = 2
+};
