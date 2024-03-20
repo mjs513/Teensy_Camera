@@ -360,7 +360,7 @@ private:
 	// DMA STUFF
 	enum {DMABUFFER_SIZE=1296};  // 640x480  so 640*2*2
 	static DMAChannel _dmachannel;
-	static DMASetting _dmasettings[6];
+	static DMASetting _dmasettings[8];  // maybe handle up to 800x600
 	static uint32_t _dmaBuffer1[DMABUFFER_SIZE];
 	static uint32_t _dmaBuffer2[DMABUFFER_SIZE];
 

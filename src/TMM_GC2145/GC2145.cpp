@@ -2612,7 +2612,7 @@ bool GC2145::stopReadFlexIO()
 //================================================================================
 // Define our DMA structure.
 DMAChannel GC2145::_dmachannel;
-DMASetting GC2145::_dmasettings[6];
+DMASetting GC2145::_dmasettings[8];
 uint32_t GC2145::_dmaBuffer1[DMABUFFER_SIZE] __attribute__ ((used, aligned(32)));
 uint32_t GC2145::_dmaBuffer2[DMABUFFER_SIZE] __attribute__ ((used, aligned(32)));
 extern "C" void xbar_connect(unsigned int input, unsigned int output); // in pwm.c
