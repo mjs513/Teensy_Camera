@@ -38,6 +38,14 @@ SOFTWARE.
 
 #include <Wire.h>
 
+#define debug     Serial
+
+//#define DEBUG_CAMERA
+//#define DEBUG_CAMERA_VERBOSE
+//#define DEBUG_FLEXIO
+//#define USE_DEBUG_PINS
+
+
 #define HIMAX_BOOT_RETRY            (10)
 #define HIMAX_LINE_LEN_PCK_FULL     0x178
 #define HIMAX_FRAME_LENGTH_FULL     0x109
@@ -48,9 +56,6 @@ SOFTWARE.
 #define HIMAX_LINE_LEN_PCK_QQVGA    0x178
 #define HIMAX_FRAME_LENGTH_QQVGA    0x084
 
-//#define DEBUG_CAMERA
-//#define DEBUG_CAMERA_VERBOSE
-//#define DEBUG_FLEXIO
 
 #define FLEXIO_TIMER_TRIGGER_SEL_PININPUT(x) ((uint32_t)(x) << 1U)
 
@@ -594,11 +599,11 @@ uint8_t HM01B0::cameraReadRegister(uint16_t reg) {
   _wire->write(reg >> 8);
   _wire->write(reg);
   if (_wire->endTransmission(false) != 0) {
-    Serial.println("error reading HM01B0, address");
+    if(_debug) debug.println("error reading HM01B0, address");
     return 0;
   }
   if (_wire->requestFrom(0x24, 1) < 1) {
-    Serial.println("error reading HM01B0, data");
+    if(_debug) debug.println("error reading HM01B0, data");
     return 0;
   }
   return _wire->read();
@@ -611,7 +616,7 @@ uint8_t HM01B0::cameraWriteRegister(uint16_t reg, uint8_t data) {
   _wire->write(reg);
   _wire->write(data);
   if (_wire->endTransmission() != 0) {
-    Serial.println("error writing to HM01B0");
+    debug.println("error writing to HM01B0");
   }
   return 0;
 }
@@ -715,7 +720,7 @@ int HM01B0::setFramerate(int framerate)
             return -1;
     }
     osc_div |= 0x28; // try also adding gated PCLK option I think
-	Serial.printf("OSC_CLK_DIV: 0x%X\n", osc_div);
+
     return cameraWriteRegister(OSC_CLK_DIV,osc_div);
 }
 
@@ -938,7 +943,7 @@ uint8_t HM01B0::setMode(uint8_t Mode, uint8_t FrameCnt)
 	
     if(Err != 0)
     {
-		Serial.println("Mode Could not be set");
+		if(_debug) debug.println("Mode Could not be set");
     }
 
     return Err;
@@ -1085,7 +1090,7 @@ uint8_t HM01B0::getAE( ae_cfg_t *psAECfg)
     if ((ui8AEMean < (ui8AETargetMean - ui8ConvergeInTh)) || (ui8AEMean > (ui8AETargetMean + ui8ConvergeInTh)))
         ui32Err = HIMAX_ERR_AE_NOT_CONVERGED;
 
-     //Serial.printf("AE Calibration(0x%02X) TargetMean 0x%02X, ConvergeInTh 0x%02X, AEMean 0x%02X\n",
+     //debug.printf("AE Calibration(0x%02X) TargetMean 0x%02X, ConvergeInTh 0x%02X, AEMean 0x%02X\n",
      //                                 ui8AETargetMean, ui8ConvergeInTh, ui8AEMean);
     if (psAECfg)
     {
@@ -1128,18 +1133,17 @@ bool HM01B0::begin(framesize_t framesize, int framerate, bool use_gpio)
 	}
 	
 #ifdef DEBUG_CAMERA
-  Serial.printf("  VS=%d, HR=%d, PC=%d XC=%d\n", VSYNC_PIN, HSYNC_PIN, PCLK_PIN, MCLK_PIN);
-  Serial.printf("  G0 = %d\n", G0);
-  Serial.printf("  G1 = %d\n", G1);
-  Serial.printf("  G2 = %d\n", G2);
-  Serial.printf("  G3 = %d\n", G3);
+  debug.printf("  VS=%d, HR=%d, PC=%d XC=%d\n", VSYNC_PIN, HSYNC_PIN, PCLK_PIN, MCLK_PIN);
+  debug.printf("  G0 = %d\n", G0);
+  debug.printf("  G1 = %d\n", G1);
+  debug.printf("  G2 = %d\n", G2);
+  debug.printf("  G3 = %d\n", G3);
   if(G4 != 0xFF){
-    Serial.printf("  G4 = %d\n", G4);
-    Serial.printf("  G5 = %d\n", G5);
-    Serial.printf("  G6 = %d\n", G6);
-    Serial.printf("  G7 = %d\n", G7);
+    debug.printf("  G4 = %d\n", G4);
+    debug.printf("  G5 = %d\n", G5);
+    debug.printf("  G6 = %d\n", G6);
+    debug.printf("  G7 = %d\n", G7);
   }
-  
 #endif
     
 	_vsyncMask = digitalPinToBitMask(VSYNC_PIN);
@@ -1235,60 +1239,7 @@ void HM01B0::stopReadContinuous() {
   stopReadFlexIO();
 
 }
-/*
-void HM01B0::readFrameGPIO(void* buffer)
-{
 
-  uint8_t* b = (uint8_t*)buffer;
-  bool _grayscale;
-  int bytesPerRow;
-  //Change for Monodchrome only Sparkfun HB01b0
-  #if defined(SensorMonochrome) 
-	_grayscale = false;
-	bytesPerRow = _width ;
-  #else
-	_grayscale = (pixformat == PIXFORMAT_GRAYSCALE);
-	bytesPerRow = _width * 2;
-  #endif
-
-  // Falling edge indicates start of frame
-  //pinMode(PCLK_PIN, INPUT); // make sure back to input pin...
-  // lets add our own glitch filter.  Say it must be hig for at least 100us
-  elapsedMicros emHigh;
-  do {
-    while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
-    emHigh = 0;
-    while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
-  } while (emHigh < 2);
-
-  for (int i = 0; i < _height; i++) {
-    // rising edge indicates start of line
-    while ((*_hrefPort & _hrefMask) == 0); // wait for HIGH
-    while ((*_pclkPort & _pclkMask) != 0); // wait for LOW
-    noInterrupts();
-
-    for (int j = 0; j < bytesPerRow; j++) {
-      // rising edges clock each data byte
-      while ((*_pclkPort & _pclkMask) == 0); // wait for HIGH
-
-      //uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >> 18; // read all bits in parallel
-      uint32_t in =  (GPIO7_PSR >> 4); // read all bits in parallel
-	  //uint32_t in = mmBus;
-
-      if (!(j & 1) || !_grayscale) {
-        *b++ = in;
-      }
-      while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0)) ; // wait for LOW bail if _href is lost
-    }
-
-    while ((*_hrefPort & _hrefMask) != 0) ;  // wait for LOW
-    interrupts();
-  }
-
-   setMode(HIMAX_MODE_STREAMING, 0);
-
-}
-*/
 
 bool HM01B0::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 {
@@ -1337,7 +1288,7 @@ bool HM01B0::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
       if (!(j & 1) || !_grayscale) {
         *b++ = in;
         if ( buffer2 && (--cb == 0) ) {
-          Serial.printf("\t$$ 2nd buffer: %u %u\n", i, j);
+          if(_debug) debug.printf("\t$$ 2nd buffer: %u %u\n", i, j);
           b = (uint8_t *)buffer2;
           cb = (uint32_t)cb2;
           buffer2 = nullptr;
@@ -1427,7 +1378,7 @@ bool HM01B0::flexio_configure()
     uint8_t tpclk_pin; 
     _pflex = FlexIOHandler::mapIOPinToFlexIOHandler(PCLK_PIN, tpclk_pin);
     if (!_pflex) {
-        Serial.printf("HM01B0 PCLK(%u) is not a valid Flex IO pin\n", PCLK_PIN);
+        debug.printf("HM01B0 PCLK(%u) is not a valid Flex IO pin\n", PCLK_PIN);
         return false;
     }
     _pflexio = &(_pflex->port());
@@ -1441,16 +1392,20 @@ bool HM01B0::flexio_configure()
 
     // make sure the minimum here is valid: 
     if ((thsync_pin == 0xff) || (tg0 == 0xff) || (tg1 == 0xff) || (tg2 == 0xff) || (tg3 == 0xff)) {
-        Serial.printf("HM01B0 Some pins did not map to valid Flex IO pin\n");
-        Serial.printf("    HSYNC(%u %u) G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)", 
+        #ifdef DEBUG_FLEXIO
+        debug.printf("HM01B0 Some pins did not map to valid Flex IO pin\n");
+        debug.printf("    HSYNC(%u %u) G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)", 
             HSYNC_PIN, thsync_pin, G0, tg0, G1, tg1, G2, tg2, G3, tg3 );
+        #endif
         return false;
     } 
     // Verify that the G numbers are consecutive... Should use arrays!
     if ((tg1 != (tg0+1)) || (tg2 != (tg0+2)) || (tg3 != (tg0+3))) {
-        Serial.printf("HM01B0 Flex IO pins G0-G3 are not consective\n");
-        Serial.printf("    G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)", 
+        #ifdef DEBUG_FLEXIO
+        debug.printf("HM01B0 Flex IO pins G0-G3 are not consective\n");
+        debug.printf("    G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)", 
             G0, tg0, G1, tg1, G2, tg2, G3, tg3 );
+        #endif
         return false;
     }
     if (G4 != 0xff) {
@@ -1459,16 +1414,18 @@ bool HM01B0::flexio_configure()
         uint8_t tg6 = _pflex->mapIOPinToFlexPin(G6);
         uint8_t tg7 = _pflex->mapIOPinToFlexPin(G7);
         if ((tg4 != (tg0+4)) || (tg5 != (tg0+5)) || (tg6 != (tg0+6)) || (tg7 != (tg0+7))) {
-            Serial.printf("HM01B0 Flex IO pins G4-G7 are not consective with G0-3\n");
-            Serial.printf("    G0(%u %u) G4(%u %u) G5(%u %u) G6(%u %u) G7(%u %u)", 
+            #ifdef DEBUG_FLEXIO
+            debug.printf("HM01B0 Flex IO pins G4-G7 are not consective with G0-3\n");
+            debug.printf("    G0(%u %u) G4(%u %u) G5(%u %u) G6(%u %u) G7(%u %u)", 
                 G0, tg0, G4, tg4, G5, tg5, G6, tg6, G7, tg7 );
+            #endif
             return false;
         }
         _hw_config = TEENSY_MICROMOD_FLEXIO_8BIT;
-        Serial.println("Custom - Flexio is 8 bit mode");
+        if(_debug) debug.println("Custom - Flexio is 8 bit mode");
     } else {
         _hw_config = TEENSY_MICROMOD_FLEXIO_4BIT;
-        Serial.println("Custom - Flexio is 4 bit mode");
+        if(_debug) debug.println("Custom - Flexio is 4 bit mode");
     }
 
     // Needs Shifter 3 (maybe 7 would work as well?)
@@ -1476,7 +1433,7 @@ bool HM01B0::flexio_configure()
     if (_pflex->claimShifter(3)) _fshifter = 3;
     else if (_pflex->claimShifter(7)) _fshifter = 7;
     else {
-      Serial.printf("HM01B0 Flex IO: Could not claim Shifter 3 or 7\n");
+      if(_debug) debug.printf("HM01B0 Flex IO: Could not claim Shifter 3 or 7\n");
       return false;
     }
     _fshifter_mask = 1 << _fshifter;   // 4 channels.
@@ -1485,7 +1442,7 @@ bool HM01B0::flexio_configure()
     // Now request one timer
     uint8_t _ftimer = _pflex->requestTimers(); // request 1 timer. 
     if (_ftimer == 0xff) {
-        Serial.printf("HM01B0 Flex IO: failed to request timer\n");
+        if(_debug) debug.printf("HM01B0 Flex IO: failed to request timer\n");
         return false;
     }
 
@@ -1526,19 +1483,18 @@ bool HM01B0::flexio_configure()
 
 
 #ifdef DEBUG_FLEXIO
-    Serial.println("FlexIO Configure");
-    Serial.printf(" CCM_CSCMR2 = %08X\n", CCM_CSCMR2);
+    debug.println("FlexIO Configure");
+    debug.printf(" CCM_CSCMR2 = %08X\n", CCM_CSCMR2);
     uint32_t div1 = ((CCM_CS1CDR >> 9) & 7) + 1;
     uint32_t div2 = ((CCM_CS1CDR >> 25) & 7) + 1;
-    Serial.printf(" div1 = %u, div2 = %u\n", div1, div2);
-    Serial.printf(" FlexIO2 Frequency = %.2f MHz\n", 480.0 / (float)div1 / (float)div2);
-    Serial.printf(" CCM_CCGR3 = %08X\n", CCM_CCGR3);
-    Serial.printf(" FLEXIO2_CTRL = %08X\n", FLEXIO2_CTRL);
-    Serial.printf(" FlexIO2 Config, param=%08X\n", FLEXIO2_PARAM);
+    debug.printf(" div1 = %u, div2 = %u\n", div1, div2);
+    debug.printf(" FlexIO2 Frequency = %.2f MHz\n", 480.0 / (float)div1 / (float)div2);
+    debug.printf(" CCM_CCGR3 = %08X\n", CCM_CCGR3);
+    debug.printf(" FLEXIO2_CTRL = %08X\n", FLEXIO2_CTRL);
+    debug.printf(" FlexIO2 Config, param=%08X\n", FLEXIO2_PARAM);
 #endif
     
     if(_hw_config == TEENSY_MICROMOD_FLEXIO_8BIT) {
-		Serial.println("8Bit FlexIO");
         // SHIFTCFG, page 2927
         //  PWIDTH: number of bits to be shifted on each Shift clock
         //          0 = 1 bit, 1-3 = 4 bit, 4-7 = 8 bit, 8-15 = 16 bit, 16-31 = 32 bit
@@ -1660,12 +1616,12 @@ bool HM01B0::flexio_configure()
     _pflexio->CTRL = FLEXIO_CTRL_FLEXEN; // enable after everything configured
     
 #ifdef DEBUG_FLEXIO
-    Serial.printf(" FLEXIO:%u Shifter:%u Timer:%u\n", _pflex->FlexIOIndex(), _fshifter, _ftimer);
-    Serial.printf("     SHIFTCFG = %08X\n",  _pflexio->SHIFTCFG[_fshifter]);
-    Serial.printf("     SHIFTCTL = %08X\n",  _pflexio->SHIFTCTL[_fshifter]);
-    Serial.printf("     TIMCMP = %08X\n", _pflexio->TIMCMP[_ftimer]);
-    Serial.printf("     TIMCFG = %08X\n", _pflexio->TIMCFG[_ftimer]);
-    Serial.printf("     TIMCTL = %08X\n", _pflexio->SHIFTCTL[_fshifter]);
+    debug.printf(" FLEXIO:%u Shifter:%u Timer:%u\n", _pflex->FlexIOIndex(), _fshifter, _ftimer);
+    debug.printf("     SHIFTCFG = %08X\n",  _pflexio->SHIFTCFG[_fshifter]);
+    debug.printf("     SHIFTCTL = %08X\n",  _pflexio->SHIFTCTL[_fshifter]);
+    debug.printf("     TIMCMP = %08X\n", _pflexio->TIMCMP[_ftimer]);
+    debug.printf("     TIMCFG = %08X\n", _pflexio->TIMCFG[_ftimer]);
+    debug.printf("     TIMCTL = %08X\n", _pflexio->SHIFTCTL[_fshifter]);
 #endif
 return true;
 }
@@ -1674,10 +1630,10 @@ return true;
 static void dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title=nullptr)
 {
   if (psz_title)
-    Serial.print(psz_title);
-  Serial.printf("%x %x: ", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
+    debug.print(psz_title);
+  debug.printf("%x %x: ", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
 
-  Serial.printf(
+  debug.printf(
       "SA:%x SO:%d AT:%x (SM:%x SS:%x DM:%x DS:%x) NB:%x SL:%d DA:%x DO: %d CI:%x DL:%x CS:%x BI:%x\n",
       (uint32_t)dmabc->TCD->SADDR, dmabc->TCD->SOFF, dmabc->TCD->ATTR,
       (dmabc->TCD->ATTR >> 11) & 0x1f, (dmabc->TCD->ATTR >> 8) & 0x7,
@@ -1691,7 +1647,7 @@ static void dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title=nullptr)
 
 
 bool HM01B0::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2) {
-  if (_debug) Serial.printf("$$HM0360::readFrameFlexIO(%p, %u, %p, %u, %u)\n", buffer, cb1, buffer2, cb2, _fuse_dma);
+  if (_debug) debug.printf("$$HM0360::readFrameFlexIO(%p, %u, %p, %u, %u)\n", buffer, cb1, buffer2, cb2, _fuse_dma);
   //flexio_configure(); // one-time hardware setup
   // wait for VSYNC to be low
   //while ((*_vsyncPort & _vsyncMask) != 0);
@@ -1703,7 +1659,7 @@ bool HM01B0::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
   for (;;) {
     if (((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0)) break;
     if (timeout > 500) {
-      Serial.println("Timeout waiting for VSYNC");
+      if(_debug) debug.println("Timeout waiting for VSYNC");
       return false;
     }
   }
@@ -1721,7 +1677,7 @@ bool HM01B0::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
 
     uint32_t count_items_left = (_width*_height/4)/**_bytesPerPixel */;
     uint32_t count_items_left_in_buffer = (uint32_t)cb1 / 4;
-    if (_debug) Serial.printf("\tleft:%u in_buffer:%u\n", count_items_left, count_items_left_in_buffer);
+    if (_debug) debug.printf("\tleft:%u in_buffer:%u\n", count_items_left, count_items_left_in_buffer);
 
     if (G4 != 0xff) {
       while (count_items_left) {
@@ -1731,7 +1687,7 @@ bool HM01B0::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
         *p++ = _pflexio->SHIFTBUF[_fshifter];  // should use DMA...
         count_items_left--;
         if (buffer2 && (--count_items_left_in_buffer == 0)) {
-          if (_debug) Serial.println("\tSwitch to second buffer");
+          if (_debug) debug.println("\tSwitch to second buffer");
           p = (uint32_t*)buffer2;
           count_items_left_in_buffer = (uint32_t)cb2 / 4;
         }
@@ -1816,17 +1772,19 @@ bool HM01B0::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
   while (!dma_flexio.complete()) {
     // wait - we should not need to actually do anything during the DMA transfer
     if (dma_flexio.error()) {
-      Serial.println("DMA error");
+      debug.println("DMA error");
       break;
     }
     if (timeout > 500) {
-      Serial.println("Timeout waiting for DMA");
-      if (_pflexio->SHIFTSTAT & _fshifter_mask) Serial.println(" SHIFTSTAT bit was set");
-      Serial.printf(" DMA channel #%u\n", dma_flexio.channel);
-      Serial.printf(" DMAMUX = %08X\n", *(&DMAMUX_CHCFG0 + dma_flexio.channel));
-      Serial.printf(" FLEXIO2_SHIFTSDEN = %02X\n", FLEXIO2_SHIFTSDEN);
-      Serial.printf(" TCD CITER = %u\n", dma_flexio.TCD->CITER_ELINKNO);
-      Serial.printf(" TCD CSR = %08X\n", dma_flexio.TCD->CSR);
+      debug.println("Timeout waiting for DMA");
+      if (_pflexio->SHIFTSTAT & _fshifter_mask) debug.println(" SHIFTSTAT bit was set");
+      #ifdef DEBUG_FLEXIO
+      debug.printf(" DMA channel #%u\n", dma_flexio.channel);
+      debug.printf(" DMAMUX = %08X\n", *(&DMAMUX_CHCFG0 + dma_flexio.channel));
+      debug.printf(" FLEXIO2_SHIFTSDEN = %02X\n", FLEXIO2_SHIFTSDEN);
+      debug.printf(" TCD CITER = %u\n", dma_flexio.TCD->CITER_ELINKNO);
+      debug.printf(" TCD CSR = %08X\n", dma_flexio.TCD->CSR);
+      #endif
       break;
     }
   }
@@ -1878,17 +1836,19 @@ void HM01B0::readFrameFlexIO(void* buffer, bool fUseDMA)
     while (!dma_flexio.complete()) {
         // wait - we should not need to actually do anything during the DMA transfer
         if (dma_flexio.error()) {
-            Serial.println("DMA error");
+            debug.println("DMA error");
             break;
         }
         if (timeout > 500) {
-            Serial.println("Timeout waiting for DMA");
-            if (_pflexio->SHIFTSTAT & _fshifter_mask) Serial.println(" SHIFTSTAT bit was set");
-            Serial.printf(" DMA channel #%u\n", dma_flexio.channel);
-            Serial.printf(" DMAMUX = %08X\n", *(&DMAMUX_CHCFG0 + dma_flexio.channel));
-            Serial.printf(" FLEXIO2_SHIFTSDEN = %02X\n", FLEXIO2_SHIFTSDEN);
-            Serial.printf(" TCD CITER = %u\n", dma_flexio.TCD->CITER_ELINKNO);
-            Serial.printf(" TCD CSR = %08X\n", dma_flexio.TCD->CSR);
+            if(_debug) debug.println("Timeout waiting for DMA");
+            if (_pflexio->SHIFTSTAT & _fshifter_mask) debug.println(" SHIFTSTAT bit was set");
+            #ifdef DEBUG_FLEXIO
+            debug.printf(" DMA channel #%u\n", dma_flexio.channel);
+            debug.printf(" DMAMUX = %08X\n", *(&DMAMUX_CHCFG0 + dma_flexio.channel));
+            debug.printf(" FLEXIO2_SHIFTSDEN = %02X\n", FLEXIO2_SHIFTSDEN);
+            debug.printf(" TCD CITER = %u\n", dma_flexio.TCD->CITER_ELINKNO);
+            debug.printf(" TCD CSR = %08X\n", dma_flexio.TCD->CSR);
+            #endif
             break;
         }
     }
@@ -1906,7 +1866,7 @@ bool HM01B0::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, voi
     _frame_buffer_2 = (uint8_t *)fb2;
     _callback = callback;
     active_dma_camera = this;
-    //Serial.printf("startReadFrameFlexIO called buffers %x %x\n", (uint32_t)fb1, (uint32_t)fb2);
+    //debug.printf("startReadFrameFlexIO called buffers %x %x\n", (uint32_t)fb1, (uint32_t)fb2);
 
     //flexio_configure(); // one-time hardware setup
     dma_flexio.begin();
@@ -1955,7 +1915,7 @@ void HM01B0::processFrameStartInterruptFlexIO()
     	dma_flexio.transferSize(4);
     	dma_flexio.transferCount(length / 4);
     	dma_flexio.enable();
-    	//Serial.println("VSYNC");
+    	//debug.println("VSYNC");
         _dma_active = true;
     }
 	asm("DSB");
@@ -2025,7 +1985,7 @@ bool HM01B0::startReadFrameDMA(bool(*callback)(void *frame_buffer), uint8_t *fb1
   _callback = callback;
   active_dma_camera = this;
 
-  Serial.printf("startReadFrameDMA called buffers %x %x\n", (uint32_t)_frame_buffer_1, (uint32_t)_frame_buffer_2);
+  if(_debug) debug.printf("startReadFrameDMA called buffers %x %x\n", (uint32_t)_frame_buffer_1, (uint32_t)_frame_buffer_2);
 
   //DebugDigitalToggle(OV7670_DEBUG_PIN_1);
   // lets figure out how many bytes we will tranfer per setting...
@@ -2114,10 +2074,10 @@ bool HM01B0::startReadFrameDMA(bool(*callback)(void *frame_buffer), uint8_t *fb1
   dumpDMA_TCD(&_dmachannel);
   dumpDMA_TCD(&_dmasettings[0]);
   dumpDMA_TCD(&_dmasettings[1]);
-  Serial.printf("pclk pin: %d config:%lx control:%lx\n", PCLK_PIN, *(portConfigRegister(PCLK_PIN)), *(portControlRegister(PCLK_PIN)));
-  Serial.printf("IOMUXC_GPR_GPR26-29:%lx %lx %lx %lx\n", IOMUXC_GPR_GPR26, IOMUXC_GPR_GPR27, IOMUXC_GPR_GPR28, IOMUXC_GPR_GPR29);
-  Serial.printf("GPIO1: %lx %lx, GPIO6: %lx %lx\n", GPIO1_DR, GPIO1_PSR, GPIO6_DR, GPIO6_PSR);
-  Serial.printf("XBAR CTRL0:%x CTRL1:%x\n\n", XBARA1_CTRL0, XBARA1_CTRL1);
+  debug.printf("pclk pin: %d config:%lx control:%lx\n", PCLK_PIN, *(portConfigRegister(PCLK_PIN)), *(portControlRegister(PCLK_PIN)));
+  debug.printf("IOMUXC_GPR_GPR26-29:%lx %lx %lx %lx\n", IOMUXC_GPR_GPR26, IOMUXC_GPR_GPR27, IOMUXC_GPR_GPR28, IOMUXC_GPR_GPR29);
+  debug.printf("GPIO1: %lx %lx, GPIO6: %lx %lx\n", GPIO1_DR, GPIO1_PSR, GPIO6_DR, GPIO6_PSR);
+  debug.printf("XBAR CTRL0:%x CTRL1:%x\n\n", XBARA1_CTRL0, XBARA1_CTRL1);
 #endif
   _dma_state = DMASTATE_RUNNING;
   _dma_last_completed_frame = nullptr;
@@ -2146,8 +2106,10 @@ bool HM01B0::stopReadFrameDMA()
 
   while ((em < 1000) && (_dma_state == DMASTATE_STOP_REQUESTED)) ; // wait up to a second...
   if (_dma_state != DMA_STATE_STOPPED) {
-    Serial.println("*** stopReadFrameDMA DMA did not exit correctly...");
-    Serial.printf("  Bytes Left: %u frame buffer:%x Row:%u Col:%u\n", _bytes_left_dma, (uint32_t)_frame_buffer_pointer, _frame_row_index, _frame_col_index);
+    if(_debug) {
+        debug.println("*** stopReadFrameDMA DMA did not exit correctly...");
+        debug.printf("  Bytes Left: %u frame buffer:%x Row:%u Col:%u\n", _bytes_left_dma, (uint32_t)_frame_buffer_pointer, _frame_row_index, _frame_col_index);
+    }
   }
   //DebugDigitalWrite(OV7670_DEBUG_PIN_2, LOW);
 
@@ -2155,7 +2117,7 @@ bool HM01B0::stopReadFrameDMA()
   dumpDMA_TCD(&_dmachannel);
   dumpDMA_TCD(&_dmasettings[0]);
   dumpDMA_TCD(&_dmasettings[1]);
-  Serial.println();
+  debug.println();
 #endif
   // Lets restore some hardware pieces back to the way we found them.
 #if defined (ARDUINO_TEENSY_MICROMOD)
@@ -2208,7 +2170,7 @@ void HM01B0::processDMAInterrupt() {
   //DebugDigitalWrite(OV7670_DEBUG_PIN_3, HIGH);
 
   if (_dma_state == DMA_STATE_STOPPED) {
-    Serial.println("HM01B0::dmaInterrupt called when DMA_STATE_STOPPED");
+    debug.println("HM01B0::dmaInterrupt called when DMA_STATE_STOPPED");
     return; //
   }
 
@@ -2228,17 +2190,17 @@ void HM01B0::processDMAInterrupt() {
   // lets try dumping a little data on 1st 2nd and last buffer.
 #ifdef DEBUG_CAMERA_VERBOSE
   if ((_dma_index < 3) || (buffer_size  < DMABUFFER_SIZE)) {
-    Serial.printf("D(%d, %d, %lu) %u : ", _dma_index, buffer_size, _bytes_left_dma, pixformat);
+    debug.printf("D(%d, %d, %lu) %u : ", _dma_index, buffer_size, _bytes_left_dma, pixformat);
     for (uint16_t i = 0; i < 8; i++) {
       uint16_t b = buffer[i] >> 4;
-      Serial.printf(" %lx(%02x)", buffer[i], b);
+      debug.printf(" %lx(%02x)", buffer[i], b);
     }
-    Serial.print("...");
+    debug.print("...");
     for (uint16_t i = buffer_size - 8; i < buffer_size; i++) {
       uint16_t b = buffer[i] >> 4;
-      Serial.printf(" %lx(%02x)", buffer[i], b);
+      debug.printf(" %lx(%02x)", buffer[i], b);
     }
-    Serial.println();
+    debug.println();
   }
 #endif
 
@@ -2262,7 +2224,7 @@ void HM01B0::processDMAInterrupt() {
     _dmachannel.disable();  // disable the DMA now...
     //DebugDigitalWrite(OV7670_DEBUG_PIN_2, LOW);
 #ifdef DEBUG_CAMERA_VERBOSE
-    Serial.println("EOF");
+    debug.println("EOF");
 #endif
     _frame_row_index = 0;
     _dma_frame_count++;
@@ -2285,7 +2247,7 @@ void HM01B0::processDMAInterrupt() {
 
     if (_dma_state == DMASTATE_STOP_REQUESTED) {
 #ifdef DEBUG_CAMERA
-      Serial.println("HM01B0::dmaInterrupt - Stop requested");
+      debug.println("HM01B0::dmaInterrupt - Stop requested");
 #endif
       _dma_state = DMA_STATE_STOPPED;
     } else {
@@ -2370,14 +2332,14 @@ void HM01B0::captureFrameStatistics()
     fstat.frameTimeMicros = micros() - microsStart;
 
     // Maybe return data. print now
-    Serial.printf("*** Frame Capture Data: elapsed Micros: %u loops: %u\n", fstat.frameTimeMicros, fstat.cycleCount);
-    Serial.printf("   VSync Loops Start: %u end: %u\n", fstat.vsyncStartCycleCount, fstat.vsyncEndCycleCount);
-    Serial.printf("   href count: %u pclk ! href count: %u\n    ", fstat.hrefCount,  fstat.pclkNoHrefCount);
+    debug.printf("*** Frame Capture Data: elapsed Micros: %u loops: %u\n", fstat.frameTimeMicros, fstat.cycleCount);
+    debug.printf("   VSync Loops Start: %u end: %u\n", fstat.vsyncStartCycleCount, fstat.vsyncEndCycleCount);
+    debug.printf("   href count: %u pclk ! href count: %u\n    ", fstat.hrefCount,  fstat.pclkNoHrefCount);
     for (uint16_t ii=0; ii < fstat.hrefCount + 1; ii++) {
-        Serial.printf("%3u(%u) ", fstat.pclkCounts[ii], (ii==0)? 0 : fstat.hrefStartTime[ii] - fstat.hrefStartTime[ii-1]);
-        if (!(ii & 0x0f)) Serial.print("\n    ");
+        debug.printf("%3u(%u) ", fstat.pclkCounts[ii], (ii==0)? 0 : fstat.hrefStartTime[ii] - fstat.hrefStartTime[ii-1]);
+        if (!(ii & 0x0f)) debug.print("\n    ");
     }
-    Serial.println();
+    debug.println();
 }
 
 
@@ -2474,9 +2436,9 @@ static const HM01B0_TO_NAME_t hm01b0_reg_name_table[] PROGMEM {
 
 void HM01B0::showRegisters(void)
 {
-    Serial.println("\n*** Camera Registers ***");
+    debug.println("\n*** Camera Registers ***");
     for (uint16_t ii = 0; ii < (sizeof(hm01b0_reg_name_table)/sizeof(hm01b0_reg_name_table[0])); ii++) {
         uint8_t reg_value = cameraReadRegister(hm01b0_reg_name_table[ii].reg);
-        Serial.printf("%s(%x): %u(%x)\n", hm01b0_reg_name_table[ii].reg_name, hm01b0_reg_name_table[ii].reg, reg_value, reg_value);
+        debug.printf("%s(%x): %u(%x)\n", hm01b0_reg_name_table[ii].reg_name, hm01b0_reg_name_table[ii].reg, reg_value, reg_value);
     }
 }
