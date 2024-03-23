@@ -4,13 +4,13 @@
 
 #include "Camera.h"
 
-#define USE_MMOD_ATP_ADAPTER
+//#define USE_MMOD_ATP_ADAPTER
 //#define USE_SDCARD
 
-#define ARDUCAM_CAMERA_HM01B0
+//#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
-//#define ARDUCAM_CAMERA_OV7675
+#define ARDUCAM_CAMERA_OV7675
 //#define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
@@ -47,7 +47,11 @@ File file;
  * does not work.  Arduino breakout only brings out  *
  * the lower 4 bits.                                 *
  ****************************************************/
-#define _hmConfig 1  // select mode string below
+#if defined(ARDUCAM_CAMERA_HM01B0)
+#define _hmConfig 1  // note HM0360 can operater in 4 bit mode as well
+#else
+#define _hmConfig 0  // select mode string below
+#endif
 
 PROGMEM const char hmConfig[][48] = {
   "FLEXIO_CUSTOM_LIKE_8_BIT",
@@ -86,6 +90,7 @@ const char bmp_header[BMPIMAGEOFFSET] PROGMEM = {
   0x00, 0x00
 };
 
+
 #ifdef ARDUINO_TEENSY_DEVBRD4
 //Set up ILI9341
 #undef USE_MMOD_ATP_ADAPTER
@@ -114,11 +119,11 @@ ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
 #define CENTER ILI9341_t3n::CENTER
 
 // Setup framebuffers
+DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 #ifdef ARDUINO_TEENSY_DEVBRD4
 //#include "SDRAM_t4.h"
 //SDRAM_t4 sdram;
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
-DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 uint16_t *frameBuffer = nullptr;
 uint16_t *frameBuffer2 = nullptr;
 #else
@@ -127,7 +132,6 @@ uint8_t *frameBuffer2 = nullptr;
 #define CAMERA_USES_MONO_PALETTE
 #endif
 #else
-DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
 uint16_t DMAMEM frameBuffer[(320) * 240] __attribute__((aligned(32)));
 uint16_t DMAMEM frameBuffer2[(320) * 240] __attribute__((aligned(32)));
@@ -210,8 +214,8 @@ void setup() {
 //    uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3,
 //    uint8_t g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
 #ifdef USE_MMOD_ATP_ADAPTER
-  //pinMode(30, INPUT_PULLUP);
-  //pinMode(31, INPUT_PULLUP);
+  pinMode(30, INPUT_PULLUP);
+  pinMode(31, INPUT_PULLUP);
 
   if ((_hmConfig == 0) || (_hmConfig == 2)) {
     camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
@@ -236,17 +240,38 @@ void setup() {
   }
 #endif
 
-// OV7675 Framerate = 15, 30, 60 (F command does not work)
+// OV7675 Framerate = 15, 30, 60 (F, M not working looks like timing?)
 //        Framezize_CIF only works for snapshots, 
 //        FRAMESIZE_QCIF doesn't work with flexio but works with GPIO
+//        QQVGA - M works but V has issues, F does not work
+//       
+// GC2145 (FLEXIO - 30fps): f, m works, M & V pic breaks up a bit, F-no
+//        (GPIO - 30fps  ): does not work correctly
+//        Test fps: Note GC2145 has fixed fps of 8fps.
+//        QVGA, QQVGA, QCIF,  - f, m and M works (ILI9341)
 //
+// HM01B0: (FLEXIO 15fps, QVGA): f, F, m, V works. NOTE: M hangs the MM
+//         (GPIO   15, QVGA   ): f, m, M works V and F hangs MM
+//         (FLEXIO) QVGA works, QQVGA, NO maybe timing off?
+//         (GPIO  ) QVGA and QQVGA work fine
+//         (FLEXIO) 15/30 fps works but 60FPS does not
+//         (GPIO  ) 15/30 fps works, 60 works in gpio but displays 4 images???
+//
+// HM0360: 8bit mode
+//         (FLEXIO 15fps, QVGA): f, F, m, V works. NOTE: M does not(no hangs though)
+//         (GPIO   15, QVGA   ): f, F, m, V works. NOTE: M does not(no hangs though)
+//         (FLEXIO) QVGA works, QQVGA, works but M hangs it?
+//         (GPIO  ) QQVGA: f, m, M works;, V and F hangs
+//         (FLEXIO) 15/30/60 fps works but 60FPS does not, M does not work
+//         (GPIO  ) 15/30/60 fps works, but F and M do not hangs
+
+
 uint8_t status = 1;
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145))
   status = camera.begin(FRAMESIZE_QVGA, RGB565, 30, CameraID);
 #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
-  //HM01B0(4pin only) 15/30/60 works, 120 not supported
   status = camera.begin(FRAMESIZE_QVGA, 15);
 #endif
 
@@ -477,7 +502,7 @@ void loop() {
       case 'M':
         read_display_multiple_frames(true);
         break;
-      case 'd':
+      case 't':
         tft.fillScreen(TFT_RED);
         delay(500);
         tft.fillScreen(TFT_GREEN);
@@ -487,6 +512,12 @@ void loop() {
         tft.fillScreen(TFT_BLACK);
         delay(500);
         break;
+      case 'd':
+        camera.debug(!camera.debug());
+        if (camera.debug()) Serial.println("Camera Debug turned on");
+        else Serial.println("Camera debug turned off");
+        break;
+
       case 'f':
         {
           camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
@@ -834,7 +865,8 @@ void showCommandList() {
   Serial.println("Send the 'b' character to save snapshot (BMP) to SD Card");
   Serial.println("Send the '1' character to blank the display");
   Serial.println("Send the 'z' character to send current screen BMP to SD");
-  Serial.println("Send the 'd' character to send Check the display");
+  Serial.println("Send the 't' character to send Check the display");
+  Serial.println("Send the 'd' character to toggle camera debug on and off");
   Serial.println();
 }
 
