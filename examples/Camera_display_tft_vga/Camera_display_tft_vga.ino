@@ -50,7 +50,7 @@ File file;
 #if defined(ARDUCAM_CAMERA_HM01B0)
 #define _hmConfig 3  // select mode string below
 #else
-#define _hmConfig 2  // select mode string below
+#define _hmConfig 0  // select mode string below
 #endif
 
 PROGMEM const char hmConfig[][48] = {
@@ -93,7 +93,7 @@ const char bmp_header[BMPIMAGEOFFSET] PROGMEM = {
 //Set up ILI9488
 #ifdef ARDUINO_TEENSY_DEVBRD4
 #undef USE_MMOD_ATP_ADAPTER
-
+#define SD_CS 27
 #define TFT_CS 10  // AD_B0_02
 #define TFT_DC 25  // AD_B0_03
 #define TFT_RST 24
@@ -184,6 +184,36 @@ void setup() {
     while (Serial.read() == -1) {}
     while (Serial.read() != -1) {}
   }
+#ifdef SD_CS
+  pinMode(SD_CS, OUTPUT);
+  digitalWriteFast(SD_CS, HIGH);
+  pinMode(TFT_CS, OUTPUT);
+  digitalWriteFast(TFT_CS, HIGH);
+#endif
+#if defined(USE_SDCARD)
+  Serial.println("Using SDCARD - Initializing");
+#ifdef SD_CS
+//#if MMOD_ML == 1
+  Serial.printf("Start SD pin: %u\n", SD_CS);
+  //if (!SD.begin(SD_CS)) {
+  if (!SD.sdfs.begin(SdSpiConfig(SD_CS, SHARED_SPI, SD_SCK_MHZ(12)))) {
+    Serial.println("initialization failed!");
+  }
+
+#else
+  if (!SD.begin(BUILTIN_SDCARD)) {
+    Serial.println("initialization failed!");
+  }
+#endif
+  //while (1){
+  //    LEDON; delay(100);
+  //    LEDOFF; delay(100);
+  //  }
+  Serial.println("initialization done.");
+  delay(100);
+#endif
+
+
 
   tft.begin(12000000);
 
@@ -202,23 +232,6 @@ void setup() {
   tft.setTextSize(2);
   tft.println("Waiting for Arduino Serial Monitor...");
 
-
-#if defined(USE_SDCARD)
-  Serial.println("Using SDCARD - Initializing");
-#if MMOD_ML == 1
-  if (!SD.begin(10)) {
-#else
-  if (!SD.begin(BUILTIN_SDCARD)) {
-#endif
-  }
-  Serial.println("initialization failed!");
-  //while (1){
-  //    LEDON; delay(100);
-  //    LEDOFF; delay(100);
-  //  }
-  Serial.println("initialization done.");
-  delay(100);
-#endif
 
   while (!Serial)
     ;
@@ -245,6 +258,7 @@ void setup() {
     camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
   }
 #elif defined(ARDUINO_TEENSY_DEVBRD4)
+  pinMode(23, INPUT_PULLUP);
   if ((_hmConfig == 0) || (_hmConfig == 2)) {
     camera.setPins(7, 8, 21, 46, 23, 40, 41, 42, 43, 44, 45, 6, 9);
   } else if (_hmConfig == 1) {
@@ -275,7 +289,7 @@ void setup() {
   //camera.begin(FRAMESIZE_QVGA, 30);
   camera.begin(FRAMESIZE_QVGA4BIT, 15);
 #endif
-  //galaxycore.setFramesize(480, 320);
+  //galaxycore.setFramesize(800, 600);
 
   Serial.println("getting model id");
   uint16_t ModelID;
@@ -707,12 +721,21 @@ void send_image(Stream *imgSerial) {
 //#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
 void send_raw() {
   memset((uint8_t *)frameBuffer, 0, sizeof_framebuffer);
-  camera.readFrame(frameBuffer, sizeof_framebuffer);
+  camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
   uint32_t idx = 0;
+  uint16_t *p = frameBuffer;
+  uint32_t cnt =  sizeof_framebuffer / 2;
   for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
     idx = i * 2;
-    SerialUSB1.write((frameBuffer[i] >> 8) & 0xFF);
-    SerialUSB1.write((frameBuffer[i]) & 0xFF);
+    SerialUSB1.write((*p >> 8) & 0xFF);
+    SerialUSB1.write((*p) & 0xFF);
+    cnt--;
+    if (cnt == 0) {
+      cnt = sizeof_framebuffer2 / 2;
+      p = frameBuffer2;      
+    } else {
+      p++;
+    }
   }
 }
 #endif

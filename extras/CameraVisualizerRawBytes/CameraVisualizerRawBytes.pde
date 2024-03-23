@@ -15,8 +15,8 @@ import java.nio.ByteOrder;
 Serial myPort;
 
 // must match resolution used in the sketch
-final int cameraWidth = 320;
-final int cameraHeight = 240;
+final int cameraWidth = 640;
+final int cameraHeight = 480;
 final int cameraBytesPerPixel = 2;
 final int bytesPerFrame = cameraWidth * cameraHeight * cameraBytesPerPixel;
 
@@ -25,13 +25,13 @@ byte[] frameBuffer = new byte[bytesPerFrame];
 
 void setup()
 {
-  size(320, 240);
+  size(640, 480);
 
   // if you have only ONE serial port active
   //myPort = new Serial(this, Serial.list()[0], 9600);          // if you have only ONE serial port active
 
   // if you know the serial port name
-  myPort = new Serial(this, "COM7", 921600);                    // Windows
+  myPort = new Serial(this, "COM22", 921600);                    // Windows
   //myPort = new Serial(this, "/dev/ttyACM0", 9600);            // Linux
   //myPort = new Serial(this, "/dev/cu.usbmodem14401", 9600);     // Mac
 
