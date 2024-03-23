@@ -7,10 +7,10 @@
 #define USE_MMOD_ATP_ADAPTER
 #define USE_SDCARD
 
-//#define ARDUCAM_CAMERA_HM01B0
+#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
-#define ARDUCAM_CAMERA_OV7675
+//#define ARDUCAM_CAMERA_OV7675
 //#define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
@@ -18,26 +18,38 @@
 HM0360 himax;
 Camera camera(himax);
 #define CameraID 0x0360
+#define SCREEN_ROTATION 3
+#define MIRROR_FLIP_CAMERA
+
 #elif defined(ARDUCAM_CAMERA_HM01B0)
 #include "TMM_HM01B0/HM01B0.h"
 HM01B0 himax;
 Camera camera(himax);
 #define CameraID 0x01B0
+#define SCREEN_ROTATION 3
+#define MIRROR_FLIP_CAMERA
+
 #elif defined(ARDUCAM_CAMERA_OV7670)
 #include "TMM_OV767X/OV767X.h"
 OV767X omni;
 Camera camera(omni);
 #define CameraID 0x7676
+#define SCREEN_ROTATION 3
+
 #elif defined(ARDUCAM_CAMERA_OV7675)
   #include "TMM_OV767X/OV767X.h"
   OV767X omni;
   Camera camera(omni);
   #define CameraID 0x7673
+  #define SCREEN_ROTATION 3
+
 #elif defined(ARDUCAM_CAMERA_GC2145)
   #include "TMM_GC2145/GC2145.h"
   GC2145 galaxycore;
   Camera camera(galaxycore);
   #define CameraID 0x2145
+  #define SCREEN_ROTATION 3
+
 #endif
 
 File file;
@@ -81,15 +93,6 @@ static const uint16_t mono_palette[256] PROGMEM = {
   MCP(0xf0), MCP(0xf1), MCP(0xf2), MCP(0xf3), MCP(0xf4), MCP(0xf5), MCP(0xf6), MCP(0xf7), MCP(0xf8), MCP(0xf9), MCP(0xfa), MCP(0xfb), MCP(0xfc), MCP(0xfd), MCP(0xfe), MCP(0xff)
 };
 
-#define BMPIMAGEOFFSET 66
-const char bmp_header[BMPIMAGEOFFSET] PROGMEM = {
-  0x42, 0x4D, 0x36, 0x58, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x00, 0x28, 0x00,
-  0x00, 0x00, 0x40, 0x01, 0x00, 0x00, 0xF0, 0x00, 0x00, 0x00, 0x01, 0x00, 0x10, 0x00, 0x03, 0x00,
-  0x00, 0x00, 0x00, 0x58, 0x02, 0x00, 0xC4, 0x0E, 0x00, 0x00, 0xC4, 0x0E, 0x00, 0x00, 0x00, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF8, 0x00, 0x00, 0xE0, 0x07, 0x00, 0x00, 0x1F, 0x00,
-  0x00, 0x00
-};
-
 //Set up ILI9488
 #ifdef ARDUINO_TEENSY_DEVBRD4
 #undef USE_MMOD_ATP_ADAPTER
@@ -128,14 +131,14 @@ uint16_t *frameBufferSDRAM2 = nullptr;
 DMAMEM uint16_t frameBufferM[640 * 240] __attribute__((aligned(32)));
 uint16_t frameBufferM2[640 * 240] __attribute__((aligned(32)));
 
-#define SCREEN_ROTATION 3
+//#define SCREEN_ROTATION 3
 #else
 uint8_t *frameBuffer = nullptr;
 uint8_t *frameBuffer2 = nullptr;
 DMAMEM uint8_t frameBufferM[640 * 480] __attribute__((aligned(32)));
 // mono can fit one in each.
 uint8_t frameBufferM2[640 * 480] __attribute__((aligned(32)));
-#define SCREEN_ROTATION 1
+//#define SCREEN_ROTATION 1
 #define CAMERA_USES_MONO_PALETTE
 #endif
 uint32_t sizeof_framebuffer = 0;
@@ -147,14 +150,13 @@ uint32_t sizeof_framebufferSDRAM = 0;
 // split into two parts, part dmamem and part fast mememory to fit 640x480x2
 DMAMEM uint16_t frameBuffer[640 * 240] __attribute__((aligned(32)));
 uint16_t frameBuffer2[640 * 240] __attribute__((aligned(32)));
-#define SCREEN_ROTATION 3
 #else
 // split into two parts, part dmamem and part fast mememory to fit 640x480x2
 DMAMEM uint8_t frameBuffer[640 * 480] __attribute__((aligned(32)));
 // mono can fit one in each.
 uint8_t frameBuffer2[640 * 480] __attribute__((aligned(32)));
 #define CAMERA_USES_MONO_PALETTE
-#define SCREEN_ROTATION 1
+//#define SCREEN_ROTATION 1
 #endif
 const uint32_t sizeof_framebuffer = sizeof(frameBuffer);
 const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
@@ -235,7 +237,7 @@ void setup() {
 
   while (!Serial)
     ;
-  Serial.println("hm0360 Camera Test");
+  Serial.println("TeensyMM Camera Test");
   Serial.println(hmConfig[_hmConfig]);
   Serial.println("------------------");
 
@@ -288,6 +290,11 @@ void setup() {
   //HM01B0(4pin only) 15/30/60 works, 120 not supported
   //camera.begin(FRAMESIZE_QVGA, 30);
   camera.begin(FRAMESIZE_QVGA4BIT, 15);
+#endif
+
+#ifdef MIRROR_FLIP_CAMERA
+  camera.setHmirror(true);
+  camera.setVflip(true);
 #endif
   //galaxycore.setFramesize(800, 600);
 
@@ -483,6 +490,7 @@ void loop() {
 #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
   while (SerialUSB1.available()) {
     ch = SerialUSB1.read();
+    Serial.printf("USB1 CH: %x\n", ch);
     if (0x30 == ch) {
       Serial.print(F("ACK CMD CAM start single shoot ... "));
       send_image(&SerialUSB1);
@@ -694,39 +702,118 @@ uint16_t color565(uint8_t r, uint8_t g, uint8_t b) {
 #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
 void send_image(Stream *imgSerial) {
   memset((uint8_t *)frameBuffer, 0, sizeof_framebuffer);
-  camera.setHmirror(1);
-  camera.readFrame(frameBuffer, sizeof_framebuffer);
+//  camera.setHmirror(1);
+  camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
 
   imgSerial->write(0xFF);
   imgSerial->write(0xAA);
 
-  imgSerial->write((const uint8_t *)&bmp_header, sizeof(bmp_header));
+  // BUGBUG:: maybe combine with the save to SD card code
+  unsigned char bmpFileHeader[14] = { 'B', 'M', 0, 0, 0, 0, 0, 0, 0, 0, 54, 0, 0, 0 };
+  unsigned char bmpInfoHeader[40] = { 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 24, 0 };
 
-  uint32_t idx = 0;
-  for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
-    idx = i * 2;
-    imgSerial->write((frameBuffer[i] >> 8) & 0xFF);
-    imgSerial->write((frameBuffer[i]) & 0xFF);
-    delayMicroseconds(8);
+  int rowSize = 4 * ((3 * FRAME_WIDTH + 3) / 4);  // how many bytes in the row (used to create padding)
+  int fileSize = 54 + FRAME_HEIGHT * rowSize;      // headers (54 bytes) + pixel data
+
+  bmpFileHeader[2] = (unsigned char)(fileSize);
+  bmpFileHeader[3] = (unsigned char)(fileSize >> 8);
+  bmpFileHeader[4] = (unsigned char)(fileSize >> 16);
+  bmpFileHeader[5] = (unsigned char)(fileSize >> 24);
+
+  bmpInfoHeader[4] = (unsigned char)(FRAME_WIDTH);
+  bmpInfoHeader[5] = (unsigned char)(FRAME_WIDTH >> 8);
+  bmpInfoHeader[6] = (unsigned char)(FRAME_WIDTH >> 16);
+  bmpInfoHeader[7] = (unsigned char)(FRAME_WIDTH >> 24);
+  bmpInfoHeader[8] = (unsigned char)(FRAME_HEIGHT);
+  bmpInfoHeader[9] = (unsigned char)(FRAME_HEIGHT >> 8);
+  bmpInfoHeader[10] = (unsigned char)(FRAME_HEIGHT >> 16);
+  bmpInfoHeader[11] = (unsigned char)(FRAME_HEIGHT >> 24);
+
+
+  imgSerial->write(bmpFileHeader, sizeof(bmpFileHeader));  // write file header
+  imgSerial->write(bmpInfoHeader, sizeof(bmpInfoHeader));  // " info header
+
+  unsigned char bmpPad[rowSize - 3 * FRAME_WIDTH];
+  for (int i = 0; i < (int)(sizeof(bmpPad)); i++) {  // fill with 0s
+    bmpPad[i] = 0;
+  }
+
+#ifdef CAMERA_USES_MONO_PALETTE
+  uint8_t *pfb = frameBuffer;
+  uint32_t count_y_first_buffer = sizeof_framebuffer / FRAME_WIDTH;
+  uint8_t img[3];
+  for (int y = FRAME_HEIGHT - 1; y >= 0; y--) {  // iterate image array
+    if (y < (int)count_y_first_buffer) pfb = &frameBuffer[y * FRAME_WIDTH];
+    else pfb = &frameBuffer2[(y - count_y_first_buffer) * FRAME_WIDTH];
+    for (int x = 0; x < FRAME_WIDTH; x++) {
+      //r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3
+      img[2] = *pfb;  // r
+      img[1] = *pfb;  // g
+      img[0] = *pfb;  // b
+      imgSerial->write(img, 3);
+      delayMicroseconds(8);
+      pfb++;
+    }
+#else
+  uint16_t *pfb = frameBuffer;
+  uint8_t img[3];
+  uint32_t count_y_first_buffer = sizeof_framebuffer / (FRAME_WIDTH * 2);
+  for (int y = FRAME_HEIGHT - 1; y >= 0; y--) {  // iterate image array
+    if (y < (int)count_y_first_buffer) pfb = &frameBuffer[y * FRAME_WIDTH];
+    else pfb = &frameBuffer2[(y - count_y_first_buffer) * FRAME_WIDTH];
+    for (int x = 0; x < FRAME_WIDTH; x++) {
+      //r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3
+      uint16_t pixel = HTONS(*pfb++);
+      img[2] = (pixel >> 8) & 0xf8;  // r
+      img[1] = (pixel >> 3) & 0xfc;  // g
+      img[0] = (pixel << 3);         // b
+      imgSerial->write(img, 3);
+      delayMicroseconds(8);
+
+    }
+#endif
+    file.write(bmpPad, (4 - (FRAME_WIDTH * 3) % 4) % 4);  // and padding as needed
   }
   imgSerial->write(0xBB);
   imgSerial->write(0xCC);
 
   imgSerial->println(F("ACK CMD CAM Capture Done. END"));
-  camera.setHmirror(0);
+  //camera.setHmirror(0);
 
   delay(50);
 }
 
 //#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
+#ifdef CAMERA_USES_MONO_PALETTE
 void send_raw() {
+  Serial.println("Send Raw MONO");
   memset((uint8_t *)frameBuffer, 0, sizeof_framebuffer);
+  memset((uint8_t *)frameBuffer2, 0, sizeof_framebuffer2);
   camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
-  uint32_t idx = 0;
+  uint8_t *p = frameBuffer;
+  uint32_t cnt =  sizeof_framebuffer;
+  for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
+    uint16_t rgb = mono_palette[*p];
+    SerialUSB1.write(rgb & 0xFF);
+    SerialUSB1.write((rgb >> 8) & 0xFF);
+    cnt--;
+    if (cnt == 0) {
+      cnt = sizeof_framebuffer2;
+      p = frameBuffer2;      
+    } else {
+      p++;
+    }
+  }
+}
+#else
+void send_raw() {
+  Serial.println("Send Raw RGB");
+  memset((uint8_t *)frameBuffer, 0, sizeof_framebuffer);
+  memset((uint8_t *)frameBuffer2, 0, sizeof_framebuffer2);
+  camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
   uint16_t *p = frameBuffer;
   uint32_t cnt =  sizeof_framebuffer / 2;
   for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
-    idx = i * 2;
     SerialUSB1.write((*p >> 8) & 0xFF);
     SerialUSB1.write((*p) & 0xFF);
     cnt--;
@@ -738,6 +825,7 @@ void send_raw() {
     }
   }
 }
+#endif
 #endif
 
 #if defined(USE_SDCARD)
@@ -823,7 +911,7 @@ void save_image_SD() {
   uint8_t img[3];
   uint32_t count_y_first_buffer = sizeof_framebuffer / (w * 2);
   for (int y = h - 1; y >= 0; y--) {  // iterate image array
-    if (y < count_y_first_buffer) pfb = &frameBuffer[y * w];
+    if (y < (int)count_y_first_buffer) pfb = &frameBuffer[y * w];
     else pfb = &frameBuffer2[(y - count_y_first_buffer) * w];
     for (int x = 0; x < w; x++) {
       //r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3
