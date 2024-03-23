@@ -13,6 +13,13 @@
 #include "OV767X.h"
 #include "arm_math.h"
 
+#define debug     Serial
+
+//#define DEBUG_CAMERA
+//#define DEBUG_CAMERA_VERBOSE
+//#define DEBUG_FLEXIO
+//#define USE_DEBUG_PINS
+
 // if not defined in the variant
 #ifndef digitalPinToBitMask
 #define digitalPinToBitMask(P) (1 << (digitalPinToPinName(P) % 64))
@@ -86,10 +93,10 @@ bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
   
   _use_gpio = use_gpio;
   // BUGBUG::: see where frame is
+  #ifdef USE_DEBUG_PINS)
   pinMode(49, OUTPUT);
-    
-  Serial.println("OV767X::begin");
-
+  #endif
+  
   switch (resolution) {
   case FRAMESIZE_VGA:
     _width = 640;
@@ -166,12 +173,12 @@ bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
   pinMode(_pclkPin, INPUT_PULLDOWN);
   pinMode(_xclkPin, OUTPUT);
 #ifdef DEBUG_CAMERA
-  Serial.printf("  VS=%d, HR=%d, PC=%d XC=%d\n", _vsyncPin, _hrefPin, _pclkPin, _xclkPin);
+  debug.printf("  VS=%d, HR=%d, PC=%d XC=%d\n", _vsyncPin, _hrefPin, _pclkPin, _xclkPin);
 #endif
 
   for (int i = 0; i < 8; i++) {
     pinMode(_dPins[i], INPUT);
-    Serial.printf("  _dpins(%d)=%d\n", i, _dPins[i]);
+    debug.printf("  _dpins(%d)=%d\n", i, _dPins[i]);
   }
 
   _vsyncPort = portInputRegister(digitalPinToPort(_vsyncPin));
@@ -199,8 +206,7 @@ bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
 
   if (ov7670_detect(_ov7670)) {
     end();
-    Serial.println("Camera detect failed");
-
+    if(_debug) debug.println("Camera detect failed");
     return 0;
   }
   
@@ -214,16 +220,17 @@ bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
       }
   }
   
-  Serial.printf("Calling ov7670_configure\n");
-  Serial.printf("Cam Name: %d, Format: %d, Resolution: %d, Clock: %d\n", camera_name, _format, _framesize, _xclk_freq);
-  Serial.printf("Frame rate: %d\n", fps);
+  #ifdef DEBUG_CAMERA
+  debug.printf("Calling ov7670_configure\n");
+  debug.printf("Cam Name: %d, Format: %d, Resolution: %d, Clock: %d\n", camera_name, _format, _framesize, _xclk_freq);
+  debug.printf("Frame rate: %d\n", fps);
+  #endif
   ov7670_configure(_ov7670, camera_name /*OV7670 = 0, OV7675 = 1*/, _format, _framesize, _xclk_freq /* MHz */,
                    0 /*pll bypass*/, 1 /* pclk_hb_disable */);
 
   if (ov7670_s_power(_ov7670, 1)) {
     end();
-    Serial.println("Camera ov7670_s_power failed");
-
+    if(_debug) debug.println("Camera ov7670_s_power failed");
     return 0;
   }
 
@@ -457,7 +464,7 @@ void OV767X::stopReadContinuous() {
 
 bool OV767X::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 {    
-  Serial.printf("$$readFrameGPIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
+  debug.printf("$$readFrameGPIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
   const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
   if ((cb1+cb2) < frame_size_bytes) return false; // not enough to hold image
 
@@ -494,7 +501,7 @@ bool OV767X::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
       if (!(j & 1) || !_grayscale) {
         *b++ = in;
         if ( buffer2 && (--cb == 0) ) {
-          Serial.printf("\t$$ 2nd buffer: %u %u\n", i, j);
+          if(_debug) debug.printf("\t$$ 2nd buffer: %u %u\n", i, j);
           b = (uint8_t *)buffer2;
           cb = (uint32_t)cb2;
           buffer2 = nullptr;
@@ -520,7 +527,7 @@ bool OV767X::flexio_configure()
     uint8_t tpclk_pin; 
     _pflex = FlexIOHandler::mapIOPinToFlexIOHandler(_pclkPin, tpclk_pin);
     if (!_pflex) {
-        Serial.printf("OV767X PCLK(%u) is not a valid Flex IO pin\n", _pclkPin);
+        debug.printf("OV767X PCLK(%u) is not a valid Flex IO pin\n", _pclkPin);
         return false;
     }
     _pflexio = &(_pflex->port());
@@ -534,15 +541,15 @@ bool OV767X::flexio_configure()
 
     // make sure the minimum here is valid: 
     if ((thsync_pin == 0xff) || (tg0 == 0xff) || (tg1 == 0xff) || (tg2 == 0xff) || (tg3 == 0xff)) {
-        Serial.printf("OV767X Some pins did not map to valid Flex IO pin\n");
-        Serial.printf("    HSYNC(%u %u) G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)", 
+        debug.printf("OV767X Some pins did not map to valid Flex IO pin\n");
+        if(_debug) debug.printf("    HSYNC(%u %u) G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)", 
             _hrefPin, thsync_pin, _dPins[0], tg0, _dPins[1], tg1, _dPins[2], tg2, _dPins[3], tg3 );
         return false;
     } 
     // Verify that the G numbers are consecutive... Should use arrays!
     if ((tg1 != (tg0+1)) || (tg2 != (tg0+2)) || (tg3 != (tg0+3))) {
-        Serial.printf("OV767X Flex IO pins G0-G3 are not consective\n");
-        Serial.printf("    G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)", 
+        debug.printf("OV767X Flex IO pins G0-G3 are not consective\n");
+        if(_debug) debug.printf("    G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)", 
             _dPins[0], tg0, _dPins[1], tg1, _dPins[2], tg2, _dPins[3], tg3 );
         return false;
     }
@@ -552,15 +559,15 @@ bool OV767X::flexio_configure()
         uint8_t tg6 = _pflex->mapIOPinToFlexPin(_dPins[6]);
         uint8_t tg7 = _pflex->mapIOPinToFlexPin(_dPins[7]);
         if ((tg4 != (tg0+4)) || (tg5 != (tg0+5)) || (tg6 != (tg0+6)) || (tg7 != (tg0+7))) {
-            Serial.printf("OV767X Flex IO pins G4-G7 are not consective with G0-3\n");
-            Serial.printf("    G0(%u %u) G4(%u %u) G5(%u %u) G6(%u %u) G7(%u %u)", 
+            debug.printf("OV767X Flex IO pins G4-G7 are not consective with G0-3\n");
+            if(_debug) debug.printf("    G0(%u %u) G4(%u %u) G5(%u %u) G6(%u %u) G7(%u %u)", 
                 _dPins[0], tg0, _dPins[4], tg4, _dPins[5], tg5, _dPins[6], tg6, _dPins[7], tg7 );
             return false;
         }
-        Serial.println("Custom - Flexio is 8 bit mode");
+        if(_debug) debug.println("Custom - Flexio is 8 bit mode");
     } else {
       // only 8 bit mode supported
-      Serial.println("Custom - Flexio 4 bit mode not supported");
+      debug.println("Custom - Flexio 4 bit mode not supported");
       return false;
     }
 #if (CNT_SHIFTERS == 1)
@@ -568,7 +575,7 @@ bool OV767X::flexio_configure()
     if (_pflex->claimShifter(3)) _fshifter = 3;
     else if (_pflex->claimShifter(7)) _fshifter = 7;
     else {
-      Serial.printf("OV767X Flex IO: Could not claim Shifter 3 or 7\n");
+      if(_debug) debug.printf("OV767X Flex IO: Could not claim Shifter 3 or 7\n");
       return false;
     }
     _fshifter_mask = 1 << _fshifter;   // 4 channels.
@@ -583,12 +590,12 @@ bool OV767X::flexio_configure()
 
     if (_fshifter < CNT_SHIFTERS) {
       // failed on 0-3 - released any we claimed
-      Serial.printf("Failed to claim 0-3(%u) shifters trying 4-7\n", _fshifter);
+      if(_debug) debug.printf("Failed to claim 0-3(%u) shifters trying 4-7\n", _fshifter);
       while (_fshifter > 0) _pflex->freeShifter(--_fshifter);  // release any we grabbed
 
       for (_fshifter = 4; _fshifter < (4 + CNT_SHIFTERS); _fshifter++) {
         if (!_pflex->claimShifter(_fshifter)) {
-          Serial.printf("OV767X Flex IO: Could not claim Shifter %u\n", _fshifter);
+          debug.printf("OV767X Flex IO: Could not claim Shifter %u\n", _fshifter);
           while (_fshifter > 4) _pflex->freeShifter(--_fshifter);  // release any we grabbed
           return false;
         }
@@ -606,7 +613,7 @@ bool OV767X::flexio_configure()
     // all 8 shifters.
     for (_fshifter = 0; _fshifter < 8; _fshifter++) {
       if (!_pflex->claimShifter(_fshifter)) {
-        Serial.printf("OV767X Flex IO: Could not claim Shifter %u\n", _fshifter);
+        if(_debug) debug.printf("OV767X Flex IO: Could not claim Shifter %u\n", _fshifter);
         while (_fshifter > 4) _pflex->freeShifter(--_fshifter);  // release any we grabbed
         return false;
       }
@@ -619,7 +626,7 @@ bool OV767X::flexio_configure()
     // Now request one timer
     uint8_t _ftimer = _pflex->requestTimers(); // request 1 timer. 
     if (_ftimer == 0xff) {
-        Serial.printf("OV767X Flex IO: failed to request timer\n");
+        if(_debug) debug.printf("OV767X Flex IO: failed to request timer\n");
         return false;
     }
 
@@ -658,18 +665,18 @@ bool OV767X::flexio_configure()
 
 
 #ifdef DEBUG_FLEXIO
-    Serial.println("FlexIO Configure");
-    Serial.printf(" CCM_CSCMR2 = %08X\n", CCM_CSCMR2);
+    debug.println("FlexIO Configure");
+    debug.printf(" CCM_CSCMR2 = %08X\n", CCM_CSCMR2);
     uint32_t div1 = ((CCM_CS1CDR >> 9) & 7) + 1;
     uint32_t div2 = ((CCM_CS1CDR >> 25) & 7) + 1;
-    Serial.printf(" div1 = %u, div2 = %u\n", div1, div2);
-    Serial.printf(" FlexIO Frequency = %.2f MHz\n", 480.0 / (float)div1 / (float)div2);
-    Serial.printf(" CCM_CCGR3 = %08X\n", CCM_CCGR3);
-    Serial.printf(" FlexIO CTRL = %08X\n", _pflexio->CTRL);
-    Serial.printf(" FlexIO Config, param=%08X\n", _pflexio->PARAM);
-#endif
+    debug.printf(" div1 = %u, div2 = %u\n", div1, div2);
+    debug.printf(" FlexIO Frequency = %.2f MHz\n", 480.0 / (float)div1 / (float)div2);
+    debug.printf(" CCM_CCGR3 = %08X\n", CCM_CCGR3);
+    debug.printf(" FlexIO CTRL = %08X\n", _pflexio->CTRL);
+    debug.printf(" FlexIO Config, param=%08X\n", _pflexio->PARAM);
     
-		Serial.println("8Bit FlexIO");
+	  debug.println("8Bit FlexIO");
+#endif
       // SHIFTCFG, page 2927
       //  PWIDTH: number of bits to be shifted on each Shift clock
       //          0 = 1 bit, 1-3 = 4 bit, 4-7 = 8 bit, 8-15 = 16 bit, 16-31 = 32 bit
@@ -709,8 +716,10 @@ bool OV767X::flexio_configure()
           //| FLEXIO_TIMCTL_TRGSEL(4 * (thsync_pin/2)) // "Trigger" is 12 = HSYNC
           | FLEXIO_TIMCTL_TRGSEL(FLEXIO_TIMER_TRIGGER_SEL_PININPUT(thsync_pin)) // "Trigger" is 12 = HSYNC
           | FLEXIO_TIMCTL_TRGSRC;
-      Serial.printf("TIMCTL: %08X PINSEL: %x THSYNC: %x\n", _pflexio->TIMCTL[_ftimer], tpclk_pin, thsync_pin);
-
+    #ifdef DEBUG_FLEXIO
+      debug.printf("TIMCTL: %08X PINSEL: %x THSYNC: %x\n", _pflexio->TIMCTL[_ftimer], tpclk_pin, thsync_pin);
+    #endif
+    
     // SHIFTCTL, page 2926
     //  TIMSEL: which Timer is used for controlling the logic/shift register
     //  TIMPOL: 0 = shift of positive edge, 1 = shift on negative edge
@@ -771,14 +780,14 @@ bool OV767X::flexio_configure()
     _pflexio->CTRL = FLEXIO_CTRL_FLEXEN; // enable after everything configured
     
 #ifdef DEBUG_FLEXIO
-    Serial.printf(" FLEXIO:%u Shifter:%u Timer:%u\n", _pflex->FlexIOIndex(), _fshifter, _ftimer);
-    Serial.print("     SHIFTCFG = ");
-    for (uint8_t i = 0; i < CNT_SHIFTERS; i++) Serial.printf(" %08X", _pflexio->SHIFTCFG[_fshifter + i]);
-    Serial.print("\n     SHIFTCTL = ");
-    for (uint8_t i = 0; i < CNT_SHIFTERS; i++) Serial.printf(" %08X", _pflexio->SHIFTCTL[_fshifter + i]);
-    Serial.printf("\n     TIMCMP = %08X\n", _pflexio->TIMCMP[_ftimer]);
-    Serial.printf("     TIMCFG = %08X\n", _pflexio->TIMCFG[_ftimer]);
-    Serial.printf("     TIMCTL = %08X\n", _pflexio->TIMCTL[_ftimer]);
+    debug.printf(" FLEXIO:%u Shifter:%u Timer:%u\n", _pflex->FlexIOIndex(), _fshifter, _ftimer);
+    debug.print("     SHIFTCFG = ");
+    for (uint8_t i = 0; i < CNT_SHIFTERS; i++) debug.printf(" %08X", _pflexio->SHIFTCFG[_fshifter + i]);
+    debug.print("\n     SHIFTCTL = ");
+    for (uint8_t i = 0; i < CNT_SHIFTERS; i++) debug.printf(" %08X", _pflexio->SHIFTCTL[_fshifter + i]);
+    debug.printf("\n     TIMCMP = %08X\n", _pflexio->TIMCMP[_ftimer]);
+    debug.printf("     TIMCFG = %08X\n", _pflexio->TIMCFG[_ftimer]);
+    debug.printf("     TIMCTL = %08X\n", _pflexio->TIMCTL[_ftimer]);
 #endif
 return true;
 }
@@ -786,10 +795,10 @@ return true;
 
 void dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title) {
   if (psz_title)
-    Serial.print(psz_title);
-  Serial.printf("%x %x: ", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
+    debug.print(psz_title);
+  debug.printf("%x %x: ", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
 
-  Serial.printf(
+  debug.printf(
       "SA:%x SO:%d AT:%x (SM:%x SS:%x DM:%x DS:%x) NB:%x SL:%d DA:%x DO: %d CI:%x DL:%x CS:%x BI:%x\n",
       (uint32_t)dmabc->TCD->SADDR, dmabc->TCD->SOFF, dmabc->TCD->ATTR,
       (dmabc->TCD->ATTR >> 11) & 0x1f, (dmabc->TCD->ATTR >> 8) & 0x7,
@@ -801,7 +810,7 @@ void dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title) {
 
 bool OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2)
 {
-    if (_debug)Serial.printf("$$OV767X::readFrameFlexIO(%p, %u, %p, %u, %u)\n", buffer, cb1, buffer2, cb2, _fuse_dma);
+    if (_debug)debug.printf("$$OV767X::readFrameFlexIO(%p, %u, %p, %u, %u)\n", buffer, cb1, buffer2, cb2, _fuse_dma);
     const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
     if ((cb1+cb2) < frame_size_bytes) return false; // not enough to hold image
 
@@ -811,7 +820,7 @@ bool OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     elapsedMicros emGlitch;
     for (;;) {
       if (emWaitSOF > 2000) {
-        Serial.println("Timeout waiting for Start of Frame");
+        if(_debug) debug.println("Timeout waiting for Start of Frame");
         return false;
       }
       while ((*_vsyncPort & _vsyncMask) == 0);
@@ -828,8 +837,8 @@ bool OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     // Polling FlexIO version
     //----------------------------------------------------------------------
     if (!_fuse_dma) {
-      if (_debug)Serial.println("\tNot DMA");
-      #ifdef OV7670_USE_DEBUG_PINS
+      if (_debug)debug.println("\tNot DMA");
+      #ifdef USE_DEBUG_PINS
       digitalWriteFast(2, HIGH);
       #endif
       // read FlexIO by polling
@@ -851,7 +860,7 @@ bool OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
             }
           }
       }
-      #ifdef OV7670_USE_DEBUG_PINS
+      #ifdef USE_DEBUG_PINS
       digitalWriteFast(2, LOW);
       #endif
       return true;
@@ -879,7 +888,7 @@ bool OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     uint32_t cb_left = min(frame_size_bytes, cb1);
     uint8_t count_dma_settings = (cb_left / (32767 * 4)) + 1;
     uint32_t cb_per_setting = ((cb_left / count_dma_settings) + 3) & 0xfffffffc; // round up to next multiple of 4.
-    if (_debug) Serial.printf("frame size: %u, cb1:%u cnt dma: %u CB per: %u\n", frame_size_bytes, cb1, count_dma_settings, cb_per_setting);
+    if (_debug) debug.printf("frame size: %u, cb1:%u cnt dma: %u CB per: %u\n", frame_size_bytes, cb1, count_dma_settings, cb_per_setting);
 
     for (; dmas_index < count_dma_settings; dmas_index++) {
       _dmasettings[dmas_index].TCD->CSR = 0;
@@ -894,7 +903,7 @@ bool OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
       cb_left = frame_size_bytes - cb1;
       count_dma_settings = (cb_left / (32767 * 4)) + 1;
       cb_per_setting = ((cb_left / count_dma_settings) + 3) & 0xfffffffc; // round up to next multiple of 4.
-      if (_debug) Serial.printf("frame size left: %u, cb2:%u cnt dma: %u CB per: %u\n", cb_left, cb2, count_dma_settings, cb_per_setting);
+      if (_debug) debug.printf("frame size left: %u, cb2:%u cnt dma: %u CB per: %u\n", cb_left, cb2, count_dma_settings, cb_per_setting);
       
       p = (uint32_t *)buffer2;
 
@@ -919,7 +928,7 @@ bool OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     if (_debug) {
       dumpDMA_TCD(&_dmachannel," CH: ");
       for (uint8_t i = 0; i <= dmas_index; i++) {
-        Serial.printf(" %u: ", i);
+        debug.printf(" %u: ", i);
         dumpDMA_TCD(&_dmasettings[i], nullptr);
       }
     }
@@ -931,7 +940,7 @@ bool OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     _dmachannel.enable();
     
 #ifdef DEBUG_FLEXIO
-    if (_debug) Serial.printf("Flexio DMA: length: %d\n", frame_size_bytes);
+    if (_debug) debug.printf("Flexio DMA: length: %d\n", frame_size_bytes);
 #endif
     
     elapsedMillis timeout = 0;
@@ -939,28 +948,30 @@ bool OV767X::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     while (_dma_state == DMA_STATE_ONE_FRAME) {
         // wait - we should not need to actually do anything during the DMA transfer
         if (_dmachannel.error()) {
-            Serial.println("DMA error");
-            if (_pflexio->SHIFTSTAT) Serial.printf(" SHIFTSTAT %08X\n", _pflexio->SHIFTSTAT);
-            Serial.flush();
+            debug.println("DMA error");
+            if (_pflexio->SHIFTSTAT) debug.printf(" SHIFTSTAT %08X\n", _pflexio->SHIFTSTAT);
+            debug.flush();
             uint32_t i = _pflexio->SHIFTBUF[_fshifter];
-            Serial.printf("Result: %x\n", i);
+            debug.printf("Result: %x\n", i);
 
 
             _dmachannel.clearError();
             break;
         }
         if (timeout > 500) {
-            Serial.println("Timeout waiting for DMA");
-            if (_pflexio->SHIFTSTAT & _fshifter_mask) Serial.printf(" SHIFTSTAT bit was set (%08X)\n", _pflexio->SHIFTSTAT);
-            Serial.printf(" DMA channel #%u\n", _dmachannel.channel);
-            Serial.printf(" DMAMUX = %08X\n", *(&DMAMUX_CHCFG0 + _dmachannel.channel));
-            Serial.printf(" _pflexio->SHIFTSDEN = %02X\n", _pflexio->SHIFTSDEN);
-            Serial.printf(" TCD CITER = %u\n", _dmachannel.TCD->CITER_ELINKNO);
-            Serial.printf(" TCD CSR = %08X\n", _dmachannel.TCD->CSR);
+            if (_debug) debug.println("Timeout waiting for DMA");
+            if (_pflexio->SHIFTSTAT & _fshifter_mask) debug.printf(" SHIFTSTAT bit was set (%08X)\n", _pflexio->SHIFTSTAT);
+            #ifdef DEBUG_CAMERA
+            debug.printf(" DMA channel #%u\n", _dmachannel.channel);
+            debug.printf(" DMAMUX = %08X\n", *(&DMAMUX_CHCFG0 + _dmachannel.channel));
+            debug.printf(" _pflexio->SHIFTSDEN = %02X\n", _pflexio->SHIFTSDEN);
+            debug.printf(" TCD CITER = %u\n", _dmachannel.TCD->CITER_ELINKNO);
+            debug.printf(" TCD CSR = %08X\n", _dmachannel.TCD->CSR);
+            #endif
             break;
         }
     }
-    #ifdef OV7670_USE_DEBUG_PINS
+    #ifdef USE_DEBUG_PINS
         digitalWriteFast(2, LOW);
     #endif
     //arm_dcache_delete(buffer, frame_size_bytes);
@@ -1051,7 +1062,7 @@ bool OV767X::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, voi
     dumpDMA_TCD(&_dmasettings[1], " 1: ");
     dumpDMA_TCD(&_dmasettings[2], " 2: ");
     dumpDMA_TCD(&_dmasettings[3], " 3: ");
-    Serial.printf("Flexio DMA: length: %d\n", frame_size_bytes);
+    debug.printf("Flexio DMA: length: %d\n", frame_size_bytes);
 
 #endif
 
@@ -1078,7 +1089,7 @@ bool OV767X::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, voi
     elapsedMicros emGlitch;
     for (;;) {
       if (emWaitSOF > 2000) {
-        Serial.println("Timeout waiting for Start of Frame");
+        if(_debug) debug.println("Timeout waiting for Start of Frame");
         return false;
       }
       while ((*_vsyncPort & _vsyncMask) == 0);
@@ -1105,15 +1116,15 @@ void OV767X::frameStartInterruptFlexIO()
 
 void OV767X::processFrameStartInterruptFlexIO()
 {
-  #ifdef OV7670_USE_DEBUG_PINS
+  #ifdef USE_DEBUG_PINS
   digitalWriteFast(5, HIGH);
   #endif
-  //Serial.println("VSYNC");
+  //debug.println("VSYNC");
   // See if we read the state of it a few times if the pin stays high...
   if (digitalReadFast(_vsyncPin) && digitalReadFast(_vsyncPin) && digitalReadFast(_vsyncPin) 
           && digitalReadFast(_vsyncPin) )  {
     // stop this interrupt.
-    #ifdef OV7670_USE_DEBUG_PINS
+    #ifdef USE_DEBUG_PINS
     //digitalToggleFast(2);
     digitalWriteFast(2, LOW);
     digitalWriteFast(2, HIGH);
@@ -1129,7 +1140,7 @@ void OV767X::processFrameStartInterruptFlexIO()
     _dmachannel.enable();
   }
 	asm("DSB");
-  #ifdef OV7670_USE_DEBUG_PINS
+  #ifdef USE_DEBUG_PINS
   digitalWriteFast(5, LOW);
   #endif
 }
@@ -1145,7 +1156,7 @@ void OV767X::processDMAInterruptFlexIO()
 {
 
   _dmachannel.clearInterrupt();
-  #ifdef OV7670_USE_DEBUG_PINS
+  #ifdef USE_DEBUG_PINS
 //  digitalToggleFast(2);
   digitalWriteFast(2, HIGH);
   digitalWriteFast(2, LOW);
@@ -1169,7 +1180,7 @@ void OV767X::processDMAInterruptFlexIO()
   static uint8_t debug_print_count = 8;
   if (debug_print_count) {
     debug_print_count--;
-    Serial.printf("PDMAIF: %x\n", (uint32_t)_dmachannel.TCD->DADDR);
+    debug.printf("PDMAIF: %x\n", (uint32_t)_dmachannel.TCD->DADDR);
     dumpDMA_TCD(&_dmachannel," CH: ");
 
   }
@@ -1246,7 +1257,7 @@ bool OV767X::startReadFrameDMA(bool(*callback)(void *frame_buffer), uint8_t *fb1
   _callback = callback;
   active_dma_camera = this;
 
-  Serial.printf("startReadFrameDMA called buffers %x %x\n", (uint32_t)_frame_buffer_1, (uint32_t)_frame_buffer_2);
+  if(_debug) debug.printf("startReadFrameDMA called buffers %x %x\n", (uint32_t)_frame_buffer_1, (uint32_t)_frame_buffer_2);
 
   //DebugDigitalToggle(OV7670_DEBUG_PIN_1);
   // lets figure out how many bytes we will tranfer per setting...
@@ -1336,10 +1347,10 @@ bool OV767X::startReadFrameDMA(bool(*callback)(void *frame_buffer), uint8_t *fb1
   dumpDMA_TCD(&_dmasettings[0], " 0: ");
   dumpDMA_TCD(&_dmasettings[1], " 1: ");
 
-  Serial.printf("pclk pin: %d config:%lx control:%lx\n", _pclkPin, *(portConfigRegister(_pclkPin)), *(portControlRegister(_pclkPin)));
-  Serial.printf("IOMUXC_GPR_GPR26-29:%lx %lx %lx %lx\n", IOMUXC_GPR_GPR26, IOMUXC_GPR_GPR27, IOMUXC_GPR_GPR28, IOMUXC_GPR_GPR29);
-  Serial.printf("GPIO1: %lx %lx, GPIO6: %lx %lx\n", GPIO1_DR, GPIO1_PSR, GPIO6_DR, GPIO6_PSR);
-  Serial.printf("XBAR CTRL0:%x CTRL1:%x\n\n", XBARA1_CTRL0, XBARA1_CTRL1);
+  debug.printf("pclk pin: %d config:%lx control:%lx\n", _pclkPin, *(portConfigRegister(_pclkPin)), *(portControlRegister(_pclkPin)));
+  debug.printf("IOMUXC_GPR_GPR26-29:%lx %lx %lx %lx\n", IOMUXC_GPR_GPR26, IOMUXC_GPR_GPR27, IOMUXC_GPR_GPR28, IOMUXC_GPR_GPR29);
+  debug.printf("GPIO1: %lx %lx, GPIO6: %lx %lx\n", GPIO1_DR, GPIO1_PSR, GPIO6_DR, GPIO6_PSR);
+  debug.printf("XBAR CTRL0:%x CTRL1:%x\n\n", XBARA1_CTRL0, XBARA1_CTRL1);
 #endif
   _dma_state = DMASTATE_RUNNING;
   _dma_last_completed_frame = nullptr;
@@ -1370,8 +1381,8 @@ bool OV767X::stopReadFrameDMA()
 
   while ((em < 1000) && (_dma_state == DMASTATE_STOP_REQUESTED)) ; // wait up to a second...
   if (_dma_state != DMA_STATE_STOPPED) {
-    Serial.println("*** stopReadFrameDMA DMA did not exit correctly...");
-    Serial.printf("  Bytes Left: %u frame buffer:%x Row:%u Col:%u\n", _bytes_left_dma, (uint32_t)_frame_buffer_pointer, _frame_row_index, _frame_col_index);
+    debug.println("*** stopReadFrameDMA DMA did not exit correctly...");
+    debug.printf("  Bytes Left: %u frame buffer:%x Row:%u Col:%u\n", _bytes_left_dma, (uint32_t)_frame_buffer_pointer, _frame_row_index, _frame_col_index);
   }
   #ifdef OV7670_USE_DEBUG_PINS
   //DebugDigitalWrite(OV7670_DEBUG_PIN_2, LOW);
@@ -1380,7 +1391,7 @@ bool OV767X::stopReadFrameDMA()
   dumpDMA_TCD(&_dmachannel, nullptr);
   dumpDMA_TCD(&_dmasettings[0], nullptr);
   dumpDMA_TCD(&_dmasettings[1], nullptr);
-  Serial.println();
+  debug.println();
 #endif
   // Lets restore some hardware pieces back to the way we found them.
 #if defined (ARDUINO_TEENSY_MICROMOD)
@@ -1432,12 +1443,12 @@ void OV767X::dmaInterrupt() {
 void OV767X::processDMAInterrupt() {
   _dmachannel.clearInterrupt(); // tell system we processed it.
   asm("DSB");
-  #ifdef OV7670_USE_DEBUG_PINS
+  #ifdef USE_DEBUG_PINS
   //DebugDigitalWrite(OV7670_DEBUG_PIN_3, HIGH);
   #endif
   
   if (_dma_state == DMA_STATE_STOPPED) {
-    Serial.println("OV767X::dmaInterrupt called when DMA_STATE_STOPPED");
+    debug.println("OV767X::dmaInterrupt called when DMA_STATE_STOPPED");
     return; //
   }
 
@@ -1457,17 +1468,17 @@ void OV767X::processDMAInterrupt() {
   // lets try dumping a little data on 1st 2nd and last buffer.
 #ifdef DEBUG_CAMERA_VERBOSE
   if ((_dma_index < 3) || (buffer_size  < DMABUFFER_SIZE)) {
-    Serial.printf("D(%d, %d, %lu) %u : ", _dma_index, buffer_size, _bytes_left_dma, pixformat);
+    debug.printf("D(%d, %d, %lu) %u : ", _dma_index, buffer_size, _bytes_left_dma, pixformat);
     for (uint16_t i = 0; i < 8; i++) {
       uint16_t b = buffer[i] >> 4;
-      Serial.printf(" %lx(%02x)", buffer[i], b);
+      debug.printf(" %lx(%02x)", buffer[i], b);
     }
-    Serial.print("...");
+    debug.print("...");
     for (uint16_t i = buffer_size - 8; i < buffer_size; i++) {
       uint16_t b = buffer[i] >> 4;
-      Serial.printf(" %lx(%02x)", buffer[i], b);
+      debug.printf(" %lx(%02x)", buffer[i], b);
     }
-    Serial.println();
+    debug.println();
   }
 #endif
 
@@ -1489,11 +1500,11 @@ void OV767X::processDMAInterrupt() {
 
   if ((_frame_row_index == _height) || (_bytes_left_dma == 0)) { // We finished a frame lets bail
     _dmachannel.disable();  // disable the DMA now...
-    #ifdef OV7670_USE_DEBUG_PINS
+    #ifdef USE_DEBUG_PINS
     //DebugDigitalWrite(OV7670_DEBUG_PIN_2, LOW);
     #endif
 #ifdef DEBUG_CAMERA_VERBOSE
-    Serial.println("EOF");
+    debug.println("EOF");
 #endif
     _frame_row_index = 0;
     _dma_frame_count++;
@@ -1516,7 +1527,7 @@ void OV767X::processDMAInterrupt() {
 
     if (_dma_state == DMASTATE_STOP_REQUESTED) {
 #ifdef DEBUG_CAMERA
-      Serial.println("OV767X::dmaInterrupt - Stop requested");
+      debug.println("OV767X::dmaInterrupt - Stop requested");
 #endif
       _dma_state = DMA_STATE_STOPPED;
     } else {
@@ -1603,14 +1614,14 @@ void OV767X::captureFrameStatistics()
     fstatOmni.frameTimeMicros = micros() - microsStart;
 
     // Maybe return data. print now
-    Serial.printf("*** Frame Capture Data: elapsed Micros: %u loops: %u\n", fstatOmni.frameTimeMicros, fstatOmni.cycleCount);
-    Serial.printf("   VSync Loops Start: %u end: %u\n", fstatOmni.vsyncStartCycleCount, fstatOmni.vsyncEndCycleCount);
-    Serial.printf("   href count: %u pclk ! href count: %u\n    ", fstatOmni.hrefCount,  fstatOmni.pclkNoHrefCount);
+    debug.printf("*** Frame Capture Data: elapsed Micros: %u loops: %u\n", fstatOmni.frameTimeMicros, fstatOmni.cycleCount);
+    debug.printf("   VSync Loops Start: %u end: %u\n", fstatOmni.vsyncStartCycleCount, fstatOmni.vsyncEndCycleCount);
+    debug.printf("   href count: %u pclk ! href count: %u\n    ", fstatOmni.hrefCount,  fstatOmni.pclkNoHrefCount);
     for (uint16_t ii=0; ii < fstatOmni.hrefCount + 1; ii++) {
-        Serial.printf("%3u(%u) ", fstatOmni.pclkCounts[ii], (ii==0)? 0 : fstatOmni.hrefStartTime[ii] - fstatOmni.hrefStartTime[ii-1]);
-        if (!(ii & 0x0f)) Serial.print("\n    ");
+        debug.printf("%3u(%u) ", fstatOmni.pclkCounts[ii], (ii==0)? 0 : fstatOmni.hrefStartTime[ii] - fstatOmni.hrefStartTime[ii-1]);
+        if (!(ii & 0x0f)) debug.print("\n    ");
     }
-    Serial.println();
+    debug.println();
 }
 
 // Read a single uint8_t from address and return it as a uint8_t
@@ -1618,11 +1629,11 @@ uint8_t OV767X::cameraReadRegister(uint8_t reg) {
   Wire.beginTransmission(0x42>>1);
   Wire.write(reg);
   if (Wire.endTransmission(false) != 0) {
-    Serial.println("error reading OV767X, address");
+    if(_debug) debug.println("error reading OV767X, address");
     return 0;
   }
   if (Wire.requestFrom(0x42>>1, 1) < 1) {
-    Serial.println("error reading OV767X, data");
+    if(_debug) debug.println("error reading OV767X, data");
     return 0;
   }
   return Wire.read();
