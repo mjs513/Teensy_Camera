@@ -1227,10 +1227,10 @@ bool HM01B0::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
 
 
 
-bool HM01B0::readContinuous(bool(*callback)(void *frame_buffer), void *fb1, void *fb2) {
+bool HM01B0::readContinuous(bool(*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2) {
 	//setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
 
-	return startReadFlexIO(callback, fb1, fb2);
+	return startReadFlexIO(callback, fb1, cb1, fb2, cb2);
 
 }
 
@@ -1858,7 +1858,7 @@ void HM01B0::readFrameFlexIO(void* buffer, bool fUseDMA)
 #endif
 
 
-bool HM01B0::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, void *fb2)
+bool HM01B0::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2)
 {
 #ifdef FLEXIO_USE_DMA
     if (fb1 == nullptr || fb2 == nullptr) return false;

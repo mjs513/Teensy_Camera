@@ -24,7 +24,7 @@
 
 #define debug     Serial
 
-//#define DEBUG_CAMERA
+#define DEBUG_CAMERA
 //#define DEBUG_CAMERA_VERBOSE
 //#define DEBUG_FLEXIO
 //#define USE_DEBUG_PINS
@@ -1188,11 +1188,11 @@ uint8_t GC2145::setFramesize(int w, int h) {
 
     // Limit the maximum amount of scaling allowed to keep the frame rate up.
     ratio = min(ratio, (fov_wide ? 5 : 3));
-
-    if (!(ratio % 2)) {
-        // camera outputs messed up bayer images at even ratios for some reason...
-        ratio -= 1;
-    }
+    Serial.printf("\n$$$ ratio:%u, %d %d %d %d\n", ratio, readout_w, w, readout_h, h);
+   // if (!(ratio % 2)) {
+   //     // camera outputs messed up bayer images at even ratios for some reason...
+   //     ratio -= 1;
+   // }
     
     uint16_t sub_readout_w = w * ratio;
     uint16_t sub_readout_h = h * ratio;
@@ -1819,9 +1819,9 @@ bool GC2145::readFrame(void* buffer1, size_t size1, void* buffer2, size_t size2)
 }
 
 
-bool GC2145::readContinuous(bool(*callback)(void *frame_buffer), void *fb1, void *fb2) {
+bool GC2145::readContinuous(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2) {
 
-	return startReadFlexIO(callback, fb1, fb2);
+	return startReadFlexIO(callback, fb1, cb1, fb2, cb2);
 
 }
 
@@ -2324,7 +2324,7 @@ bool GC2145::readFrameFlexIO(void* buffer1, size_t cb1, void* buffer2, size_t cb
 
 
 
-bool GC2145::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, void *fb2)
+bool GC2145::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2)
 {
 
 #ifdef FLEXIO_USE_DMA

@@ -110,12 +110,12 @@ public:
   bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
 
   void readFrame4BitGPIO(void* buffer);
-  bool readContinuous(bool(*callback)(void *frame_buffer), void *fb1, void *fb2);
+  bool readContinuous(bool(*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2);
   void stopReadContinuous();
 
   //FlexIO is default mode for the camera
   bool readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
-  bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
+  bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2);
   bool stopReadFlexIO();
 
   // Lets try a dma version.  Doing one DMA that is synchronous does not gain anything
