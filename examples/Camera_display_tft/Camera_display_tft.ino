@@ -4,13 +4,13 @@
 
 #include "Camera.h"
 
-//#define USE_MMOD_ATP_ADAPTER
+#define USE_MMOD_ATP_ADAPTER
 //#define USE_SDCARD
 
 //#define ARDUCAM_CAMERA_HM01B0
-//#define ARDUCAM_CAMERA_HM0360
+#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
-#define ARDUCAM_CAMERA_OV7675
+//#define ARDUCAM_CAMERA_OV7675
 //#define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
@@ -79,15 +79,6 @@ static const uint16_t mono_palette[256] PROGMEM = {
   MCP(0xd0), MCP(0xd1), MCP(0xd2), MCP(0xd3), MCP(0xd4), MCP(0xd5), MCP(0xd6), MCP(0xd7), MCP(0xd8), MCP(0xd9), MCP(0xda), MCP(0xdb), MCP(0xdc), MCP(0xdd), MCP(0xde), MCP(0xdf),
   MCP(0xe0), MCP(0xe1), MCP(0xe2), MCP(0xe3), MCP(0xe4), MCP(0xe5), MCP(0xe6), MCP(0xe7), MCP(0xe8), MCP(0xe9), MCP(0xea), MCP(0xeb), MCP(0xec), MCP(0xed), MCP(0xee), MCP(0xef),
   MCP(0xf0), MCP(0xf1), MCP(0xf2), MCP(0xf3), MCP(0xf4), MCP(0xf5), MCP(0xf6), MCP(0xf7), MCP(0xf8), MCP(0xf9), MCP(0xfa), MCP(0xfb), MCP(0xfc), MCP(0xfd), MCP(0xfe), MCP(0xff)
-};
-
-#define BMPIMAGEOFFSET 66
-const char bmp_header[BMPIMAGEOFFSET] PROGMEM = {
-  0x42, 0x4D, 0x36, 0x58, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x00, 0x28, 0x00,
-  0x00, 0x00, 0x40, 0x01, 0x00, 0x00, 0xF0, 0x00, 0x00, 0x00, 0x01, 0x00, 0x10, 0x00, 0x03, 0x00,
-  0x00, 0x00, 0x00, 0x58, 0x02, 0x00, 0xC4, 0x0E, 0x00, 0x00, 0xC4, 0x0E, 0x00, 0x00, 0x00, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF8, 0x00, 0x00, 0xE0, 0x07, 0x00, 0x00, 0x1F, 0x00,
-  0x00, 0x00
 };
 
 
@@ -701,8 +692,36 @@ void send_image(Stream *imgSerial) {
   imgSerial->write(0xFF);
   imgSerial->write(0xAA);
 
-  imgSerial->write((const uint8_t *)&bmp_header, sizeof(bmp_header));
+  // BUGBUG:: maybe combine with the save to SD card code
+  unsigned char bmpFileHeader[14] = { 'B', 'M', 0, 0, 0, 0, 0, 0, 0, 0, 54, 0, 0, 0 };
+  unsigned char bmpInfoHeader[40] = { 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 24, 0 };
 
+  int rowSize = 4 * ((3 * FRAME_WIDTH + 3) / 4);  // how many bytes in the row (used to create padding)
+  int fileSize = 54 + FRAME_HEIGHT * rowSize;      // headers (54 bytes) + pixel data
+
+  bmpFileHeader[2] = (unsigned char)(fileSize);
+  bmpFileHeader[3] = (unsigned char)(fileSize >> 8);
+  bmpFileHeader[4] = (unsigned char)(fileSize >> 16);
+  bmpFileHeader[5] = (unsigned char)(fileSize >> 24);
+
+  bmpInfoHeader[4] = (unsigned char)(FRAME_WIDTH);
+  bmpInfoHeader[5] = (unsigned char)(FRAME_WIDTH >> 8);
+  bmpInfoHeader[6] = (unsigned char)(FRAME_WIDTH >> 16);
+  bmpInfoHeader[7] = (unsigned char)(FRAME_WIDTH >> 24);
+  bmpInfoHeader[8] = (unsigned char)(FRAME_HEIGHT);
+  bmpInfoHeader[9] = (unsigned char)(FRAME_HEIGHT >> 8);
+  bmpInfoHeader[10] = (unsigned char)(FRAME_HEIGHT >> 16);
+  bmpInfoHeader[11] = (unsigned char)(FRAME_HEIGHT >> 24);
+
+
+  imgSerial->write(bmpFileHeader, sizeof(bmpFileHeader));  // write file header
+  imgSerial->write(bmpInfoHeader, sizeof(bmpInfoHeader));  // " info header
+
+  unsigned char bmpPad[rowSize - 3 * FRAME_WIDTH];
+  for (int i = 0; i < (int)(sizeof(bmpPad)); i++) {  // fill with 0s
+    bmpPad[i] = 0;
+  }
+  
   uint32_t idx = 0;
 #ifdef CAMERA_USES_MONO_PALETTE
   uint32_t image_idx = 0;
@@ -715,15 +734,27 @@ void send_image(Stream *imgSerial) {
       imgSerial->write((framePixel >> 8) & 0xFF);
       delayMicroseconds(8);
     }
+    imgSerial->write(bmpPad, (4 - (FRAME_WIDTH * 3) % 4) % 4);  // and padding as needed
   }
 #else
-  for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
-    idx = i * 2;
-    imgSerial->write((frameBuffer[i] >> 8) & 0xFF);
-    imgSerial->write((frameBuffer[i]) & 0xFF);
-    delayMicroseconds(8);
-  }
+  uint16_t *pfb = frameBuffer;
+  uint8_t img[3];
+  uint32_t count_y_first_buffer = sizeof(frameBuffer) / (FRAME_WIDTH * 2);
+  for (int y = FRAME_HEIGHT - 1; y >= 0; y--) {  // iterate image array
+    if (y < (int)count_y_first_buffer) pfb = &frameBuffer[y * FRAME_WIDTH];
+    for (int x = 0; x < FRAME_WIDTH; x++) {
+      //r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3
+      uint16_t pixel = HTONS(*pfb++);
+      img[2] = (pixel >> 8) & 0xf8;  // r
+      img[1] = (pixel >> 3) & 0xfc;  // g
+      img[0] = (pixel << 3);         // b
+      imgSerial->write(img, 3);
+      delayMicroseconds(8);
+      }
+      imgSerial->write(bmpPad, (4 - (FRAME_WIDTH * 3) % 4) % 4);  // and padding as needed
+     }
 #endif
+
   imgSerial->write(0xBB);
   imgSerial->write(0xCC);
 
