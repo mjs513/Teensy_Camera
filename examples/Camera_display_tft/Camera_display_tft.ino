@@ -443,6 +443,7 @@ void loop() {
 #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
   while (SerialUSB1.available()) {
     ch = SerialUSB1.read();
+    Serial.println(ch, HEX);
     if (0x30 == ch) {
       Serial.print(F("ACK CMD CAM start single shoot ... "));
       send_image(&SerialUSB1);
@@ -724,15 +725,19 @@ void send_image(Stream *imgSerial) {
   
   uint32_t idx = 0;
 #ifdef CAMERA_USES_MONO_PALETTE
-  uint32_t image_idx = 0;
-  uint32_t frame_idx = 0;
-  for (uint32_t row = 0; row < FRAME_HEIGHT; row++) {
-    for (uint32_t col = 0; col < FRAME_WIDTH; col++) {
-      frame_idx = ((FRAME_WIDTH + 4) * (row + 2)) + col + 2;
-      uint16_t framePixel = color565(frameBuffer[frame_idx], frameBuffer[frame_idx], frameBuffer[frame_idx]);
-      imgSerial->write((framePixel)&0xFF);
-      imgSerial->write((framePixel >> 8) & 0xFF);
+  uint8_t *pfb = frameBuffer;
+  uint32_t count_y_first_buffer = sizeof(frameBuffer) / FRAME_WIDTH;
+  uint8_t img[3];
+  for (int y = FRAME_HEIGHT - 1; y >= 0; y--) {  // iterate image array
+    if (y < (int)count_y_first_buffer) pfb = &frameBuffer[y * FRAME_WIDTH];
+    for (int x = 0; x < FRAME_WIDTH; x++) {
+      //r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3
+      img[2] = *pfb;  // r
+      img[1] = *pfb;  // g
+      img[0] = *pfb;  // b
+      imgSerial->write(img, 3);
       delayMicroseconds(8);
+      pfb++;
     }
     imgSerial->write(bmpPad, (4 - (FRAME_WIDTH * 3) % 4) % 4);  // and padding as needed
   }
