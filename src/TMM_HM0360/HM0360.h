@@ -141,7 +141,7 @@ public:
     NVIC_SET_PRIORITY(IRQ_GPIO6789, priority);
   }
   void setDMACompleteISRPriority(uint8_t priority) {
-    NVIC_SET_PRIORITY(dma_flexio.channel & 0xf, priority);
+    NVIC_SET_PRIORITY(_dmachannel.channel & 0xf, priority);
   }
 
   //-------------------------------------------------------
@@ -188,7 +188,7 @@ private:
   // DMA STUFF
   enum { DMABUFFER_SIZE = 1296 };  // 640x480  so 640*2*2
   static DMAChannel _dmachannel;
-  static DMASetting _dmasettings[4];
+  static DMASetting _dmasettings[6];
   static uint32_t _dmaBuffer1[DMABUFFER_SIZE];
   static uint32_t _dmaBuffer2[DMABUFFER_SIZE];
 
@@ -199,7 +199,6 @@ private:
 
   uint8_t _camera_name;
 
-  DMAChannel dma_flexio;
 
   // Added settings for configurable flexio
   FlexIOHandler *_pflex;
@@ -224,7 +223,9 @@ private:
   uint16_t _frame_row_index;              // which row
   const uint16_t _frame_ignore_cols = 0;  // how many cols to ignore per row
   uint8_t *_frame_buffer_1 = nullptr;
+  size_t  _frame_buffer_1_size = 0;
   uint8_t *_frame_buffer_2 = nullptr;
+  size_t  _frame_buffer_2_size = 0;
   uint8_t *_frame_buffer_pointer;
   uint8_t *_frame_row_buffer_pointer;  // start of the row
   uint8_t _dma_index;
@@ -232,7 +233,8 @@ private:
   enum { DMASTATE_INITIAL = 0,
          DMASTATE_RUNNING,
          DMASTATE_STOP_REQUESTED,
-         DMA_STATE_STOPPED };
+         DMA_STATE_STOPPED,
+         DMA_STATE_ONE_FRAME };
   volatile uint8_t _dma_state;
   static void dmaInterrupt();
   void processDMAInterrupt();

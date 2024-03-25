@@ -8,10 +8,10 @@
 #define USE_SDCARD
 
 //#define ARDUCAM_CAMERA_HM01B0
-//#define ARDUCAM_CAMERA_HM0360
+#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
 //#define ARDUCAM_CAMERA_OV7675
-#define ARDUCAM_CAMERA_GC2145
+//#define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
 #include "TMM_HM0360/HM0360.h"
@@ -152,9 +152,13 @@ DMAMEM uint16_t frameBuffer[640 * 240] __attribute__((aligned(32)));
 uint16_t frameBuffer2[640 * 240] __attribute__((aligned(32)));
 #else
 // split into two parts, part dmamem and part fast mememory to fit 640x480x2
-DMAMEM uint8_t frameBuffer[640 * 480] __attribute__((aligned(32)));
+//DMAMEM uint8_t frameBuffer[640 * 480] __attribute__((aligned(32)));
 // mono can fit one in each.
-uint8_t frameBuffer2[640 * 480] __attribute__((aligned(32)));
+//uint8_t frameBuffer2[640 * 480] __attribute__((aligned(32)));
+// Try putting both in main memory as half size again, to test both
+uint8_t frameBuffer[640 * 240] __attribute__((aligned(32)));
+uint8_t frameBuffer2[640 * 240] __attribute__((aligned(32)));
+
 #define CAMERA_USES_MONO_PALETTE
 //#define SCREEN_ROTATION 1
 #endif
@@ -179,8 +183,9 @@ void setup() {
 //  digitalWriteFast(0, LOW);
   while (!Serial && millis() < 5000) {}
   Serial.begin(921600);
+#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
   SerialUSB1.begin(921600);
-
+#endif
   if (CrashReport) {
     Serial.print(CrashReport);
     Serial.println("Press any key to continue");
@@ -284,7 +289,7 @@ void setup() {
   // VGA mode
   camera.begin(FRAMESIZE_QVGA, RGB565, 5, false);
 #elif defined(ARDUCAM_CAMERA_HM0360) 
-  camera.begin(FRAMESIZE_VGA, 15);
+  camera.begin(FRAMESIZE_VGA, 5);
 #else
    // 1b0 defaults to qvga 4 bit
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
@@ -725,10 +730,28 @@ void loop() {
         tft.writeRect(CENTER, CENTER, camera.width(), camera.height(), (uint16_t*)g_new_flexio_data);
         Serial.printf("T: %p\n", g_new_flexio_data);
       }
-      #else
-      tft.setOrigin(-2, -2);
-      tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, (uint8_t *)g_new_flexio_data, mono_palette);
-      tft.setOrigin(0, 0);
+      #else  // Monochrome
+      if (g_flex_dual_buffer_per_frame) {
+        int numPixels1 = min((int)(sizeof_framebuffer), numPixels);
+
+        if (g_new_flexio_data == frameBuffer) {
+          int start_x = (tft.width() - camera.width()) / 2;
+          int start_y = (tft.height() - camera.height()) / 2;
+          tft.writeRect8BPP(start_x, start_y, camera.width(), numPixels1 / camera.width(), frameBuffer, mono_palette);
+          Serial.println("1");
+
+        } else {
+          int numPixels2 = min((int)sizeof_framebuffer2, numPixels - numPixels1);
+          int start_x = (tft.width() - camera.width()) / 2;
+          int start_y = ((tft.height() - camera.height()) / 2) + (numPixels1 / camera.width());
+          tft.writeRect8BPP(start_x, start_y, camera.width(), numPixels2 / camera.width(), frameBuffer2, mono_palette);
+          Serial.println("2");
+        }
+  
+      } else {
+        tft.writeRect8BPP(0, 0, camera.width(), camera.height(), (uint8_t*)g_new_flexio_data,  mono_palette);
+        Serial.printf("T: %p\n", g_new_flexio_data);
+      }
       #endif  
       tft.updateScreenAsync();
       g_new_flexio_data = nullptr;
@@ -1106,15 +1129,20 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
 #else
   //tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBuffer, mono_palette);
   int numPixels1 = min((int)(sizeof_framebuffer), numPixels);
-  int numPixels2 = min((int)(sizeof_framebuffer), numPixels - numPixels1);
   int start_x = (tft.width() - camera.width()) / 2;
   int start_y = (tft.height() - camera.height()) / 2;
-  tft.writeRect8BPP(start_x, start_y, camera.width(), numPixels1 / camera.width(), frameBuffer, mono_palette);
+  int num_rows = numPixels1 / camera.width();
+  Serial.printf("start(%d, %d, %d, %d) cnt:%d\n", start_x, start_y, camera.width(), num_rows, numPixels1);
+  tft.writeRect8BPP(start_x, start_y, camera.width(), num_rows, frameBuffer, mono_palette);
 
-  if (numPixels2) {
+  if (numPixels1 < numPixels) {
     // now try second part
-    start_y += numPixels1 / camera.width();
-    tft.writeRect8BPP(start_x, start_y, camera.width(), numPixels2 / camera.width(), frameBuffer2, mono_palette);
+    start_y += num_rows;
+    int numPixels2 = min((int)(sizeof_framebuffer2), numPixels - numPixels1);
+    num_rows = numPixels2 / camera.width();
+
+    Serial.printf("start(%d, %d, %d, %d): cnt:%d %02x %02x %02x %02x\n", start_x, start_y, camera.width(), num_rows, numPixels2, frameBuffer2[0], frameBuffer2[1], frameBuffer2[2], frameBuffer2[3]);
+    tft.writeRect8BPP(start_x, start_y, camera.width(), num_rows, frameBuffer2, mono_palette);
   }
 #endif
 }
