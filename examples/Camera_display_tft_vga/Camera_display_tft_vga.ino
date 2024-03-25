@@ -1165,6 +1165,7 @@ void read_display_multiple_frames(bool use_frame_buffer) {
   for (;;) {
 
 #if 1
+    if (use_frame_buffer) tft.waitUpdateAsyncComplete();
     read_display_one_frame(true, false);
 #else
     camera.readFrame(frameBuffer, sizeof_framebuffer);
