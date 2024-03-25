@@ -284,15 +284,15 @@ public:
 	//normal Read mode
 	//void readFrameGPIO(void* buffer);
   bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
-
-	bool readContinuous(bool(*callback)(void *frame_buffer), void *fb1, void *fb2);
+ 
+	bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2);
 	void stopReadContinuous();
 
 	//FlexIO is default mode for the camera
 	//void readFrameFlexIO(void* buffer, bool use_dma=true);
   bool readFrameFlexIO(void *buffer, size_t cb1, void* buffer2=nullptr, size_t cb2=0);
 	void readFrameMultiBufferFlexIO(void* buffer1, size_t size1, void* buffer2, size_t size2);
-	bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
+	bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2);
 	bool stopReadFlexIO();
 
 	// Lets try a dma version.  Doing one DMA that is synchronous does not gain anything
@@ -360,7 +360,7 @@ private:
 	// DMA STUFF
 	enum {DMABUFFER_SIZE=1296};  // 640x480  so 640*2*2
 	static DMAChannel _dmachannel;
-	static DMASetting _dmasettings[8];  // maybe handle up to 800x600
+	static DMASetting _dmasettings[10];  // maybe handle up to 800x600
 	static uint32_t _dmaBuffer1[DMABUFFER_SIZE];
 	static uint32_t _dmaBuffer2[DMABUFFER_SIZE];
 
@@ -392,7 +392,9 @@ private:
 	uint16_t  _frame_row_index;  // which row
 	const uint16_t  _frame_ignore_cols = 0; // how many cols to ignore per row
 	uint8_t *_frame_buffer_1 = nullptr;
-	uint8_t *_frame_buffer_2 = nullptr;
+  size_t  _frame_buffer_1_size = 0;
+  uint8_t *_frame_buffer_2 = nullptr;
+  size_t  _frame_buffer_2_size = 0;
 	uint8_t *_frame_buffer_pointer;
 	uint8_t *_frame_row_buffer_pointer; // start of the row
 	uint8_t _dma_index;

@@ -53,7 +53,7 @@ static int16_t readout_y = 0;
 static uint16_t readout_w = ACTIVE_SENSOR_WIDTH;
 static uint16_t readout_h = ACTIVE_SENSOR_HEIGHT;
 
-static bool fov_wide = false;
+static bool fov_wide = true;
 
 #define REG_AMODE1                      (0x17)
 #define REG_AMODE1_DEF                  (0x14)
@@ -1188,11 +1188,11 @@ uint8_t GC2145::setFramesize(int w, int h) {
 
     // Limit the maximum amount of scaling allowed to keep the frame rate up.
     ratio = min(ratio, (fov_wide ? 5 : 3));
-
-    if (!(ratio % 2)) {
-        // camera outputs messed up bayer images at even ratios for some reason...
-        ratio -= 1;
-    }
+    Serial.printf("\n$$$ ratio:%u, %d %d %d %d\n", ratio, readout_w, w, readout_h, h);
+   // if (!(ratio % 2)) {
+   //     // camera outputs messed up bayer images at even ratios for some reason...
+   //     ratio -= 1;
+   // }
     
     uint16_t sub_readout_w = w * ratio;
     uint16_t sub_readout_h = h * ratio;
@@ -1819,9 +1819,9 @@ bool GC2145::readFrame(void* buffer1, size_t size1, void* buffer2, size_t size2)
 }
 
 
-bool GC2145::readContinuous(bool(*callback)(void *frame_buffer), void *fb1, void *fb2) {
+bool GC2145::readContinuous(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2) {
 
-	return startReadFlexIO(callback, fb1, fb2);
+	return startReadFlexIO(callback, fb1, cb1, fb2, cb2);
 
 }
 
@@ -2324,13 +2324,21 @@ bool GC2145::readFrameFlexIO(void* buffer1, size_t cb1, void* buffer2, size_t cb
 
 
 
-bool GC2145::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, void *fb2)
+bool GC2145::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2)
 {
 
 #ifdef FLEXIO_USE_DMA
-    if (fb1 == nullptr || fb2 == nullptr) return false;
+    const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
+    // lets handle a few cases.
+    if (fb1 == nullptr) return false;
+    if (cb1 < frame_size_bytes) {
+      if ((fb2 == nullptr) || ((cb1+cb2) < frame_size_bytes)) return false;
+    }
+
     _frame_buffer_1 = (uint8_t *)fb1;
+    _frame_buffer_1_size = cb1;
     _frame_buffer_2 = (uint8_t *)fb2;
+    _frame_buffer_2_size = cb2;
     _callback = callback;
     active_dma_camera = this;
 
@@ -2345,7 +2353,6 @@ bool GC2145::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, voi
     // Currently lets setup for only one shifter
 //    digitalWriteFast(2, HIGH);
 
-    const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
 
     _dmachannel.begin();
     _dmachannel.triggerAtHardwareEvent(_dma_source);
@@ -2353,52 +2360,69 @@ bool GC2145::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, voi
     _dmachannel.attachInterrupt(dmaInterruptFlexIO);
 
 
-    // Total length of bytes transfered
-    // do it over 2 
-    // first pass split into two
-    _dmasettings[0].source(_pflexio->SHIFTBUF[_fshifter]);
-    _dmasettings[0].destinationBuffer(p, frame_size_bytes / 2);
-    _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
+    // Two versions.  If one buffer is large enough, we will use the two buffers to 
+    // read in two frames.  If the combined in large enough for one frame, we will 
+    // setup to read one frame but still interrupt on each buffer filled completion
 
-    _dmasettings[1].source(_pflexio->SHIFTBUF[_fshifter]);
-    _dmasettings[1].destinationBuffer(&p[frame_size_bytes / 8], frame_size_bytes / 2);
-    _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[2]);
-    _dmasettings[1].interruptAtCompletion();
+    uint8_t dmas_index = 0;
+    
+    uint32_t cb_left = min(frame_size_bytes, cb1);
+    uint8_t count_dma_settings = (cb_left / (32767 * 4)) + 1;
+    uint32_t cb_per_setting = ((cb_left / count_dma_settings) + 3) & 0xfffffffc; // round up to next multiple of 4.
+    if (_debug) debug.printf("frame size: %u, cb1:%u cnt dma: %u CB per: %u\n", frame_size_bytes, cb1, count_dma_settings, cb_per_setting);
 
-    // lets preset up the dmasettings for second buffer
-    p = (uint32_t *)fb2;
-    _dmasettings[2].source(_pflexio->SHIFTBUF[_fshifter]);
-    _dmasettings[2].destinationBuffer(p, frame_size_bytes / 2);
-    _dmasettings[2].replaceSettingsOnCompletion(_dmasettings[3]);
+    for (; dmas_index < count_dma_settings; dmas_index++) {
+      _dmasettings[dmas_index].TCD->CSR = 0;
+      _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmasettings[dmas_index].destinationBuffer(p, cb_per_setting);
+      _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
+      p += (cb_per_setting / 4);
+      cb_left -= cb_per_setting;
+      if (cb_left < cb_per_setting) cb_per_setting = cb_left;
+    }
+    // Interrupt after each buffer is filled.
+    _dmasettings[dmas_index-1].interruptAtCompletion();
+    if (cb1 >= frame_size_bytes) {
+      _dmasettings[dmas_index-1].disableOnCompletion();  // full frame
+      if (fb2 && (cb2 >= frame_size_bytes)) cb_left = min(frame_size_bytes, cb2);
+    } else cb_left = frame_size_bytes - cb1;  // need second buffer to complete one frame.
 
-    _dmasettings[3].source(_pflexio->SHIFTBUF[_fshifter]);
-    _dmasettings[3].destinationBuffer(&p[frame_size_bytes / 8], frame_size_bytes / 2);
-    _dmasettings[3].replaceSettingsOnCompletion(_dmasettings[0]);
-    _dmasettings[3].interruptAtCompletion();
+    if (cb_left) {
+      count_dma_settings = (cb_left / (32767 * 4)) + 1;
+      cb_per_setting = ((cb_left / count_dma_settings) + 3) & 0xfffffffc; // round up to next multiple of 4.
+      if (_debug) debug.printf("frame size left: %u, cb2:%u cnt dma: %u CB per: %u\n", cb_left, cb2, count_dma_settings, cb_per_setting);
+      
+      p = (uint32_t *)fb2;
 
-
-    #ifdef USE_VSYNC_PIN_INT
-    // disable when we have received a full frame. 
-    _dmasettings[1].disableOnCompletion();
-    _dmasettings[3].disableOnCompletion();
-    #else
-    _dmasettings[1].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
-    _dmasettings[3].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
-    #endif
-
+      for (uint8_t i=0; i < count_dma_settings; i++, dmas_index++) {
+        _dmasettings[dmas_index].TCD->CSR = 0;
+        _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
+        _dmasettings[dmas_index].destinationBuffer(p, cb_per_setting);
+        _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
+        p += (cb_per_setting / 4);
+        cb_left -= cb_per_setting;
+        if (cb_left < cb_per_setting) cb_per_setting = cb_left;
+      }
+      _dmasettings[dmas_index-1].disableOnCompletion();
+      _dmasettings[dmas_index-1].interruptAtCompletion();
+    }  
+    dmas_index--; // lets point back to the last one
+    _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[0]);
     _dmachannel = _dmasettings[0];
-
     _dmachannel.clearComplete();
-#ifdef DEBUG_FLEXIO
 
-    dumpDMA_TCD_GC(&_dmachannel," CH: ");
-    dumpDMA_TCD_GC(&_dmasettings[0], " 0: ");
-    dumpDMA_TCD_GC(&_dmasettings[1], " 1: ");
-    dumpDMA_TCD_GC(&_dmasettings[2], " 2: ");
-    dumpDMA_TCD_GC(&_dmasettings[3], " 3: ");
+#ifdef DEBUG_FLEXIO
+    if (_debug) {
+      dumpDMA_TCD(&_dmachannel," CH: ");
+      for (uint8_t i = 0; i <= dmas_index; i++) {
+        debug.printf(" %u: ", i);
+        dumpDMA_TCD(&_dmasettings[i], nullptr);
+      }
+    }
     debug.printf("Flexio DMA: length: %d\n", frame_size_bytes);
 
 #endif
+
 
     _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
     _pflexio->SHIFTERR = _fshifter_mask;
@@ -2519,18 +2543,25 @@ void GC2145::processDMAInterruptFlexIO()
 
   }
 #endif  
-	_dmachannel.clearComplete();
+    _dmachannel.clearComplete();
   const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
-  _dma_last_completed_frame = (((uint32_t)_dmachannel.TCD->DADDR) == (uint32_t)_frame_buffer_1)? _frame_buffer_2 : _frame_buffer_1;
+  if (((uint32_t)_dmachannel.TCD->DADDR) == (uint32_t)_frame_buffer_1) {
+     _dma_last_completed_frame = _frame_buffer_2;
+    if ((uint32_t)_frame_buffer_2 >= 0x20200000u) arm_dcache_delete(_frame_buffer_2, min(_frame_buffer_2_size, frame_size_bytes));
+  } else {
+     _dma_last_completed_frame = _frame_buffer_1;
+    if ((uint32_t)_frame_buffer_1 >= 0x20200000u) arm_dcache_delete(_frame_buffer_1, min(_frame_buffer_1_size, frame_size_bytes));    
+  }
 
-	arm_dcache_delete(_dma_last_completed_frame, frame_size_bytes);
+    if (_callback) (*_callback)(_dma_last_completed_frame); // TODO: use EventResponder
+  // if we disabled the DMA, then setup to wait for vsyncpin...
+  if ((_dma_last_completed_frame == _frame_buffer_2) || (_frame_buffer_1_size >= frame_size_bytes)) {
+    _dma_active = false;
+    // start up interrupt to look for next start of interrupt.
+    _vsync_high_time = 0; // remember the time we were called
 
-	if (_callback) (*_callback)(_dma_last_completed_frame); // TODO: use EventResponder
-  _dma_active = false;
-  // start up interrupt to look for next start of interrupt.
-  _vsync_high_time = 0; // remember the time we were called
-
-  if (_dma_state == DMASTATE_RUNNING) attachInterrupt(_vsyncPin, &frameStartInterruptFlexIO, RISING);
+    if (_dma_state == DMASTATE_RUNNING) attachInterrupt(_vsyncPin, &frameStartInterruptFlexIO, RISING);
+  }
 
 	asm("DSB");
 }
@@ -2563,7 +2594,7 @@ bool GC2145::stopReadFlexIO()
 //================================================================================
 // Define our DMA structure.
 DMAChannel GC2145::_dmachannel;
-DMASetting GC2145::_dmasettings[8];
+DMASetting GC2145::_dmasettings[10];
 uint32_t GC2145::_dmaBuffer1[DMABUFFER_SIZE] __attribute__ ((used, aligned(32)));
 uint32_t GC2145::_dmaBuffer2[DMABUFFER_SIZE] __attribute__ ((used, aligned(32)));
 extern "C" void xbar_connect(unsigned int input, unsigned int output); // in pwm.c

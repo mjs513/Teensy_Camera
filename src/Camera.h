@@ -70,14 +70,14 @@ public:
   //normal Read mode
   virtual bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0) = 0;
   virtual void readFrame4BitGPIO(void *buffer) = 0;
-  virtual bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1, void *fb2) = 0;
+  virtual bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2) = 0;
   virtual void stopReadContinuous() = 0;
 
   //FlexIO is default mode for the camera
   //virtual void readFrameFlexIO(void* buffer);
   virtual bool readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0) = 0;
 
-  virtual bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2) = 0;
+  virtual bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2) = 0;
   virtual bool stopReadFlexIO() = 0;
 
   // Lets try a dma version.  Doing one DMA that is synchronous does not gain anything
@@ -171,14 +171,14 @@ public:
   bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
   void readFrame4BitGPIO(void *buffer);
 
-  bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
+  bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2);
   void stopReadContinuous();
 
   //FlexIO is default mode for the camera
   //void readFrameFlexIO(void* buffer);
   bool readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
 
-  bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
+  bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2);
   bool stopReadFlexIO();
 
   // Lets try a dma version.  Doing one DMA that is synchronous does not gain anything

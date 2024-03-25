@@ -587,7 +587,7 @@ void loop() {
       case 'F':
         {
           if (!g_continuous_flex_mode) {
-            if (camera.readContinuous(&hm0360_flexio_callback, frameBuffer, frameBuffer2)) {
+            if (camera.readContinuous(&hm0360_flexio_callback, frameBuffer, sizeof(frameBuffer), frameBuffer2, sizeof(frameBuffer2))) {
               Serial.println("* continuous mode started");
               g_flexio_capture_count = 0;
               g_flexio_redraw_count = 0;
@@ -605,7 +605,7 @@ void loop() {
       case 'V':
         {
           if (!g_continuous_flex_mode) {
-            if (camera.readContinuous(&camera_flexio_callback_video, frameBuffer, frameBuffer2)) {
+            if (camera.readContinuous(&camera_flexio_callback_video, frameBuffer, sizeof(frameBuffer), frameBuffer2, sizeof(frameBuffer2))) {
 
               Serial.println("Before Set frame complete CB");
               if (!tft.useFrameBuffer(true)) Serial.println("Failed call to useFrameBuffer");

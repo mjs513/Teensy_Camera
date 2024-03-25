@@ -144,8 +144,8 @@ void Camera::readFrame4BitGPIO(void *buffer) {
   return sensor->readFrame4BitGPIO(buffer);
 }
 
-bool Camera::readContinuous(bool (*callback)(void *frame_buffer), void *fb1, void *fb2) {
-  return sensor->readContinuous(callback, fb1, fb2);
+bool Camera::readContinuous(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2) {
+  return sensor->readContinuous(callback, fb1, cb1, fb2, cb2);
 }
 
 void Camera::stopReadContinuous() {
@@ -164,8 +164,8 @@ bool Camera::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
   return sensor->readFrameFlexIO(buffer, cb1, buffer2, cb2);
 }
 
-bool Camera::startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2) {
-  return sensor->startReadFlexIO(callback, fb1, fb1);
+bool Camera::startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2) {
+  return sensor->startReadFlexIO(callback, fb1, cb1, fb1, cb2);
 }
 
 bool Camera::stopReadFlexIO() {
