@@ -10,8 +10,8 @@
 //#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
-#define ARDUCAM_CAMERA_OV7675
-//#define ARDUCAM_CAMERA_GC2145
+//#define ARDUCAM_CAMERA_OV7675
+#define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
 #include "TMM_HM0360/HM0360.h"
@@ -166,6 +166,7 @@ const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
 bool g_continuous_flex_mode = false;
 bool g_flex_dual_buffer_per_frame = false;
 void *volatile g_new_flexio_data = nullptr;
+void *volatile g_last_flexio_data = nullptr;
 uint32_t g_flexio_capture_count = 0;
 uint32_t g_flexio_redraw_count = 0;
 elapsedMillis g_flexio_runtime;
@@ -281,7 +282,7 @@ void setup() {
 
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
   // VGA mode
-  camera.begin(FRAMESIZE_VGA, RGB565, 5, false);
+  camera.begin(FRAMESIZE_QVGA, RGB565, 5, false);
 #elif defined(ARDUCAM_CAMERA_HM0360) 
   camera.begin(FRAMESIZE_VGA, 15);
 #else
@@ -401,6 +402,7 @@ void setup() {
 
 bool hm0360_flexio_callback(void *pfb) {
   //Serial.println("Flexio callback");
+//  Serial.printf("FCB:%p\n", pfb);
   g_new_flexio_data = pfb;
   return true;
 }
@@ -420,17 +422,28 @@ volatile uint16_t *pfb_last_frame_returned = nullptr;
 bool camera_flexio_callback_video(void *pfb) {
   pfb_last_frame_returned = (uint16_t *)pfb;
 #ifdef UPDATE_ON_CAMERA_FRAMES
-  if ((uint32_t)pfb_last_frame_returned >= 0x20200000u)
-    arm_dcache_delete((void *)pfb_last_frame_returned, FRAME_WIDTH * FRAME_HEIGHT * 2);
-  int numPixels = camera.width() * camera.height();
+  int numPixels = FRAME_WIDTH * FRAME_HEIGHT;
+  if (g_flex_dual_buffer_per_frame) {
+    int numPixels1 = min((int)(sizeof_framebuffer / 2), numPixels);
 
-  for (int i = 0; i < numPixels; i++) pfb_last_frame_returned[i] = HTONS(pfb_last_frame_returned[i]);
+    if (g_new_flexio_data == frameBuffer) {
+      for (int i = 0; i < numPixels1; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
+      int start_x = (tft.width() - camera.width()) / 2;
+      int start_y = (tft.height() - camera.height()) / 2;
+      tft.writeRect(start_x, start_y, camera.width(), numPixels1 / camera.width(), frameBuffer);
 
-  tft.writeRect(0, 0, FRAME_WIDTH, FRAME_HEIGHT, (uint16_t *)pfb_last_frame_returned);
-  pfb_last_frame_returned = nullptr;
-  tft.setOrigin(0, 0);
-  uint16_t *pframebuf = tft.getFrameBuffer();
-  if ((uint32_t)pframebuf >= 0x20200000u) arm_dcache_flush(pframebuf, FRAME_WIDTH * FRAME_HEIGHT);
+    } else {
+      int numPixels2 = min((int)(sizeof_framebuffer2 / 2), numPixels - numPixels1);
+      for (int i = 0; i < numPixels2; i++) frameBuffer2[i] = HTONS(frameBuffer2[i]);
+      int start_x = (tft.width() - camera.width()) / 2;
+      int start_y = ((tft.height() - camera.height()) / 2) + (numPixels1 / camera.width());
+      tft.writeRect(start_x, start_y, camera.width(), numPixels2 / camera.width(), frameBuffer2);
+    }
+
+  } else {
+    for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
+    tft.writeRect(CENTER, CENTER, camera.width(), camera.height(), (uint16_t*)g_new_flexio_data);
+  }
 #endif
   //Serial.print("#");
   return true;
@@ -609,6 +622,7 @@ void loop() {
               g_flexio_capture_count = 0;
               g_flexio_redraw_count = 0;
               g_continuous_flex_mode = true;
+              g_last_flexio_data = nullptr;
             } else {
               Serial.println("* error, could not start continuous mode");
             }
@@ -622,17 +636,21 @@ void loop() {
       case 'V':
         {
           if (!g_continuous_flex_mode) {
-            if (camera.readContinuous(&camera_flexio_callback_video, frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2)) {
+            if (!tft.useFrameBuffer(true)) {
+              Serial.println("Failed call to useFrameBuffer");
+            } else if (camera.readContinuous(&camera_flexio_callback_video, frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2)) {
 
               Serial.println("Before Set frame complete CB");
-              if (!tft.useFrameBuffer(true)) Serial.println("Failed call to useFrameBuffer");
               tft.setFrameCompleteCB(&frame_complete_cb, false);
               Serial.println("Before UPdateScreen Async");
-              tft.updateScreenAsync(true);
+              if (!tft.updateScreenAsync(true)) {
+                Serial.println("* error, could not start Update Screen Async\n");
+              }
               Serial.println("* continuous mode (Video) started");
               g_flexio_capture_count = 0;
               g_flexio_redraw_count = 0;
               g_continuous_flex_mode = 2;
+              g_flex_dual_buffer_per_frame = sizeof_framebuffer < (FRAME_WIDTH * FRAME_HEIGHT * sizeof(frameBuffer[0]));
             } else {
               Serial.println("* error, could not start continuous mode");
             }
@@ -676,9 +694,11 @@ void loop() {
 
 
   if (g_continuous_flex_mode) {
-    if (g_new_flexio_data) {
+    // try to make sure we alternate.
+    if (g_new_flexio_data && (!g_flex_dual_buffer_per_frame || (g_new_flexio_data != g_last_flexio_data))) {
       //Serial.println("new FlexIO data");
       int numPixels = camera.width() * camera.height();
+      g_last_flexio_data = g_new_flexio_data;
 
       #ifndef CAMERA_USES_MONO_PALETTE
       if (g_flex_dual_buffer_per_frame) {
@@ -689,6 +709,7 @@ void loop() {
           int start_x = (tft.width() - camera.width()) / 2;
           int start_y = (tft.height() - camera.height()) / 2;
           tft.writeRect(start_x, start_y, camera.width(), numPixels1 / camera.width(), frameBuffer);
+          Serial.println("1");
 
         } else {
           int numPixels2 = min((int)(sizeof_framebuffer2 / 2), numPixels - numPixels1);
@@ -696,11 +717,13 @@ void loop() {
           int start_x = (tft.width() - camera.width()) / 2;
           int start_y = ((tft.height() - camera.height()) / 2) + (numPixels1 / camera.width());
           tft.writeRect(start_x, start_y, camera.width(), numPixels2 / camera.width(), frameBuffer2);
+          Serial.println("2");
         }
   
       } else {
         for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
         tft.writeRect(CENTER, CENTER, camera.width(), camera.height(), (uint16_t*)g_new_flexio_data);
+        Serial.printf("T: %p\n", g_new_flexio_data);
       }
       #else
       tft.setOrigin(-2, -2);
