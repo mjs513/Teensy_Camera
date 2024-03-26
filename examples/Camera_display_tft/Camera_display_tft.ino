@@ -673,9 +673,16 @@ void loop() {
   if (g_continuous_flex_mode) {
     if (g_new_flexio_data) {
       //Serial.println("new FlexIO data");
+#ifndef CAMERA_USES_MONO_PALETTE
+      uint16_t *pframe = (uint16_t*)g_new_flexio_data;
+      for (int i = 0; i < (FRAME_WIDTH * FRAME_HEIGHT); i++) pframe[i] = HTONS(pframe[i]);
+      tft.writeRect(CENTER, CENTER, camera.width(), camera.height(), pframe);
+
+#else
       tft.setOrigin(-2, -2);
       tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, (uint8_t *)g_new_flexio_data, mono_palette);
       tft.setOrigin(0, 0);
+#endif
       tft.updateScreenAsync();
       g_new_flexio_data = nullptr;
       g_flexio_redraw_count++;
