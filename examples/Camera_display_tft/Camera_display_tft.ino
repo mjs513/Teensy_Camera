@@ -950,7 +950,11 @@ void read_display_multiple_frames(bool use_frame_buffer) {
 //byte swap
 //for (int i = 0; i < numPixels; i++) frameBuffer[i] = (frameBuffer[i] >> 8) | (((frameBuffer[i] & 0xff) << 8));
 #ifdef CAMERA_USES_MONO_PALETTE
+    Serial.printf("NP:%d W:%u H:%u %p\n", numPixels, FRAME_WIDTH, FRAME_HEIGHT, frameBuffer);
+    if (use_frame_buffer) tft.waitUpdateAsyncComplete();
+    tft.setOrigin(-2, -2);
     tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBuffer, mono_palette);
+    tft.setOrigin(0, 0);
 #else
     for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
 
