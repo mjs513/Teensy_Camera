@@ -8,9 +8,9 @@
 //#define USE_SDCARD
 
 //#define ARDUCAM_CAMERA_HM01B0
-#define ARDUCAM_CAMERA_HM0360
+//#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
-//#define ARDUCAM_CAMERA_OV7675
+#define ARDUCAM_CAMERA_OV7675
 //#define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
@@ -18,21 +18,27 @@
 HM0360 himax;
 Camera camera(himax);
 #define CameraID 0x0360
+#define MIRROR_FLIP_CAMERA
+
 #elif defined(ARDUCAM_CAMERA_HM01B0)
 #include "TMM_HM01B0/HM01B0.h"
 HM01B0 himax;
 Camera camera(himax);
 #define CameraID 0x01B0
+#define MIRROR_FLIP_CAMERA
+
 #elif defined(ARDUCAM_CAMERA_OV7670)
 #include "TMM_OV767X/OV767X.h"
 OV767X omni;
 Camera camera(omni);
 #define CameraID OV7670
+
 #elif defined(ARDUCAM_CAMERA_OV7675)
 #include "TMM_OV767X/OV767X.h"
 OV767X omni;
 Camera camera(omni);
 #define CameraID OV7675
+
 #elif defined(ARDUCAM_CAMERA_GC2145)
 #include "TMM_GC2145/GC2145.h"
 GC2145 galaxycore;
@@ -265,6 +271,12 @@ uint8_t status = 1;
   //HM0360(8pin) 15/30/60/120 works :)
   status = camera.begin(FRAMESIZE_QVGA, 15);
 #endif
+
+#ifdef MIRROR_FLIP_CAMERA
+  camera.setHmirror(true);
+  camera.setVflip(true);
+#endif
+
 
 Serial.printf("Begin status: %d\n", status);
 if(!status) {
