@@ -9,8 +9,8 @@
 
 //#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
-//#define ARDUCAM_CAMERA_OV7670
-#define ARDUCAM_CAMERA_OV7675
+#define ARDUCAM_CAMERA_OV7670
+//#define ARDUCAM_CAMERA_OV7675
 //#define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
@@ -211,7 +211,7 @@ void setup() {
 //    uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3,
 //    uint8_t g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
 #ifdef USE_MMOD_ATP_ADAPTER
-  pinMode(30, INPUT_PULLUP);
+  pinMode(30, INPUT);
   pinMode(31, INPUT_PULLUP);
 
   if ((_hmConfig == 0) || (_hmConfig == 2)) {
@@ -634,6 +634,7 @@ void loop() {
           } else {
             camera.stopReadContinuous();
             tft.endUpdateAsync();
+            tft.useFrameBuffer(false);
             g_continuous_flex_mode = 0;
             Serial.println("* continuous mode stopped");
           }
