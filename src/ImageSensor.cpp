@@ -353,7 +353,6 @@ void ImageSensor::processDMAInterruptFlexIO()
 bool ImageSensor::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2)
 {
 
-#ifdef FLEXIO_USE_DMA
     const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
     // lets handle a few cases.
     if (fb1 == nullptr) return false;
@@ -458,37 +457,14 @@ bool ImageSensor::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1
 
     _dma_state = DMASTATE_RUNNING;
 
-#ifdef USE_VSYNC_PIN_INT
     // Lets use interrupt on interrupt on VSYNC pin to start the capture of a frame
     _dma_active = false;
-    _vsync_high_time = 0;
     NVIC_SET_PRIORITY(IRQ_GPIO6789, 102);
     //NVIC_SET_PRIORITY(dma_flexio.channel & 0xf, 102);
     attachInterrupt(_vsyncPin, &frameStartInterruptFlexIO, RISING);
     _pflexio->SHIFTSDEN = _fshifter_mask;
-#else    
-    // wait for VSYNC to go high and then low with a sort of glitch filter
-    elapsedMillis emWaitSOF;
-    elapsedMicros emGlitch;
-    for (;;) {
-      if (emWaitSOF > 2000) {
-        if(_debug) debug.println("Timeout waiting for Start of Frame");
-        return false;
-      }
-      while ((*_vsyncPort & _vsyncMask) == 0);
-      emGlitch = 0;
-      while ((*_vsyncPort & _vsyncMask) != 0);
-      if (emGlitch > 2) break;
-    }
-
-    _pflexio->SHIFTSDEN = _fshifter_mask;
-    _dmachannel.enable();
-#endif    
 
     return true;
-#else
-    return false;
-#endif
 }
 
 
