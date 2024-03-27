@@ -212,17 +212,12 @@ class GC2145 : public ImageSensor
 public:
   GC2145();
 
-  void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, uint8_t en_pin,
-                     uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4, uint8_t g5, uint8_t g6, uint8_t g7, TwoWire &wire);
-
   //bool begin(framesize_t resolution, int format, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
   bool begin_omnivision(framesize_t resolution = FRAMESIZE_QVGA, pixformat_t format = RGB565, int fps = 30, int camera_name = OV7670, bool use_gpio = false); 
   void end();
   uint16_t getModelid();
 
   // must be called after Camera.begin():
-  int16_t width();
-  int16_t height();
   int bitsPerPixel() const;
   int bytesPerPixel() const;
   
@@ -236,8 +231,6 @@ public:
   int setAutoExposure(int enable, int exposure_us);
   int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db);
   void printRegisters(bool only_ones_set = true);
-  void debug(bool debug_on) {_debug = debug_on;}
-  bool debug() {return _debug;}
   void showRegisters();
   int setColorbar(int enable);
   
@@ -271,23 +264,15 @@ public:
   bool begin(framesize_t resolution, int format, bool use_gpio = false){return 0;}
 /********************************************************************************************/
 	//-------------------------------------------------------
-	//Generic Read Frame base on _hw_config
-  bool readFrame(void *buffer1, size_t cb1, void* buffer2=nullptr, size_t cb2=0); // give default one for now
 
 	// quick and dirty attempt to read in images larger than can fit into one region of memory...
 //	void readFrameMultiBuffer(void* buffer1, size_t size1, void* buffer2, size_t size2);
-
-  void useDMA(bool f) {_fuse_dma = f;}
-  bool useDMA() {return _fuse_dma; }
 
 	
 	//normal Read mode
 	//void readFrameGPIO(void* buffer);
   bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
  
-	bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2);
-	void stopReadContinuous();
-
 	//FlexIO is default mode for the camera
 	//void readFrameFlexIO(void* buffer, bool use_dma=true);
   bool readFrameFlexIO(void *buffer, size_t cb1, void* buffer2=nullptr, size_t cb2=0);
@@ -326,21 +311,6 @@ private:
   int setWindow(uint16_t reg, uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 
 private:
-    int _vsyncPin;
-    int _hrefPin;
-    int _pclkPin;
-    int _xclkPin;
-    int _rst;
-    int _dPins[8];
-
-    bool _use_gpio = false;
-    bool _debug = true;
-    bool _fuse_dma = true;
-	  TwoWire *_wire;
-
-    int _width;
-    int _height;
-    int _bytesPerPixel;
     bool _grayscale;
     
     void* _GC2145;

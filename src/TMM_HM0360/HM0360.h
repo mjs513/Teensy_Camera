@@ -55,15 +55,10 @@ public:
 
   HM0360();
 
-  void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, uint8_t en_pin,
-               uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3,
-               uint8_t g4 = 0xff, uint8_t g5 = 0xff, uint8_t g6 = 0xff, uint8_t g7 = 0xff, TwoWire &wire = Wire);
   bool begin(framesize_t framesize = FRAMESIZE_QVGA, int framerate = 30, bool use_gpio = false);
   void end();
   int reset();
   void showRegisters(void);
-  void debug(bool debug_on) {_debug = debug_on;}
-  bool debug() {return _debug;}
   int setPixformat(pixformat_t pfmt);
   uint8_t setFramesize(framesize_t framesize);
   int setFramerate(int framerate);
@@ -100,18 +95,9 @@ public:
   int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db) { return 0;};
 
   //-------------------------------------------------------
-  //Generic Read Frame base on _hw_config
-  bool readFrame(void *buffer1, size_t cb1, void *buffer2=nullptr, size_t cb2=0);
-
-  void useDMA(bool f) {_fuse_dma = f;}
-  bool useDMA() {return _fuse_dma; }
-
-
   //normal Read mode
   bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
   void readFrame4BitGPIO(void *buffer);
-  bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2);
-  void stopReadContinuous();
 
   //FlexIO is default mode for the camera
   bool readFrameFlexIO(void *buffer, size_t cb1, void* buffer2=nullptr, size_t cb2=0);
@@ -145,13 +131,6 @@ public:
   }
 
   //-------------------------------------------------------
-  uint16_t _width, _height;  //width, height
-  int16_t width(void) {
-    return _width;
-  }
-  int16_t height(void) {
-    return _height;
-  }
   int16_t mode(void) {
     return _hw_config;
   }
@@ -182,8 +161,6 @@ private:
 
   uint32_t XCLK_FREQUENCY = 6000000;
 
-  bool _use_gpio = false;
-
 
   // DMA STUFF
   enum { DMABUFFER_SIZE = 1296 };  // 640x480  so 640*2*2
@@ -207,8 +184,6 @@ private:
   uint8_t _fshifter_mask;
   uint8_t _ftimer;
   uint8_t _dma_source;
-  bool _debug = true;
-  bool _fuse_dma = true;
 
 #if defined(ARDUINO_TEENSY_MICROMOD)
   uint32_t _save_IOMUXC_GPR_GPR27;

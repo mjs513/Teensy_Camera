@@ -541,34 +541,6 @@ const uint16_t Arducam_hm01b0_324x244[][2]  = {
 
 HM01B0::HM01B0() {}
 
-void HM01B0::setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, uint8_t en_pin,
-                     uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4, uint8_t g5, uint8_t g6, uint8_t g7, TwoWire &wire) {
-
-  _wire = &wire;
-
-  MCLK_PIN = mclk_pin;
-  PCLK_PIN = pclk_pin;
-  VSYNC_PIN = vsync_pin;
-  HSYNC_PIN = hsync_pin;
-  EN_PIN = en_pin,
-
-  G0 = g0;
-  G1 = g1;
-  G2 = g2;
-  G3 = g3;
-  G4 = g4;
-  G5 = g5;
-  G6 = g6;
-  G7 = g7;
-
-  if (g4 == 0xff) {
-    _hw_config = TEENSY_MICROMOD_FLEXIO_4BIT;
-  } else {
-    _hw_config = TEENSY_MICROMOD_FLEXIO_8BIT;
-  }
-}
-
-
 int HM01B0::reset()
 {
     // Reset sensor.
@@ -645,7 +617,7 @@ uint8_t HM01B0::setFramesize(framesize_t new_framesize)
     //uint16_t w = resolution[framesize][0];
     //uint16_t h = resolution[framesize][1];
 	framesize = new_framesize;
-
+    _bytesPerPixel = 1;
     switch (framesize) {
         case FRAMESIZE_320X320:
 			_width = 320; _height = 320;
@@ -1111,53 +1083,53 @@ bool HM01B0::begin(framesize_t framesize, int framerate, bool use_gpio)
 
     _wire->begin();
 
-	pinMode(VSYNC_PIN, INPUT_PULLDOWN); // VSYNC Pin
-	pinMode(PCLK_PIN, INPUT_PULLDOWN);  //PCLK
-	pinMode(HSYNC_PIN, INPUT_PULLDOWN);  //HSYNC
-	//pinMode(MCLK_PIN, OUTPUT);
+	pinMode(_vsyncPin, INPUT_PULLDOWN); // VSYNC Pin
+	pinMode(_pclkPin, INPUT_PULLDOWN);  //PCLK
+	pinMode(_hrefPin, INPUT_PULLDOWN);  //HSYNC
+	//pinMode(_xclkPin, OUTPUT);
 	
 	/*Thanks to @luni for how to read 8bit port	\
 	 * https://forum.pjrc.com/threads/66771-MicroMod-Beta-Testing?p=275567&viewfull=1#post275567
 	 * This interesting too: https://forum.pjrc.com/threads/57698-Parallel-IO-is-it-possible?p=216501&viewfull=1#post216501
 	*/
-	if(G4 == 0xff) {
-		for (uint8_t pin : {G0, G1, G2, G3})
+	if(_dPins[4] == 0xff) {
+		for (uint8_t pin : {_dPins[0], _dPins[1], _dPins[2], _dPins[3]})
 		{
 			pinMode(pin, INPUT_PULLUP);
 		}
 	} else {
-		for (uint8_t pin : {G0, G1, G2, G3, G4, G5, G6, G7})
+		for (uint8_t pin : {_dPins[0], _dPins[1], _dPins[2], _dPins[3], _dPins[4], _dPins[5], _dPins[6], _dPins[7]})
 		{
 			pinMode(pin, INPUT_PULLUP);
 		}
 	}
 	
 #ifdef DEBUG_CAMERA
-  debug.printf("  VS=%d, HR=%d, PC=%d XC=%d\n", VSYNC_PIN, HSYNC_PIN, PCLK_PIN, MCLK_PIN);
-  debug.printf("  G0 = %d\n", G0);
-  debug.printf("  G1 = %d\n", G1);
-  debug.printf("  G2 = %d\n", G2);
-  debug.printf("  G3 = %d\n", G3);
-  if(G4 != 0xFF){
-    debug.printf("  G4 = %d\n", G4);
-    debug.printf("  G5 = %d\n", G5);
-    debug.printf("  G6 = %d\n", G6);
-    debug.printf("  G7 = %d\n", G7);
+  debug.printf("  VS=%d, HR=%d, PC=%d XC=%d\n", _vsyncPin, _hrefPin, _pclkPin, _xclkPin);
+  debug.printf("  _dPins[0] = %d\n", _dPins[0]);
+  debug.printf("  _dPins[1] = %d\n", _dPins[1]);
+  debug.printf("  _dPins[2] = %d\n", _dPins[2]);
+  debug.printf("  _dPins[3] = %d\n", _dPins[3]);
+  if(_dPins[4] != 0xFF){
+    debug.printf("  _dPins[4] = %d\n", _dPins[4]);
+    debug.printf("  _dPins[5] = %d\n", _dPins[5]);
+    debug.printf("  _dPins[6] = %d\n", _dPins[6]);
+    debug.printf("  _dPins[7] = %d\n", _dPins[7]);
   }
 #endif
     
-	_vsyncMask = digitalPinToBitMask(VSYNC_PIN);
-    _hrefMask = digitalPinToBitMask(HSYNC_PIN);
-    _pclkMask = digitalPinToBitMask(PCLK_PIN);
+	_vsyncMask = digitalPinToBitMask(_vsyncPin);
+    _hrefMask = digitalPinToBitMask(_hrefPin);
+    _pclkMask = digitalPinToBitMask(_pclkPin);
 
-    _vsyncPort = portInputRegister(digitalPinToPort(VSYNC_PIN));
-    _hrefPort = portInputRegister(digitalPinToPort(HSYNC_PIN));
-    _pclkPort = portInputRegister(digitalPinToPort(PCLK_PIN));
+    _vsyncPort = portInputRegister(digitalPinToPort(_vsyncPin));
+    _hrefPort = portInputRegister(digitalPinToPort(_hrefPin));
+    _pclkPort = portInputRegister(digitalPinToPort(_pclkPin));
 	
 	// turn on power to camera (1.8V - might be an issue?)
-	if(EN_PIN < 255) {
-		pinMode(EN_PIN, OUTPUT);
-		digitalWrite(EN_PIN, HIGH);
+	if(_rst < 255) {
+		pinMode(_rst, OUTPUT);
+		digitalWrite(_rst, HIGH);
 	}
 	delay(10);
 
@@ -1189,7 +1161,7 @@ void HM01B0::end()
 {
   endXClk();
 
-  pinMode(MCLK_PIN, INPUT);
+  pinMode(_xclkPin, INPUT);
 
   Wire.end();
 
@@ -1198,8 +1170,8 @@ void HM01B0::end()
 void HM01B0::beginXClk()
 {
   // Generates MCLK clock
-	analogWriteFrequency(MCLK_PIN, OMV_XCLK_FREQUENCY);
-	analogWrite(MCLK_PIN, 128);
+	analogWriteFrequency(_xclkPin, OMV_XCLK_FREQUENCY);
+	analogWrite(_xclkPin, 128);
 	delay(100);
 }
 
@@ -1210,35 +1182,6 @@ void HM01B0::endXClk()
 
 
 #define FLEXIO_USE_DMA
-
-bool HM01B0::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
-    if(!_use_gpio) {
-        return readFrameFlexIO(buffer1, cb1, buffer2, cb2);
-    } else {
-        if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT) {
-            readFrame4BitGPIO(buffer1);
-            return true;
-        } else {
-            return readFrameGPIO(buffer1, cb1, buffer2, cb2);
-        }
-    }
-
-}
-
-
-
-bool HM01B0::readContinuous(bool(*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2) {
-	//setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
-
-	return startReadFlexIO(callback, fb1, cb1, fb2, cb2);
-
-}
-
-void HM01B0::stopReadContinuous() {
-	
-  stopReadFlexIO();
-
-}
 
 
 bool HM01B0::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
@@ -1257,7 +1200,7 @@ bool HM01B0::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 #endif
 
   // Falling edge indicates start of frame
-  //pinMode(PCLK_PIN, INPUT); // make sure back to input pin...
+  //pinMode(_pclkPin, INPUT); // make sure back to input pin...
   // lets add our own glitch filter.  Say it must be hig for at least 100us
   elapsedMicros emHigh;
   do {
@@ -1325,7 +1268,7 @@ void HM01B0::readFrame4BitGPIO(void* buffer)
   #endif
 
   // Falling edge indicates start of frame
-  //pinMode(PCLK_PIN, INPUT); // make sure back to input pin...
+  //pinMode(_pclkPin, INPUT); // make sure back to input pin...
   // lets add our own glitch filter.  Say it must be hig for at least 100us
   elapsedMicros emHigh;
   do {
@@ -1376,48 +1319,48 @@ bool HM01B0::flexio_configure()
 
     // BUGBUG - starting off not going to worry about maybe first pin I choos is on multipl Flex IO controllers (yet)
     uint8_t tpclk_pin; 
-    _pflex = FlexIOHandler::mapIOPinToFlexIOHandler(PCLK_PIN, tpclk_pin);
+    _pflex = FlexIOHandler::mapIOPinToFlexIOHandler(_pclkPin, tpclk_pin);
     if (!_pflex) {
-        debug.printf("HM01B0 PCLK(%u) is not a valid Flex IO pin\n", PCLK_PIN);
+        debug.printf("HM01B0 PCLK(%u) is not a valid Flex IO pin\n", _pclkPin);
         return false;
     }
     _pflexio = &(_pflex->port());
 
     // Quick and dirty:
-    uint8_t thsync_pin = _pflex->mapIOPinToFlexPin(HSYNC_PIN);
-    uint8_t tg0 = _pflex->mapIOPinToFlexPin(G0);
-    uint8_t tg1 = _pflex->mapIOPinToFlexPin(G1);
-    uint8_t tg2 = _pflex->mapIOPinToFlexPin(G2);
-    uint8_t tg3 = _pflex->mapIOPinToFlexPin(G3);
+    uint8_t thsync_pin = _pflex->mapIOPinToFlexPin(_hrefPin);
+    uint8_t tg0 = _pflex->mapIOPinToFlexPin(_dPins[0]);
+    uint8_t tg1 = _pflex->mapIOPinToFlexPin(_dPins[1]);
+    uint8_t tg2 = _pflex->mapIOPinToFlexPin(_dPins[2]);
+    uint8_t tg3 = _pflex->mapIOPinToFlexPin(_dPins[3]);
 
     // make sure the minimum here is valid: 
     if ((thsync_pin == 0xff) || (tg0 == 0xff) || (tg1 == 0xff) || (tg2 == 0xff) || (tg3 == 0xff)) {
         #ifdef DEBUG_FLEXIO
         debug.printf("HM01B0 Some pins did not map to valid Flex IO pin\n");
-        debug.printf("    HSYNC(%u %u) G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)", 
-            HSYNC_PIN, thsync_pin, G0, tg0, G1, tg1, G2, tg2, G3, tg3 );
+        debug.printf("    HSYNC(%u %u) _dPins[0](%u %u) _dPins[1](%u %u) _dPins[2](%u %u) _dPins[3](%u %u)", 
+            _hrefPin, thsync_pin, _dPins[0], tg0, _dPins[1], tg1, _dPins[2], tg2, _dPins[3], tg3 );
         #endif
         return false;
     } 
     // Verify that the G numbers are consecutive... Should use arrays!
     if ((tg1 != (tg0+1)) || (tg2 != (tg0+2)) || (tg3 != (tg0+3))) {
         #ifdef DEBUG_FLEXIO
-        debug.printf("HM01B0 Flex IO pins G0-G3 are not consective\n");
-        debug.printf("    G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)", 
-            G0, tg0, G1, tg1, G2, tg2, G3, tg3 );
+        debug.printf("HM01B0 Flex IO pins _dPins[0]-_dPins[3] are not consective\n");
+        debug.printf("    _dPins[0](%u %u) _dPins[1](%u %u) _dPins[2](%u %u) _dPins[3](%u %u)", 
+            _dPins[0], tg0, _dPins[1], tg1, _dPins[2], tg2, _dPins[3], tg3 );
         #endif
         return false;
     }
-    if (G4 != 0xff) {
-        uint8_t tg4 = _pflex->mapIOPinToFlexPin(G4);
-        uint8_t tg5 = _pflex->mapIOPinToFlexPin(G5);
-        uint8_t tg6 = _pflex->mapIOPinToFlexPin(G6);
-        uint8_t tg7 = _pflex->mapIOPinToFlexPin(G7);
+    if (_dPins[4] != 0xff) {
+        uint8_t tg4 = _pflex->mapIOPinToFlexPin(_dPins[4]);
+        uint8_t tg5 = _pflex->mapIOPinToFlexPin(_dPins[5]);
+        uint8_t tg6 = _pflex->mapIOPinToFlexPin(_dPins[6]);
+        uint8_t tg7 = _pflex->mapIOPinToFlexPin(_dPins[7]);
         if ((tg4 != (tg0+4)) || (tg5 != (tg0+5)) || (tg6 != (tg0+6)) || (tg7 != (tg0+7))) {
             #ifdef DEBUG_FLEXIO
-            debug.printf("HM01B0 Flex IO pins G4-G7 are not consective with G0-3\n");
-            debug.printf("    G0(%u %u) G4(%u %u) G5(%u %u) G6(%u %u) G7(%u %u)", 
-                G0, tg0, G4, tg4, G5, tg5, G6, tg6, G7, tg7 );
+            debug.printf("HM01B0 Flex IO pins _dPins[4]-_dPins[7] are not consective with _dPins[0]-3\n");
+            debug.printf("    _dPins[0](%u %u) _dPins[4](%u %u) _dPins[5](%u %u) _dPins[6](%u %u) _dPins[7](%u %u)", 
+                _dPins[0], tg0, _dPins[4], tg4, _dPins[5], tg5, _dPins[6], tg6, _dPins[7], tg7 );
             #endif
             return false;
         }
@@ -1446,17 +1389,17 @@ bool HM01B0::flexio_configure()
         return false;
     }
 
-    _pflex->setIOPinToFlexMode(HSYNC_PIN);
-    _pflex->setIOPinToFlexMode(PCLK_PIN);
-    _pflex->setIOPinToFlexMode(G0);
-    _pflex->setIOPinToFlexMode(G1);
-    _pflex->setIOPinToFlexMode(G2);
-    _pflex->setIOPinToFlexMode(G3);
-    if (G4 != 0xff) {
-        _pflex->setIOPinToFlexMode(G4);
-        _pflex->setIOPinToFlexMode(G5);
-        _pflex->setIOPinToFlexMode(G6);
-        _pflex->setIOPinToFlexMode(G7);
+    _pflex->setIOPinToFlexMode(_hrefPin);
+    _pflex->setIOPinToFlexMode(_pclkPin);
+    _pflex->setIOPinToFlexMode(_dPins[0]);
+    _pflex->setIOPinToFlexMode(_dPins[1]);
+    _pflex->setIOPinToFlexMode(_dPins[2]);
+    _pflex->setIOPinToFlexMode(_dPins[3]);
+    if (_dPins[4] != 0xff) {
+        _pflex->setIOPinToFlexMode(_dPins[4]);
+        _pflex->setIOPinToFlexMode(_dPins[5]);
+        _pflex->setIOPinToFlexMode(_dPins[6]);
+        _pflex->setIOPinToFlexMode(_dPins[7]);
     }
 
 
@@ -1626,24 +1569,6 @@ bool HM01B0::flexio_configure()
 return true;
 }
 
-// Overkill since this is only q QVGA device...
-static void dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title=nullptr)
-{
-  if (psz_title)
-    debug.print(psz_title);
-  debug.printf("%x %x: ", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
-
-  debug.printf(
-      "SA:%x SO:%d AT:%x (SM:%x SS:%x DM:%x DS:%x) NB:%x SL:%d DA:%x DO: %d CI:%x DL:%x CS:%x BI:%x\n",
-      (uint32_t)dmabc->TCD->SADDR, dmabc->TCD->SOFF, dmabc->TCD->ATTR,
-      (dmabc->TCD->ATTR >> 11) & 0x1f, (dmabc->TCD->ATTR >> 8) & 0x7,
-      (dmabc->TCD->ATTR >> 3) & 0x1f, (dmabc->TCD->ATTR >> 0) & 0x7,
-      dmabc->TCD->NBYTES, dmabc->TCD->SLAST, (uint32_t)dmabc->TCD->DADDR,
-      dmabc->TCD->DOFF, dmabc->TCD->CITER, dmabc->TCD->DLASTSGA,
-      dmabc->TCD->CSR, dmabc->TCD->BITER);
-}
-
-
 
 
 bool HM01B0::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2) {
@@ -1679,7 +1604,7 @@ bool HM01B0::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2
     uint32_t count_items_left_in_buffer = (uint32_t)cb1 / 4;
     if (_debug) debug.printf("\tleft:%u in_buffer:%u\n", count_items_left, count_items_left_in_buffer);
 
-    if (G4 != 0xff) {
+    if (_dPins[4] != 0xff) {
       while (count_items_left) {
         while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
           // wait for FlexIO shifter data
@@ -1888,7 +1813,7 @@ bool HM01B0::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, siz
     while ((*_vsyncPort & _vsyncMask) != 0);
     //NVIC_SET_PRIORITY(IRQ_GPIO6789, 102);
     //NVIC_SET_PRIORITY(dma_flexio.channel & 0xf, 102);
-    attachInterrupt(VSYNC_PIN, &frameStartInterruptFlexIO, RISING);
+    attachInterrupt(_vsyncPin, &frameStartInterruptFlexIO, RISING);
     return true;
 #else
     return false;
@@ -1942,7 +1867,7 @@ void HM01B0::processDMAInterruptFlexIO()
 
 bool HM01B0::stopReadFlexIO()
 {
-	detachInterrupt(VSYNC_PIN);
+	detachInterrupt(_vsyncPin);
 	dma_flexio.disable();
 	_frame_buffer_1 = nullptr;
 	_frame_buffer_2 = nullptr;
@@ -2021,8 +1946,8 @@ bool HM01B0::startReadFrameDMA(bool(*callback)(void *frame_buffer), uint8_t *fb1
     // OV7670_PLK   4
   // OV7670_PLK   8    //8       B1_00   FlexIO2:16  XBAR IO14
 
-  _save_pclkPin_portConfigRegister = *(portConfigRegister(PCLK_PIN));
-  *(portConfigRegister(PCLK_PIN)) = 1; // set to XBAR mode 14
+  _save_pclkPin_portConfigRegister = *(portConfigRegister(_pclkPin));
+  *(portConfigRegister(_pclkPin)) = 1; // set to XBAR mode 14
 
   // route the timer outputs through XBAR to edge trigger DMA request
   CCM_CCGR2 |= CCM_CCGR2_XBAR1(CCM_CCGR_ON);
@@ -2074,7 +1999,7 @@ bool HM01B0::startReadFrameDMA(bool(*callback)(void *frame_buffer), uint8_t *fb1
   dumpDMA_TCD(&_dmachannel);
   dumpDMA_TCD(&_dmasettings[0]);
   dumpDMA_TCD(&_dmasettings[1]);
-  debug.printf("pclk pin: %d config:%lx control:%lx\n", PCLK_PIN, *(portConfigRegister(PCLK_PIN)), *(portControlRegister(PCLK_PIN)));
+  debug.printf("pclk pin: %d config:%lx control:%lx\n", _pclkPin, *(portConfigRegister(_pclkPin)), *(portControlRegister(_pclkPin)));
   debug.printf("IOMUXC_GPR_GPR26-29:%lx %lx %lx %lx\n", IOMUXC_GPR_GPR26, IOMUXC_GPR_GPR27, IOMUXC_GPR_GPR28, IOMUXC_GPR_GPR29);
   debug.printf("GPIO1: %lx %lx, GPIO6: %lx %lx\n", GPIO1_DR, GPIO1_PSR, GPIO6_DR, GPIO6_PSR);
   debug.printf("XBAR CTRL0:%x CTRL1:%x\n\n", XBARA1_CTRL0, XBARA1_CTRL1);
@@ -2084,7 +2009,7 @@ bool HM01B0::startReadFrameDMA(bool(*callback)(void *frame_buffer), uint8_t *fb1
   _dma_frame_count = 0;
 
   // Now start an interrupt for start of frame. 
-  attachInterrupt(VSYNC_PIN, &frameStartInterrupt, RISING);
+  attachInterrupt(_vsyncPin, &frameStartInterrupt, RISING);
 
   //DebugDigitalToggle(OV7670_DEBUG_PIN_1);
   return true;
@@ -2125,7 +2050,7 @@ bool HM01B0::stopReadFrameDMA()
 #else
   IOMUXC_GPR_GPR26 = _save_IOMUXC_GPR_GPR26;  // Restore... away the configuration before we change...
 #endif
-  *(portConfigRegister(PCLK_PIN)) = _save_pclkPin_portConfigRegister;
+  *(portConfigRegister(_pclkPin)) = _save_pclkPin_portConfigRegister;
 
   return (em < 1000); // did we stop...
 }
@@ -2151,7 +2076,7 @@ void  HM01B0::processFrameStartInterrupt() {
   _dmachannel = _dmasettings[0];  // setup the first on...
   _dmachannel.enable();
   
-  detachInterrupt(VSYNC_PIN);
+  detachInterrupt(_vsyncPin);
 }
 
 //===================================================================
@@ -2268,7 +2193,7 @@ void HM01B0::processDMAInterrupt() {
   _dmachannel.enable();
 
 #else
-      attachInterrupt(VSYNC_PIN, &frameStartInterrupt, RISING);
+      attachInterrupt(_vsyncPin, &frameStartInterrupt, RISING);
 #endif
     }
   } else {

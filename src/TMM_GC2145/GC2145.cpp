@@ -910,15 +910,6 @@ void GC2145::end()
   
 }
 
-int16_t GC2145::width()
-{
-  return _width;
-}
-
-int16_t GC2145::height()
-{
-  return _height;
-}
 
 int GC2145::bitsPerPixel() const
 {
@@ -938,29 +929,6 @@ int GC2145::bytesPerPixel() const
   }
 }
 
-
-//void OV767X::setPins(int vsync, int href, int pclk, int xclk, int rst, const int dpins[8])
-void GC2145::setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, uint8_t en_pin,
-                     uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4, uint8_t g5, uint8_t g6, uint8_t g7, TwoWire &wire)
-{
-  _vsyncPin = vsync_pin;
-  _hrefPin = hsync_pin;
-  _pclkPin = pclk_pin;
-  _xclkPin = mclk_pin;
-  _rst = en_pin;
-  _dPins[0] = g0;
-  _dPins[1] = g1;
-  _dPins[2] = g2;
-  _dPins[3] = g3;
-  _dPins[4] = g4;
-  _dPins[5] = g5;
-  _dPins[6] = g6;
-  _dPins[7] = g7;
-  
-  _wire = &wire;
-
-  //memcpy(_dPins, dpins, sizeof(_dPins));
-}
 
 //*****************************************************************************
 uint16_t GC2145::getModelid()
@@ -1808,28 +1776,6 @@ uint8_t GC2145::cameraWriteRegister(uint8_t reg, uint8_t data) {
 
 #define FLEXIO_USE_DMA
 
-bool GC2145::readFrame(void* buffer1, size_t size1, void* buffer2, size_t size2) {
-    if (_debug) debug.printf("\n$$readFrameSplitBuffer(%p, %u, %p, %u, %d)\n", buffer1, size1, buffer2, size2);
-    if(!_use_gpio) {
-        return readFrameFlexIO(buffer1, size1, buffer2, size2);
-    } else {
-        readFrameGPIO(buffer1, size1, buffer2, size2);
-        return true;
-    }
-}
-
-
-bool GC2145::readContinuous(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2) {
-
-	return startReadFlexIO(callback, fb1, cb1, fb2, cb2);
-
-}
-
-void GC2145::stopReadContinuous() {
-	
-  stopReadFlexIO();
-
-}
 
 bool GC2145::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 {    
