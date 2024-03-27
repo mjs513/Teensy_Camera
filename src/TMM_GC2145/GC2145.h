@@ -275,10 +275,11 @@ public:
  
 	//FlexIO is default mode for the camera
 	//void readFrameFlexIO(void* buffer, bool use_dma=true);
-  bool readFrameFlexIO(void *buffer, size_t cb1, void* buffer2=nullptr, size_t cb2=0);
-	void readFrameMultiBufferFlexIO(void* buffer1, size_t size1, void* buffer2, size_t size2);
-	bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2);
-	bool stopReadFlexIO();
+  // The code is in the base class.
+  //bool readFrameFlexIO(void *buffer, size_t cb1, void* buffer2=nullptr, size_t cb2=0);
+	//void readFrameMultiBufferFlexIO(void* buffer1, size_t size1, void* buffer2, size_t size2);
+	//bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2);
+	//bool stopReadFlexIO();
 
 	// Lets try a dma version.  Doing one DMA that is synchronous does not gain anything
 	// So lets have a start, stop... Have it allocate 2 frame buffers and it's own DMA 
@@ -315,13 +316,6 @@ private:
     
     void* _GC2145;
 
-    volatile uint32_t* _vsyncPort;
-    uint32_t _vsyncMask;
-    volatile uint32_t* _hrefPort;
-    uint32_t _hrefMask;
-    volatile uint32_t* _pclkPort;
-    uint32_t _pclkMask;
-
     uint32_t _xclk_freq	= 12000000;
     
 
@@ -329,24 +323,15 @@ private:
 
 	// DMA STUFF
 	enum {DMABUFFER_SIZE=1296};  // 640x480  so 640*2*2
-	static DMAChannel _dmachannel;
-	static DMASetting _dmasettings[10];  // maybe handle up to 800x600
+//	static DMAChannel _dmachannel;
+//	static DMASetting _dmasettings[10];  // maybe handle up to 800x600
 	static uint32_t _dmaBuffer1[DMABUFFER_SIZE];
 	static uint32_t _dmaBuffer2[DMABUFFER_SIZE];
 
-	bool (*_callback)(void *frame_buffer) = nullptr ;
-	uint32_t  _dma_frame_count;
-	uint8_t *_dma_last_completed_frame;
+//	bool (*_callback)(void *frame_buffer) = nullptr ;
+//	uint32_t  _dma_frame_count;
+//	uint8_t *_dma_last_completed_frame;
 	// TBD Allow user to set all of the buffers...
-
-
-	// Added settings for configurable flexio
-	FlexIOHandler *_pflex;
-    IMXRT_FLEXIO_t *_pflexio;
-	uint8_t _fshifter;
-	uint8_t _fshifter_mask;
-    uint8_t _ftimer;
-    uint8_t _dma_source;
 
 
 	#if defined (ARDUINO_TEENSY_MICROMOD)
@@ -378,11 +363,6 @@ private:
 	static void frameStartInterrupt();
 	void processFrameStartInterrupt();
 #endif	
-	static void dmaInterruptFlexIO();
-	void processDMAInterruptFlexIO();
-	static void frameStartInterruptFlexIO();
-	void processFrameStartInterruptFlexIO();
-	static GC2145 *active_dma_camera;
 
 	inline int fast_floorf(float x)
 	{

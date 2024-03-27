@@ -109,6 +109,8 @@ public:
   virtual void processDMAInterruptFlexIO();
   static void frameStartInterruptFlexIO();
   virtual void processFrameStartInterruptFlexIO();
+  virtual void processDMAInterrupt() {}
+
   void dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title);
 
 
