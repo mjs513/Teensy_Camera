@@ -100,11 +100,7 @@ public:
   void readFrame4BitGPIO(void *buffer);
 
   //FlexIO is default mode for the camera
-  bool readFrameFlexIO(void *buffer, size_t cb1, void* buffer2=nullptr, size_t cb2=0);
-//  void readFrameFlexIO(void *buffer);
-//  void readFrameFlexIO(void *buffer, bool fUseDMA);
-  bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2);
-  bool stopReadFlexIO();
+  // Most code base class
 
   // Lets try a dma version.  Doing one DMA that is synchronous does not gain anything
   // So lets have a start, stop... Have it allocate 2 frame buffers and it's own DMA
@@ -149,23 +145,11 @@ private:
   uint8_t cameraWriteRegister(uint16_t reg, uint8_t data);
   bool flexio_configure();
 
-  uint8_t MCLK_PIN, PCLK_PIN, VSYNC_PIN, HSYNC_PIN, EN_PIN;
-  uint8_t G0, G1, G2, G3, G4, G5, G6, G7;
-  TwoWire *_wire;
-  uint32_t _vsyncMask;
-  uint32_t _hrefMask;
-  uint32_t _pclkMask;
-  const volatile uint32_t *_vsyncPort;
-  const volatile uint32_t *_hrefPort;
-  const volatile uint32_t *_pclkPort;
-
   uint32_t XCLK_FREQUENCY = 6000000;
 
 
   // DMA STUFF
   enum { DMABUFFER_SIZE = 1296 };  // 640x480  so 640*2*2
-  static DMAChannel _dmachannel;
-  static DMASetting _dmasettings[6];
   static uint32_t _dmaBuffer1[DMABUFFER_SIZE];
   static uint32_t _dmaBuffer2[DMABUFFER_SIZE];
 
@@ -178,12 +162,6 @@ private:
 
 
   // Added settings for configurable flexio
-  FlexIOHandler *_pflex;
-  IMXRT_FLEXIO_t *_pflexio;
-  uint8_t _fshifter;
-  uint8_t _fshifter_mask;
-  uint8_t _ftimer;
-  uint8_t _dma_source;
 
 #if defined(ARDUINO_TEENSY_MICROMOD)
   uint32_t _save_IOMUXC_GPR_GPR27;
@@ -215,12 +193,7 @@ private:
   void processDMAInterrupt();
   static void frameStartInterrupt();
   void processFrameStartInterrupt();
-  static void dmaInterruptFlexIO();
-  void processDMAInterruptFlexIO();
-  static void frameStartInterruptFlexIO();
-  void processFrameStartInterruptFlexIO();
-  static HM0360 *active_dma_camera;
-
+  
 
   //OpenMV support functions extracted from imglib.h
 
