@@ -10,13 +10,14 @@
 #include "Camera.h"
 
 #define _hmConfig 0 // 0 = 8bit, 1 = 4bit
-//#define USE_MMOD_ATP_ADAPTER
+#define USE_MMOD_ATP_ADAPTER
 
 //#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
 //#define ARDUCAM_CAMERA_OV7675
-#define ARDUCAM_CAMERA_GC2145
+//#define ARDUCAM_CAMERA_GC2145
+#define ARDUCAM_CAMERA_OV2640
 
 #if defined(ARDUCAM_CAMERA_HM0360)
   #include "TMM_HM0360/HM0360.h"
@@ -32,17 +33,22 @@
   #include "TMM_OV767X/OV767X.h"
   OV767X omni;
   Camera camera(omni);
-  #define CameraID 0x7676
+  #define CameraID OV7670
 #elif defined(ARDUCAM_CAMERA_OV7675)
   #include "TMM_OV767X/OV767X.h"
   OV767X omni;
   Camera camera(omni);
-  #define CameraID 0x7673
+  #define CameraID OV7675
 #elif defined(ARDUCAM_CAMERA_GC2145)
   #include "TMM_GC2145/GC2145.h"
   GC2145 galaxycore;
   Camera camera(galaxycore);
-  #define CameraID 0x2145
+  #define CameraID GC2145a
+#elif defined(ARDUCAM_CAMERA_OV2640)
+  #include "TMM_OV2640/OV2640.h"
+  OV2640 omni;
+  Camera camera(omni);
+  #define CameraID 0x2641
 #endif
 
 #include <Wire.h>
@@ -67,12 +73,20 @@ void setup() {
   while (!Serial);   // Wait for Arduino Serial Monitor
   Serial.println(F("\nI2C Scanner"));
 #ifdef USE_MMOD_ATP_ADAPTER
+  pinMode(30, INPUT);
+  pinMode(31, INPUT_PULLUP);
+
   if ((_hmConfig == 0) || (_hmConfig == 2)) {
     camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
   } else if( _hmConfig == 1) {
     //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
     camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
   }
+
+  pinMode(29, OUTPUT);
+  analogWriteFrequency(29, 20 * 1000000);
+  analogWrite(29, 127); delay(100); // 9mhz works, but try to reduce to debug timings with logic analyzer    
+
 #else
  if (_hmConfig == 0 ) {
     //camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
@@ -80,17 +94,12 @@ void setup() {
   } else if( _hmConfig == 1) {
     camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
   }
-#endif
+  pinMode(7, OUTPUT);
+  analogWriteFrequency(7, 20 * 1000000);
+  analogWrite(7, 127); delay(100); // 9mhz works, but try to reduce to debug timings with logic analyzer    
 
-  #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
-    camera.begin(FRAMESIZE_QVGA, RGB565, 15);
-  #else
-  //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
-  //HM0360(8pin) 15/30/60/120 works :)
-  //HM01B0(4pin only) 15/30/60 works, 120 not supported
-  //camera.begin(FRAMESIZE_QVGA, 30);
-    camera.begin(FRAMESIZE_QVGA4BIT, 15);
-  #endif
+
+#endif
 
   Serial.println("getting model id");
   uint16_t ModelID;
