@@ -8,7 +8,8 @@
 //#define USE_SDCARD
 
 //#define ARDUCAM_CAMERA_HM01B0
-#define ARDUCAM_CAMERA_HM0360
+//#define ARDUCAM_CAMERA_HM0360
+#define ARDUCAM_CAMERA_OV2640
 //#define ARDUCAM_CAMERA_OV7670
 //#define ARDUCAM_CAMERA_OV7675
 //#define ARDUCAM_CAMERA_GC2145
@@ -26,6 +27,12 @@ HM01B0 himax;
 Camera camera(himax);
 #define CameraID 0x01B0
 #define MIRROR_FLIP_CAMERA
+
+#elif defined(ARDUCAM_CAMERA_OV2640)
+#include "TMM_OV2640/OV2640.h"
+OV2640 omni;
+Camera camera(omni);
+#define CameraID OV2640a
 
 #elif defined(ARDUCAM_CAMERA_OV7670)
 #include "TMM_OV767X/OV767X.h"
@@ -120,7 +127,7 @@ DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 #ifdef ARDUINO_TEENSY_DEVBRD4
 //#include "SDRAM_t4.h"
 //SDRAM_t4 sdram;
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
 uint16_t *frameBuffer = nullptr;
 uint16_t *frameBuffer2 = nullptr;
 #else
@@ -129,7 +136,7 @@ uint8_t *frameBuffer2 = nullptr;
 #define CAMERA_USES_MONO_PALETTE
 #endif
 #else
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
 uint16_t DMAMEM frameBuffer[(320) * 240] __attribute__((aligned(32)));
 uint16_t DMAMEM frameBuffer2[(320) * 240] __attribute__((aligned(32)));
 #else
@@ -264,8 +271,8 @@ void setup() {
 
 
 uint8_t status = 1;
-#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145))
-  status = camera.begin(FRAMESIZE_QVGA, RGB565, 30, CameraID);
+#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145))
+  status = camera.begin(FRAMESIZE_QVGA, RGB565, 15, CameraID, true);
 #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
@@ -291,7 +298,7 @@ if(!status) {
   //  while (1)
   //    ;
   //};
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
 
   frameBuffer = (uint16_t *)((((uint32_t)(sdram_malloc(camera.width() * camera.height() * 2 + 32)) + 32) & 0xffffffe0));
   frameBuffer2 = (uint16_t *)((((uint32_t)(sdram_malloc(camera.width() * camera.height() * 2 + 32)) + 32) & 0xffffffe0));
@@ -306,6 +313,7 @@ if(!status) {
   camera.setContrast(0x30);
   camera.setBrightness(0x80);
   camera.autoExposure(1);
+#elif defined(ARDUCAM_CAMERA_OV2640)
 #else
   camera.setGainceiling(GAINCEILING_2X);
   camera.setBrightness(3);
@@ -359,7 +367,7 @@ if(!status) {
     0 = disabled
     1 = enabled
    *************************************************************************/
-  camera.setColorbar(0);
+  camera.setColorbar(1);
 #endif
 }
 
@@ -377,7 +385,7 @@ inline uint16_t HTONS(uint16_t x) {
   return ((x >> 8) & 0x00FF) | ((x << 8) & 0xFF00);
 }
 
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
 
 volatile uint16_t *pfb_last_frame_returned = nullptr;
 
@@ -490,7 +498,7 @@ void loop() {
           memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
           camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
           camera.readFrame(frameBuffer, sizeof(frameBuffer));
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
           int numPixels = camera.width() * camera.height();
           for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
 #endif
@@ -533,7 +541,7 @@ void loop() {
           camera.readFrame(frameBuffer, sizeof(frameBuffer));
           Serial.println("Finished reading frame");
           Serial.flush();
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
           for (volatile uint16_t *pfb = frameBuffer; pfb < (frameBuffer + 4 * camera.width()); pfb += camera.width()) {
 #else
           for (volatile uint8_t *pfb = frameBuffer; pfb < (frameBuffer + 4 * camera.width()); pfb += camera.width()) {
@@ -548,7 +556,7 @@ void loop() {
 
           // Lets dump out some of center of image.
           Serial.println("Show Center pixels\n");
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
           for (volatile uint16_t *pfb = frameBuffer + camera.width() * ((camera.height() / 2) - 8); pfb < (frameBuffer + camera.width() * (camera.height() / 2 + 8)); pfb += camera.width()) {
 #else
           for (volatile uint8_t *pfb = frameBuffer + camera.width() * ((camera.height() / 2) - 8); pfb < (frameBuffer + camera.width() * (camera.height() / 2 + 8)); pfb += camera.width()) {
@@ -567,7 +575,7 @@ void loop() {
           //int camera_width = Camera.width();
 
           tft.setOrigin(-2, -2);
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
           int numPixels = camera.width() * camera.height();
           Serial.printf("TFT(%u, %u) Camera(%u, %u)\n", tft.width(), tft.height(), camera.width(), camera.height());
 //int camera_width = Camera.width();

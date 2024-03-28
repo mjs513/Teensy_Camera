@@ -7,19 +7,20 @@ typedef enum {
     RGB565,
     BAYER,
     GRAYSCALE,
+    JPEG,
 } pixformat_t;
 
 typedef enum {
-    // VGA Resolutions
-    FRAMESIZE_VGA = 0,
-    FRAMESIZE_QQVGA,    // 160x120
-    FRAMESIZE_QVGA,     // 320x240
-    FRAMESIZE_480X320,
-	FRAMESIZE_320X320,  // 320x320
-	FRAMESIZE_QVGA4BIT,
-    FRAMESIZE_QCIF,
-    FRAMESIZE_CIF,
-    FRAMESIZE_INVALID,
+  // VGA Resolutions
+  FRAMESIZE_VGA = 0,
+  FRAMESIZE_QQVGA,    // 160x120
+  FRAMESIZE_QVGA,     // 320x240
+  FRAMESIZE_480X320,
+  FRAMESIZE_320X320,  // 320x320
+  FRAMESIZE_QVGA4BIT,
+  FRAMESIZE_QCIF,
+  FRAMESIZE_CIF,
+  FRAMESIZE_INVALID,
 } framesize_t;
 
 typedef enum {
@@ -77,5 +78,12 @@ enum
 {
   OV7670 = 0,
   OV7675 = 1,
-  GC2145a = 2
+  GC2145a = 2,
+  OV2640a = 3
 };
+
+
+typedef enum {
+    SDE_NORMAL,
+    SDE_NEGATIVE,
+} sde_t;
