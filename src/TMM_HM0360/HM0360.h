@@ -143,7 +143,6 @@ private:
 
   uint8_t cameraReadRegister(uint16_t reg);
   uint8_t cameraWriteRegister(uint16_t reg, uint8_t data);
-  bool flexio_configure();
 
   uint32_t XCLK_FREQUENCY = 6000000;
 

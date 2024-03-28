@@ -319,7 +319,6 @@ private:
     uint32_t _xclk_freq	= 12000000;
     
 
-	bool flexio_configure();
 
 	// DMA STUFF
 	enum {DMABUFFER_SIZE=1296};  // 640x480  so 640*2*2

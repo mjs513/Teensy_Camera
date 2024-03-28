@@ -110,6 +110,7 @@ public:
   static void frameStartInterruptFlexIO();
   virtual void processFrameStartInterruptFlexIO();
   virtual void processDMAInterrupt() {}
+  virtual bool flexio_configure();
 
   void dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title);
 

@@ -334,7 +334,7 @@ private:
   int _saturation;
   int _hue;
 
-	bool flexio_configure();
+//	bool flexio_configure(); // moved to ImageSensor
 
 	// DMA STUFF
 	enum {DMABUFFER_SIZE=1296};  // 640x480  so 640*2*2
