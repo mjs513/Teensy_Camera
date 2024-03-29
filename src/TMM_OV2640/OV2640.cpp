@@ -72,7 +72,6 @@ const int resolution[][2] = {
     {0,    0   },
 };
 
-
 static const uint8_t default_regs[][2] = {
 
 // From Linux Driver.
@@ -329,12 +328,12 @@ static const uint8_t yuv422_regs[][2] = {
 };
 
 static const uint8_t rgb565_regs[][2] = {
-    {BANK_SEL,      BANK_SEL_DSP},
-    {R_BYPASS,      R_BYPASS_DSP_EN},
-    {IMAGE_MODE,    IMAGE_MODE_RGB565},
-    {0xd7,          0x03},
-    {RESET,         0x00},
-    {R_BYPASS,      R_BYPASS_DSP_EN},
+    {BANK_SEL, BANK_SEL_DSP},
+    {RESET, RESET_DVP},
+    {IMAGE_MODE, IMAGE_MODE_RGB565},
+    {0xD7, 0x03},
+    {0xE1, 0x77},
+    {RESET, 0x00},
     {0,             0},
 };
 
@@ -357,6 +356,7 @@ static const uint8_t jpeg_regs[][2] = {
     {R_BYPASS,      R_BYPASS_DSP_EN},
     {0,             0},
 };
+
 
 #define NUM_BRIGHTNESS_LEVELS    (5)
 static const uint8_t brightness_regs[NUM_BRIGHTNESS_LEVELS + 1][5] = {
@@ -602,9 +602,10 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
         setVSyncISRPriority(102);
         setDMACompleteISRPriority(192);
     }
-
-  setFramesize(resolution);
+    
   setPixformat(format);
+  setFramesize(resolution);
+
   //for now frame rate is fixed
 
   return 1;
@@ -693,10 +694,11 @@ int OV2640::setPixformat(pixformat_t pixformat)
 
 
 uint8_t OV2640::setFramesize(framesize_t framesize) {
-
+  
     uint16_t sensor_w = 0;
     uint16_t sensor_h = 0;
     int ret = 0;
+    
     uint16_t w = resolution[framesize][0];
     uint16_t h = resolution[framesize][1];
     
@@ -866,7 +868,6 @@ int OV2640::setColorbar(int enable) {
     } else {
         reg &= ~COM7_COLOR_BAR;
     }
-
     return cameraWriteRegister(  COM7, reg) | ret;
 }
 
@@ -1175,6 +1176,7 @@ bool OV2640::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
       // bugbug what happens to the the data if grayscale?
       if (!(j & 1) || !_grayscale) {
         *b++ = in;
+
         if ( buffer2 && (--cb == 0) ) {
           if(_debug) debug.printf("\t$$ 2nd buffer: %u %u\n", i, j);
           b = (uint8_t *)buffer2;
@@ -1602,3 +1604,123 @@ void OV2640::captureFrameStatistics()
 
 /*****************************************************************/
 
+typedef struct {
+  const __FlashStringHelper *reg_name;
+  uint8_t bank;
+  uint16_t reg;
+} OV2640_TO_NAME_t;
+
+
+static const OV2640_TO_NAME_t OV2640_reg_name_table[] PROGMEM {
+  {F(" QS" ), 0, 0x44 },
+  {F(" HSIZE" ), 0, 0x51 },
+  {F(" VSIZE" ), 0, 0x52 },
+  {F(" XOFFL" ), 0, 0x53 },
+  {F(" YOFFL" ), 0, 0x54 },
+  {F(" VHYX" ), 0, 0x55 },
+  {F(" DPRP" ), 0, 0x56 },
+  {F(" TEST" ), 0, 0x57 },
+  {F(" ZMOW" ), 0, 0x5A },
+  {F(" ZMOH" ), 0, 0x5B },
+  {F(" ZMHH" ), 0, 0x5C },
+  {F(" BPADDR" ), 0, 0x7C },
+  {F(" BPDATA" ), 0, 0x7D },
+  {F(" SIZEL" ), 0, 0x8C },
+  {F(" HSIZE8" ), 0, 0xC0 },
+  {F(" VSIZE8" ), 0, 0xC1 },
+  {F(" CTRL1" ), 0, 0xC3 },
+  {F(" MS_SP" ), 0, 0xF0 },
+  {F(" SS_ID" ), 0, 0xF7 },
+  {F(" SS_CTRL" ), 0, 0xF7 },
+  {F(" MC_AL" ), 0, 0xFA },
+  {F(" MC_AH" ), 0, 0xFB },
+  {F(" MC_D" ), 0, 0xFC },
+  {F(" P_CMD" ), 0, 0xFD },
+  {F(" P_STATUS" ), 0, 0xFE },
+  {F(" CTRLI" ), 0, 0x50 },
+  {F(" CTRLI_LP_DP" ), 0, 0x80 },
+  {F(" CTRLI_ROUND" ), 0, 0x40 },
+  {F(" CTRL0" ), 0, 0xC2 },
+  {F(" CTRL2" ), 0, 0x86 },
+  {F(" CTRL3" ), 0, 0x87 },
+  {F(" R_DVP_SP" ), 0, 0xD3 },
+  {F(" R_DVP_SP_AUTO_MODE" ), 0, 0x80 },
+  {F(" R_BYPASS" ), 0, 0x05 },
+  {F(" R_BYPASS_DSP_EN" ), 0, 0x00 },
+  {F(" R_BYPASS_DSP_BYPAS" ), 0, 0x01 },
+  {F(" IMAGE_MODE" ), 0, 0xDA },
+  {F(" RESET" ), 0, 0xE0 },
+  {F(" MC_BIST" ), 0, 0xF9 },
+  {F(" BANK_SEL" ), 0, 0xFF },
+  {F(" BANK_SEL_DSP" ), 0, 0x00 },
+  {F(" BANK_SEL_SENSOR" ), 0, 0x01 },
+  {F(" GAIN" ), 1, 0x00 },
+  {F(" COM1" ), 1, 0x03 },
+  {F(" REG_PID" ), 1, 0x0A },
+  {F(" REG_VER" ), 1, 0x0B },
+  {F(" COM4" ), 1, 0x0D },
+  {F(" AEC" ), 1, 0x10 },
+  {F(" CLKRC" ), 1, 0x11 },
+  {F(" CLKRC_DOUBLE" ), 1, 0x82 },
+  {F(" CLKRC_DIVIDER_MASK" ), 1, 0x3F },
+  {F(" COM10" ), 1, 0x15 },
+  {F(" HSTART" ), 1, 0x17 },
+  {F(" HSTOP" ), 1, 0x18 },
+  {F(" VSTART" ), 1, 0x19 },
+  {F(" VSTOP" ), 1, 0x1A },
+  {F(" MIDH" ), 1, 0x1C },
+  {F(" MIDL" ), 1, 0x1D },
+  {F(" AEW" ), 1, 0x24 },
+  {F(" AEB" ), 1, 0x25 },
+  {F(" REG2A" ), 1, 0x2A },
+  {F(" FRARL" ), 1, 0x2B },
+  {F(" ADDVSL" ), 1, 0x2D },
+  {F(" ADDVSH" ), 1, 0x2E },
+  {F(" YAVG" ), 1, 0x2F },
+  {F(" HSDY" ), 1, 0x30 },
+  {F(" HEDY" ), 1, 0x31 },
+  {F(" ARCOM2" ), 1, 0x34 },
+  {F(" REG45" ), 1, 0x45 },
+  {F(" FLL" ), 1, 0x46 },
+  {F(" FLH" ), 1, 0x47 },
+  {F(" COM19" ), 1, 0x48 },
+  {F(" ZOOMS" ), 1, 0x49 },
+  {F(" COM22" ), 1, 0x4B },
+  {F(" COM25" ), 1, 0x4E },
+  {F(" BD50" ), 1, 0x4F },
+  {F(" BD60" ), 1, 0x50 },
+  {F(" REG5D" ), 1, 0x5D },
+  {F(" REG5E" ), 1, 0x5E },
+  {F(" REG5F" ), 1, 0x5F },
+  {F(" REG60" ), 1, 0x60 },
+  {F(" HISTO_LOW" ), 1, 0x61 },
+  {F(" HISTO_HIGH" ), 1, 0x62 },
+  {F(" REG04" ), 1, 0x04 },
+  {F(" REG08" ), 1, 0x08 },
+  {F(" COM2" ), 1, 0x09 },
+  {F(" COM2_STDBY" ), 1, 0x10 },
+  {F(" COM3" ), 1, 0x0C },
+  {F(" COM7" ), 1, 0x12 },
+  {F(" COM8" ), 1, 0x13 },
+  {F(" COM8_DEFAULT" ), 1, 0xC0 },
+  {F(" COM8_BNDF_EN" ), 1, 0x20 },
+  {F(" COM8_AGC_EN" ), 1, 0x04 },
+  {F(" COM8_AEC_EN" ), 1, 0x01 },
+  {F(" COM9" ), 1, 0x14 },
+  {F(" CTRL1_AWB" ), 1, 0x08 },
+  {F(" VV" ), 1, 0x26 },
+  {F(" REG32" ), 1, 0x32 },
+};
+
+
+void OV2640::showRegisters(void) {
+  debug.println("\n*** Camera Registers ***");
+  cameraWriteRegister(0xFF, 0x00);  //bank 0
+  for (uint16_t ii = 0; ii < (sizeof(OV2640_reg_name_table) / sizeof(OV2640_reg_name_table[0])); ii++) {
+    if(OV2640_reg_name_table[ii].bank != 0) cameraWriteRegister(0xff, 0x01);
+    uint8_t reg_value = cameraReadRegister(OV2640_reg_name_table[ii].reg);
+    debug.printf("(%d) %s(%x): %u(%x)\n", OV2640_reg_name_table[ii].bank, OV2640_reg_name_table[ii].reg_name, OV2640_reg_name_table[ii].reg, reg_value, reg_value);
+  }
+   cameraWriteRegister(0xFF, 0x00);  //bank 0
+
+}

@@ -184,7 +184,7 @@ public:
   int setVflip(int enable);
   int setSpecialEffect(sde_t sde);
   
-  void showRegisters() { }  //for now
+  void showRegisters();
 
   uint8_t readRegister(uint8_t reg) {return (uint8_t)-1;}
   bool writeRegister(uint8_t reg, uint8_t data) {return false;}
@@ -218,9 +218,7 @@ private:
   
   int _xclk_freq = 20;
 
-  
-
-  bool _grayscale;
+    bool _grayscale;
 
   void* _OV2640;
 
