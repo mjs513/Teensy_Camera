@@ -6,7 +6,7 @@
 
 #define debug     Serial
 
-//#define DEBUG_CAMERA
+#define DEBUG_CAMERA
 //#define DEBUG_CAMERA_VERBOSE
 #define DEBUG_FLEXIO
 //#define USE_DEBUG_PINS
@@ -19,6 +19,10 @@ DMASetting ImageSensor::_dmasettings[10];
 void ImageSensor::setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, uint8_t en_pin,
                      uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4, uint8_t g5, uint8_t g6, uint8_t g7, TwoWire &wire)
 {
+  #ifdef DEBUG_CAMERA
+  debug.printf("void ImageSensor::setPins(MC:%u PC:%u vs:%u hr:%u en:%u, DP: %u %u %u %u %u %u %u %u W:%p)\n", mclk_pin, pclk_pin, vsync_pin, hsync_pin, en_pin,
+                     g0, g1, g2, g3, g4, g5, g6, g7, &wire);
+  #endif
   _vsyncPin = vsync_pin;
   _hrefPin = hsync_pin;
   _pclkPin = pclk_pin;
@@ -58,29 +62,36 @@ bool ImageSensor::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2
 // The read and stop continuous typically just call off to the FlexIO
 bool ImageSensor::readContinuous(bool(*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2) {
 
-	return startReadFlexIO(callback, fb1, cb1, fb2, cb2);
+  return startReadFlexIO(callback, fb1, cb1, fb2, cb2);
 
 }
 
 void ImageSensor::stopReadContinuous() {
-	
+  
   stopReadFlexIO();
 
 }
 
 
-#ifndef CNT_SHIFTERS
-#define CNT_SHIFTERS 1
-#endif
-
 bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2)
 {
-    if (_debug)debug.printf("$$ImageSensor::readFrameFlexIO(%p, %u, %p, %u, %u)\n", buffer, cb1, buffer2, cb2, _fuse_dma);
+    if (_debug)debug.printf("$$ImageSensor::readFrameFlexIO(%p, %u, %p, %u, %u, %u)\n", buffer, cb1, buffer2, cb2, _fuse_dma, _hw_config);
     const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
     if ((cb1+cb2) < frame_size_bytes) return false; // not enough to hold image
 
     //flexio_configure(); // one-time hardware setup
     // wait for VSYNC to go high and then low with a sort of glitch filter
+#if 1
+    elapsedMillis emWaitSOF = 0;
+    for (;;) {
+      if (((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0)) break;
+      if (emWaitSOF > 500) {
+        if(_debug) debug.println("Timeout waiting for VSYNC");
+        return false;
+      }
+    }
+#else
+
     elapsedMillis emWaitSOF;
     elapsedMicros emGlitch;
     for (;;) {
@@ -93,7 +104,7 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
       while ((*_vsyncPort & _vsyncMask) != 0);
       if (emGlitch > 5) break;
     }
-
+#endif
     _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
     _pflexio->SHIFTERR = _fshifter_mask;
     uint32_t *p = (uint32_t *)buffer;
@@ -110,20 +121,45 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
       //uint32_t *p_end = (uint32_t *)buffer + (_width*_height/4)*_bytesPerPixel;
       uint32_t count_items_left = (_width*_height/4)*_bytesPerPixel;
       uint32_t count_items_left_in_buffer = (uint32_t)cb1 / 4;
-
-      while (count_items_left) {
+    
+      if (_hw_config == TEENSY_MICROMOD_FLEXIO_8BIT) {
+        while (count_items_left) {
+            while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
+                // wait for FlexIO shifter data
+            }
+            // Lets simplify back to single shifter for now
+            *p++ = _pflexio->SHIFTBUF[_fshifter]; // should use DMA...
+            count_items_left--;
+            if (buffer2 && (--count_items_left_in_buffer == 0)) {
+              p = (uint32_t*)buffer2;
+              count_items_left_in_buffer = (uint32_t)cb2 / 4;
+            }
+        }
+      } else {
+        // 4 bit mode:
+        bool save_pixels = true;
+        uint8_t in_row_count = _width / 4;
+        while (count_items_left) {
+          // we want to read and save one rows worth of pixels
+          // and skipt the second half
           while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
-              // wait for FlexIO shifter data
+            // wait for FlexIO shifter data
           }
-          // Lets try to load in multiple shifters
-          for (uint8_t i = 0; i < CNT_SHIFTERS; i++) {
-            *p++ = _pflexio->SHIFTBUF[_fshifter+i]; // should use DMA...
+          uint32_t sbuf = _pflexio->SHIFTBUF[_fshifter];
+          if (save_pixels) {
+            *p++ = sbuf;  // should use DMA...
             count_items_left--;
             if (buffer2 && (--count_items_left_in_buffer == 0)) {
               p = (uint32_t*)buffer2;
               count_items_left_in_buffer = (uint32_t)cb2 / 4;
             }
           }
+          in_row_count--;
+          if (in_row_count == 0) {
+            save_pixels = !save_pixels;
+            in_row_count = _width / 4;
+          }
+        }
       }
       #ifdef USE_DEBUG_PINS
       digitalWriteFast(2, LOW);
@@ -139,14 +175,11 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
     _dmachannel.triggerAtHardwareEvent(_dma_source);
     active_dma_camera = this;
     _dmachannel.attachInterrupt(dmaInterruptFlexIO);
-    /* Configure DMA MUX Source */
-    //DMAMUX->CHCFG[FLEXIO_CAMERA_DMA_CHN] = DMAMUX->CHCFG[FLEXIO_CAMERA_DMA_CHN] &
-    //                                        (~DMAMUX_CHCFG_SOURCE_MASK) | 
-    //                                        DMAMUX_CHCFG_SOURCE(FLEXIO_CAMERA_DMA_MUX_SRC);
-    /* Enable DMA channel. */
-    // if only one buffer split over the one buffer assuming big enough.
-    // Total length of bytes transfered
-    // do it over 2 
+
+    // Some cameras or sizes we cans imply do within the DMAChannel object, so lets
+    // see if that helps with the HM01B0
+
+
     // first pass split into two
     uint8_t dmas_index = 0;
     // We will do like above with both buffers, maybe later try to merge the two sections.
@@ -154,25 +187,21 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
     uint8_t count_dma_settings = (cb_left / (32767 * 4)) + 1;
     uint32_t cb_per_setting = ((cb_left / count_dma_settings) + 3) & 0xfffffffc; // round up to next multiple of 4.
     if (_debug) debug.printf("frame size: %u, cb1:%u cnt dma: %u CB per: %u\n", frame_size_bytes, cb1, count_dma_settings, cb_per_setting);
-
-    for (; dmas_index < count_dma_settings; dmas_index++) {
-      _dmasettings[dmas_index].TCD->CSR = 0;
-      _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[dmas_index].destinationBuffer(p, cb_per_setting);
-      _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
-      p += (cb_per_setting / 4);
-      cb_left -= cb_per_setting;
-      if (cb_left < cb_per_setting) cb_per_setting = cb_left;
-    }
-    if (frame_size_bytes > cb1) {
-      cb_left = frame_size_bytes - cb1;
-      count_dma_settings = (cb_left / (32767 * 4)) + 1;
-      cb_per_setting = ((cb_left / count_dma_settings) + 3) & 0xfffffffc; // round up to next multiple of 4.
-      if (_debug) debug.printf("frame size left: %u, cb2:%u cnt dma: %u CB per: %u\n", cb_left, cb2, count_dma_settings, cb_per_setting);
-      
-      p = (uint32_t *)buffer2;
-
-      for (uint8_t i=0; i < count_dma_settings; i++, dmas_index++) {
+    if ((cb1 >= frame_size_bytes) && (count_dma_settings == 1)) {
+      _dmachannel.source(_pflexio->SHIFTBUF[_fshifter]);
+      _dmachannel.destinationBuffer((uint32_t *)buffer, frame_size_bytes);
+      _dmachannel.transferSize(4);
+      _dmachannel.transferCount(frame_size_bytes / 4);
+      _dmachannel.disableOnCompletion();
+      _dmachannel.interruptAtCompletion();
+      _dmachannel.clearComplete();
+      #ifdef DEBUG_FLEXIO
+      if (_debug) {
+        dumpDMA_TCD(&_dmachannel,     "CH: ");
+      }
+      #endif
+    } else {
+      for (; dmas_index < count_dma_settings; dmas_index++) {
         _dmasettings[dmas_index].TCD->CSR = 0;
         _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
         _dmasettings[dmas_index].destinationBuffer(p, cb_per_setting);
@@ -181,24 +210,40 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
         cb_left -= cb_per_setting;
         if (cb_left < cb_per_setting) cb_per_setting = cb_left;
       }
-    }  
-    dmas_index--; // lets point back to the last one
-    _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[0]);
-    _dmasettings[dmas_index].disableOnCompletion();
-    _dmasettings[dmas_index].interruptAtCompletion();
-    _dmachannel = _dmasettings[0];
+      if (frame_size_bytes > cb1) {
+        cb_left = frame_size_bytes - cb1;
+        count_dma_settings = (cb_left / (32767 * 4)) + 1;
+        cb_per_setting = ((cb_left / count_dma_settings) + 3) & 0xfffffffc; // round up to next multiple of 4.
+        if (_debug) debug.printf("frame size left: %u, cb2:%u cnt dma: %u CB per: %u\n", cb_left, cb2, count_dma_settings, cb_per_setting);
+        
+        p = (uint32_t *)buffer2;
 
-    _dmachannel.clearComplete();
-#ifdef DEBUG_FLEXIO
-    if (_debug) {
-      dumpDMA_TCD(&_dmachannel," CH: ");
-      for (uint8_t i = 0; i <= dmas_index; i++) {
-        debug.printf(" %u: ", i);
-        dumpDMA_TCD(&_dmasettings[i], nullptr);
+        for (uint8_t i=0; i < count_dma_settings; i++, dmas_index++) {
+          _dmasettings[dmas_index].TCD->CSR = 0;
+          _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
+          _dmasettings[dmas_index].destinationBuffer(p, cb_per_setting);
+          _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
+          p += (cb_per_setting / 4);
+          cb_left -= cb_per_setting;
+          if (cb_left < cb_per_setting) cb_per_setting = cb_left;
+        }
+      }  
+      dmas_index--; // lets point back to the last one
+      _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[0]);
+      _dmasettings[dmas_index].disableOnCompletion();
+      _dmasettings[dmas_index].interruptAtCompletion();
+      _dmachannel = _dmasettings[0];
+      _dmachannel.clearComplete();
+  #ifdef DEBUG_FLEXIO
+      if (_debug) {
+        dumpDMA_TCD(&_dmachannel," CH: ");
+        for (uint8_t i = 0; i <= dmas_index; i++) {
+          debug.printf(" %u: ", i);
+          dumpDMA_TCD(&_dmasettings[i], nullptr);
+        }
       }
+  #endif
     }
-#endif
-
 
     _dma_state = DMA_STATE_ONE_FRAME;
     _pflexio->SHIFTSDEN = _fshifter_mask;
@@ -255,7 +300,7 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
 
 void ImageSensor::frameStartInterruptFlexIO()
 {
-	active_dma_camera->processFrameStartInterruptFlexIO();
+  active_dma_camera->processFrameStartInterruptFlexIO();
 }
 
 void ImageSensor::processFrameStartInterruptFlexIO()
@@ -276,13 +321,13 @@ void ImageSensor::processFrameStartInterruptFlexIO()
     detachInterrupt(_vsyncPin);
 
     // For this pass will leave in longer DMAChain with both buffers.
-  	_pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
-  	_pflexio->SHIFTERR = _fshifter_mask;
+    _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
+    _pflexio->SHIFTERR = _fshifter_mask;
 
     _dmachannel.clearComplete();
     _dmachannel.enable();
   }
-	asm("DSB");
+  asm("DSB");
   #ifdef USE_DEBUG_PINS
   digitalWriteFast(5, LOW);
   #endif
@@ -291,7 +336,7 @@ void ImageSensor::processFrameStartInterruptFlexIO()
 
 void ImageSensor::dmaInterruptFlexIO()
 {
-	active_dma_camera->processDMAInterruptFlexIO();
+  active_dma_camera->processDMAInterruptFlexIO();
 }
 
 void ImageSensor::processDMAInterruptFlexIO()
@@ -327,7 +372,7 @@ void ImageSensor::processDMAInterruptFlexIO()
 
   }
 #endif  
-	_dmachannel.clearComplete();
+  _dmachannel.clearComplete();
   const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
   if (((uint32_t)_dmachannel.TCD->DADDR) == (uint32_t)_frame_buffer_1) {
      _dma_last_completed_frame = _frame_buffer_2;
@@ -337,7 +382,7 @@ void ImageSensor::processDMAInterruptFlexIO()
     if ((uint32_t)_frame_buffer_1 >= 0x20200000u) arm_dcache_delete(_frame_buffer_1, min(_frame_buffer_1_size, frame_size_bytes));    
   }
 
-	if (_callback) (*_callback)(_dma_last_completed_frame); // TODO: use EventResponder
+  if (_callback) (*_callback)(_dma_last_completed_frame); // TODO: use EventResponder
   // if we disabled the DMA, then setup to wait for vsyncpin...
   if ((_dma_last_completed_frame == _frame_buffer_2) || (_frame_buffer_1_size >= frame_size_bytes)) {
     _dma_active = false;
@@ -346,7 +391,7 @@ void ImageSensor::processDMAInterruptFlexIO()
     if (_dma_state == DMASTATE_RUNNING) attachInterrupt(_vsyncPin, &frameStartInterruptFlexIO, RISING);
   }
 
-	asm("DSB");
+  asm("DSB");
 }
 
 
@@ -480,7 +525,7 @@ bool ImageSensor::stopReadFlexIO()
     if (_dma_state != DMA_STATE_STOPPED) _dma_state = DMASTATE_STOP_REQUESTED;
     sei();
   }
-	return true;
+  return true;
 }
 
 void ImageSensor::dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title) {
@@ -501,11 +546,13 @@ void ImageSensor::dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title) {
 
 bool ImageSensor::flexio_configure()
 {
-
+#ifdef DEBUG_CAMERA
+  debug.println("ImageSensor::flexio_configure() called");
+#endif    
     uint8_t tpclk_pin; 
     _pflex = FlexIOHandler::mapIOPinToFlexIOHandler(_pclkPin, tpclk_pin);
     if (!_pflex) {
-        debug.printf("OV767X PCLK(%u) is not a valid Flex IO pin\n", _pclkPin);
+        debug.printf("ImageSensor PCLK(%u) is not a valid Flex IO pin\n", _pclkPin);
         return false;
     }
     _pflexio = &(_pflex->port());
@@ -545,10 +592,9 @@ bool ImageSensor::flexio_configure()
         if(_debug) debug.println("Custom - Flexio is 8 bit mode");
     } else {
       // only 8 bit mode supported
-      debug.println("Custom - Flexio 4 bit mode not supported");
-      return false;
+        _hw_config = TEENSY_MICROMOD_FLEXIO_4BIT;
+        if(_debug) debug.println("Custom - Flexio is 4 bit mode");
     }
-#if (CNT_SHIFTERS == 1)
     // Needs Shifter 3 (maybe 7 would work as well?)
     if (_pflex->claimShifter(3)) _fshifter = 3;
     else if (_pflex->claimShifter(7)) _fshifter = 7;
@@ -558,53 +604,11 @@ bool ImageSensor::flexio_configure()
     }
     _fshifter_mask = 1 << _fshifter;   // 4 channels.
     _dma_source = _pflex->shiftersDMAChannel(_fshifter); // looks like they use 
-
-#elif (CNT_SHIFTERS == 4)
-    // lets try to claim for shifters 0-3 or 4-7
-    // Needs Shifter 3 (maybe 7 would work as well?)
-    for (_fshifter = 0; _fshifter < 4; _fshifter++) {
-      if (!_pflex->claimShifter(_fshifter)) break;
-    }
-
-    if (_fshifter < CNT_SHIFTERS) {
-      // failed on 0-3 - released any we claimed
-      if(_debug) debug.printf("Failed to claim 0-3(%u) shifters trying 4-7\n", _fshifter);
-      while (_fshifter > 0) _pflex->freeShifter(--_fshifter);  // release any we grabbed
-
-      for (_fshifter = 4; _fshifter < (4 + CNT_SHIFTERS); _fshifter++) {
-        if (!_pflex->claimShifter(_fshifter)) {
-          debug.printf("OV767X Flex IO: Could not claim Shifter %u\n", _fshifter);
-          while (_fshifter > 4) _pflex->freeShifter(--_fshifter);  // release any we grabbed
-          return false;
-        }
-      }
-      _fshifter = 4;
-    } else {
-      _fshifter = 0;
-    }
-
-
-    // ?????????? dma source... 
-    _fshifter_mask = 1 << _fshifter;   // 4 channels.
-    _dma_source = _pflex->shiftersDMAChannel(_fshifter); // looks like they use 
-#else
-    // all 8 shifters.
-    for (_fshifter = 0; _fshifter < 8; _fshifter++) {
-      if (!_pflex->claimShifter(_fshifter)) {
-        if(_debug) debug.printf("OV767X Flex IO: Could not claim Shifter %u\n", _fshifter);
-        while (_fshifter > 4) _pflex->freeShifter(--_fshifter);  // release any we grabbed
-        return false;
-      }
-    }
-    _fshifter = 0;
-    _fshifter_mask = 1 /*0xff */; // 8 channels << _fshifter;   // 4 channels.
-    _dma_source = _pflex->shiftersDMAChannel(_fshifter); // looks like they use 
-#endif    
     
     // Now request one timer
     uint8_t _ftimer = _pflex->requestTimers(); // request 1 timer. 
     if (_ftimer == 0xff) {
-        if(_debug) debug.printf("OV767X Flex IO: failed to request timer\n");
+        if(_debug) debug.printf("ImageSensor Flex IO: failed to request timer\n");
         return false;
     }
 
@@ -653,8 +657,13 @@ bool ImageSensor::flexio_configure()
     debug.printf(" CCM_CCGR3 = %08X\n", CCM_CCGR3);
     debug.printf(" FlexIO CTRL = %08X\n", _pflexio->CTRL);
     debug.printf(" FlexIO Config, param=%08X\n", _pflexio->PARAM);
-    
-    debug.println("8Bit FlexIO");
+#endif
+
+
+      #define FLEXIO_TIMER_TRIGGER_SEL_PININPUT(x) ((uint32_t)(x) << 1U)
+    if(_hw_config == TEENSY_MICROMOD_FLEXIO_8BIT) {
+#ifdef DEBUG_FLEXIO
+      debug.println("8Bit FlexIO");
 #endif
       // SHIFTCFG, page 2927
       //  PWIDTH: number of bits to be shifted on each Shift clock
@@ -663,20 +672,13 @@ bool ImageSensor::flexio_configure()
       //  SSTOP: Stop bit, 0 = disabled, 1 = match, 2 = use zero, 3 = use one
       //  SSTART: Start bit, 0 = disabled, 1 = disabled, 2 = use zero, 3 = use one
       // setup the for shifters
-      #if (CNT_SHIFTERS == 1)
       _pflexio->SHIFTCFG[_fshifter] = FLEXIO_SHIFTCFG_PWIDTH(7);
-      #else
-      for (int i = 0; i < (CNT_SHIFTERS - 1); i++) {
-        _pflexio->SHIFTCFG[_fshifter + i] = FLEXIO_SHIFTCFG_PWIDTH(7) | FLEXIO_SHIFTCFG_INSRC;
-      }
-      _pflexio->SHIFTCFG[_fshifter + CNT_SHIFTERS-1] = FLEXIO_SHIFTCFG_PWIDTH(7);
-      #endif
 
       // Timer model, pages 2891-2893
       // TIMCMP, page 2937
-      // using 4 shifters
-      _pflexio->TIMCMP[_ftimer] = (8U * CNT_SHIFTERS) -1 ;
-      
+      // using 1 shifters
+      _pflexio->TIMCMP[_ftimer] = (8U * 1) -1 ;
+
       // TIMCTL, page 2933
       //  TRGSEL: Trigger Select ....
       //          4*N - Pin 2*N input
@@ -689,12 +691,29 @@ bool ImageSensor::flexio_configure()
       //  PINSEL: which pin is used by the Timer input or output
       //  PINPOL: 0 = active high, 1 = active low
       //  TIMOD: mode, 0 = disable, 1 = 8 bit baud rate, 2 = 8 bit PWM, 3 = 16 bit
-      #define FLEXIO_TIMER_TRIGGER_SEL_PININPUT(x) ((uint32_t)(x) << 1U)
       _pflexio->TIMCTL[_ftimer] = FLEXIO_TIMCTL_TIMOD(3)
           | FLEXIO_TIMCTL_PINSEL(tpclk_pin) // "Pin" is 16 = PCLK
           //| FLEXIO_TIMCTL_TRGSEL(4 * (thsync_pin/2)) // "Trigger" is 12 = HSYNC
           | FLEXIO_TIMCTL_TRGSEL(FLEXIO_TIMER_TRIGGER_SEL_PININPUT(thsync_pin)) // "Trigger" is 12 = HSYNC
           | FLEXIO_TIMCTL_TRGSRC;
+    } else {
+
+#ifdef DEBUG_FLEXIO
+      debug.println("4Bit FlexIO");
+#endif
+      if (!supports4BitMode()) {
+        debug.println("Error: Camera does not support 4 FlexIO pin mode");
+        return false;
+      }
+      // registers fields shown in 8 bit mode.
+      _pflexio->SHIFTCFG[_fshifter] = FLEXIO_SHIFTCFG_PWIDTH(3);  // 4 pins
+      _pflexio->TIMCMP[_ftimer] = 15 ;
+      _pflexio->TIMCTL[_ftimer] = FLEXIO_TIMCTL_TIMOD(3)
+          | FLEXIO_TIMCTL_PINSEL(tpclk_pin) // "Pin" is 16 = PCLK
+          | FLEXIO_TIMCTL_TRGSEL(FLEXIO_TIMER_TRIGGER_SEL_PININPUT(thsync_pin)) // "Trigger" is 12 = HSYNC
+          | FLEXIO_TIMCTL_TRGSRC;
+    }      
+      
     #ifdef DEBUG_FLEXIO
       debug.printf("TIMCTL: %08X PINSEL: %x THSYNC: %x\n", _pflexio->TIMCTL[_ftimer], tpclk_pin, thsync_pin);
     #endif
@@ -708,12 +727,10 @@ bool ImageSensor::flexio_configure()
     //  SMOD: 0 = disable, 1 = receive, 2 = transmit, 4 = match store,
     //        5 = match continuous, 6 = state machine, 7 = logic
     // 4 shifters
-    uint32_t shiftctl = FLEXIO_SHIFTCTL_TIMSEL(_ftimer) | FLEXIO_SHIFTCTL_SMOD(1)
+    _pflexio->SHIFTCTL[_fshifter] = FLEXIO_SHIFTCTL_TIMSEL(_ftimer) | FLEXIO_SHIFTCTL_SMOD(1)
         | FLEXIO_SHIFTCTL_PINSEL(tg0);    
 
-    for (uint8_t i = 0; i < CNT_SHIFTERS; i++) {
-      _pflexio->SHIFTCTL[_fshifter + i] = shiftctl; // 4 = D0
-    }
+    
 
     // TIMCFG, page 2935
     //  TIMOUT: Output
@@ -761,14 +778,15 @@ bool ImageSensor::flexio_configure()
 #ifdef DEBUG_FLEXIO
     debug.printf(" FLEXIO:%u Shifter:%u Timer:%u\n", _pflex->FlexIOIndex(), _fshifter, _ftimer);
     debug.print("     SHIFTCFG = ");
-    for (uint8_t i = 0; i < CNT_SHIFTERS; i++) debug.printf(" %08X", _pflexio->SHIFTCFG[_fshifter + i]);
+    debug.printf(" %08X", _pflexio->SHIFTCFG[_fshifter]);
     debug.print("\n     SHIFTCTL = ");
-    for (uint8_t i = 0; i < CNT_SHIFTERS; i++) debug.printf(" %08X", _pflexio->SHIFTCTL[_fshifter + i]);
+    debug.printf(" %08X", _pflexio->SHIFTCTL[_fshifter]);
     debug.printf("\n     TIMCMP = %08X\n", _pflexio->TIMCMP[_ftimer]);
     debug.printf("     TIMCFG = %08X\n", _pflexio->TIMCFG[_ftimer]);
     debug.printf("     TIMCTL = %08X\n", _pflexio->TIMCTL[_ftimer]);
 #endif
 return true;
 }
+
 
 

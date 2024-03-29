@@ -874,7 +874,7 @@ bool HM0360::stopReadFrameDMA() {
 // Our Frame Start interrupt.
 //===================================================================
 void HM0360::frameStartInterrupt() {
-//  active_dma_camera->processFrameStartInterrupt();  // lets get back to the main object...
+  active_dma_camera->processFrameStartInterrupt();  // lets get back to the main object...
 }
 
 void HM0360::processFrameStartInterrupt() {

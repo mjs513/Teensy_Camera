@@ -111,6 +111,8 @@ public:
   virtual void processFrameStartInterruptFlexIO();
   virtual void processDMAInterrupt() {}
   virtual bool flexio_configure();
+  virtual void processFrameStartInterrupt() {};
+  virtual bool supports4BitMode() {return false;}
 
   void dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title);
 

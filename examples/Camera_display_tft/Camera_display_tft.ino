@@ -7,9 +7,9 @@
 #define USE_MMOD_ATP_ADAPTER
 //#define USE_SDCARD
 
-//#define ARDUCAM_CAMERA_HM01B0
+#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
-#define ARDUCAM_CAMERA_OV2640
+//#define ARDUCAM_CAMERA_OV2640
 //#define ARDUCAM_CAMERA_OV7670
 //#define ARDUCAM_CAMERA_OV7675
 //#define ARDUCAM_CAMERA_GC2145
@@ -272,7 +272,7 @@ void setup() {
 
 uint8_t status = 1;
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145))
-  status = camera.begin(FRAMESIZE_QVGA, RGB565, 15, CameraID, true);
+  status = camera.begin(FRAMESIZE_QVGA, RGB565, 15, CameraID, false);
 #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
@@ -284,6 +284,8 @@ uint8_t status = 1;
   camera.setVflip(true);
 #endif
 
+
+camera.showRegisters();
 
 Serial.printf("Begin status: %d\n", status);
 if(!status) {
@@ -367,7 +369,7 @@ if(!status) {
     0 = disabled
     1 = enabled
    *************************************************************************/
-  camera.setColorbar(1);
+//  camera.setColorbar(1);
 #endif
 }
 
