@@ -388,6 +388,27 @@ static const uint8_t saturation_regs[NUM_SATURATION_LEVELS + 1][5] = {
     {0x00, 0x02, 0x03, 0x68, 0x68}, /* +2 */
 };
 
+#define NUM_SPECIAL_EFFECTS (7)
+static const uint8_t special_effects_regs[NUM_SPECIAL_EFFECTS + 1][5] = {
+    {BPADDR, BPDATA, BPADDR, BPDATA, BPDATA },
+    {0x00, 0X00, 0x05, 0X80, 0X80 }, /* no effect */
+    {0x00, 0X40, 0x05, 0X80, 0X80 }, /* negative */
+    {0x00, 0X18, 0x05, 0X80, 0X80 }, /* black and white */
+    {0x00, 0X18, 0x05, 0X40, 0XC0 }, /* reddish */
+    {0x00, 0X18, 0x05, 0X40, 0X40 }, /* greenish */
+    {0x00, 0X18, 0x05, 0XA0, 0X40 }, /* blue */
+    {0x00, 0X18, 0x05, 0X40, 0XA6 }, /* retro */
+};
+
+#define NUM_WB_MODES (4)
+static const uint8_t wb_modes_regs[NUM_WB_MODES + 1][3] = {
+    {0XCC, 0XCD, 0XCE },
+    {0x5E, 0X41, 0x54 }, /* sunny */
+    {0x65, 0X41, 0x4F }, /* cloudy */
+    {0x52, 0X41, 0x66 }, /* office */
+    {0x42, 0X3F, 0x71 }, /* home */
+};
+
 const int OV2640_D[8] = {
   OV2640_D0, OV2640_D1, OV2640_D2, OV2640_D3, OV2640_D4, OV2640_D5, OV2640_D6, OV2640_D7
 };
@@ -1108,30 +1129,51 @@ int OV2640::setVflip(int enable) {
 
 int OV2640::setSpecialEffect(sde_t sde) {
     int ret = 0;
+    int effect;
+    
+    effect = sde;
+    effect++;
+    if (effect <= 0 || effect > NUM_SPECIAL_EFFECTS) {
+        return 1;
+    }
 
-    switch (sde) {
-        case SDE_NEGATIVE:
-            ret |= cameraWriteRegister(  BANK_SEL, BANK_SEL_DSP);
-            ret |= cameraWriteRegister(  BPADDR, 0x00);
-            ret |= cameraWriteRegister(  BPDATA, 0x40);
-            ret |= cameraWriteRegister(  BPADDR, 0x05);
-            ret |= cameraWriteRegister(  BPDATA, 0x80);
-            ret |= cameraWriteRegister(  BPDATA, 0x80);
-            break;
-        case SDE_NORMAL:
-            ret |= cameraWriteRegister(  BANK_SEL, BANK_SEL_DSP);
-            ret |= cameraWriteRegister(  BPADDR, 0x00);
-            ret |= cameraWriteRegister(  BPDATA, 0x00);
-            ret |= cameraWriteRegister(  BPADDR, 0x05);
-            ret |= cameraWriteRegister(  BPDATA, 0x80);
-            ret |= cameraWriteRegister(  BPDATA, 0x80);
-            break;
-        default:
-            return -1;
+    /* Switch to DSP register bank */
+    ret |= cameraWriteRegister(  BANK_SEL, BANK_SEL_DSP);
+
+    /* Write special effect registers */
+    for (int i = 0; i < 5; i++) {
+        ret |= cameraWriteRegister(  special_effects_regs[0][i], special_effects_regs[effect][i]);
     }
 
     return ret;
 }
+
+
+int OV2640::setWBmode(int mode)
+{
+    int ret=0;
+    if (mode < 0 || mode > NUM_WB_MODES) {
+      /* Switch to DSP register bank */
+      ret |= cameraWriteRegister(  BANK_SEL, BANK_SEL_DSP);
+      /* AWB ON */
+      ret |= cameraWriteRegister( 0xC7, 0x00 );
+      return 1;
+    }
+    
+    /* Switch to DSP register bank */
+    ret |= cameraWriteRegister(  BANK_SEL, BANK_SEL_DSP);
+
+    /* AWB OFF */
+    ret |= cameraWriteRegister( 0xC7, 0x40 );
+    
+    if(mode) {
+      for (int i=0; i<3; i++) {
+        ret |= cameraWriteRegister(  wb_modes_regs[0][i], wb_modes_regs[mode][i]);
+      }
+    }
+    return ret;
+}
+
 
 /*******************************************************************/
 

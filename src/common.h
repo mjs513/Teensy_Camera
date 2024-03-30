@@ -82,8 +82,13 @@ enum
   OV2640a = 3
 };
 
-
+// for 0V2640 only
 typedef enum {
-    SDE_NORMAL,
-    SDE_NEGATIVE,
+    NOEFFECT,
+    NEGATIVE,
+    BW,
+    REDDISH,
+    GREENISH,
+    BLUEISH,
+    RETRO
 } sde_t;

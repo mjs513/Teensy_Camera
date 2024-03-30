@@ -33,6 +33,7 @@ Camera camera(himax);
 OV2640 omni;
 Camera camera(omni);
 #define CameraID OV2640a
+#define MIRROR_FLIP_CAMERA
 
 #elif defined(ARDUCAM_CAMERA_OV7670)
 #include "TMM_OV767X/OV767X.h"
@@ -314,9 +315,11 @@ if(!status) {
   camera.setBrightness(0x80);
   camera.autoExposure(1);
 #elif defined(ARDUCAM_CAMERA_OV2640)
-  camera.setBrightness(0);
-  camera.setContrast(0);
-  camera.setSaturation(0);
+  //camera.setBrightness(0);          // -2 to +2
+  //camera.setContrast(0);            // -2 to +2
+  //camera.setSaturation(0);          // -2 to +2
+  //omni.setSpecialEffect(RETRO);  // NOEFFECT, NEGATIVE, BW, REDDISH, GREEISH, BLUEISH, RETRO
+  //omni.setWBmode(3);                  // AWB ON, 1 - Sunny, 2 - Cloudy, 3 - Office, 4 - Home
 #else
   camera.setGainceiling(GAINCEILING_2X);
   camera.setBrightness(3);

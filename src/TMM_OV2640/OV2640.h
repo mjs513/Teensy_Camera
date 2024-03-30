@@ -183,6 +183,7 @@ public:
   int setHmirror(int enable);
   int setVflip(int enable);
   int setSpecialEffect(sde_t sde);
+  int setWBmode(int mode);
   
   void showRegisters();
 
