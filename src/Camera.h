@@ -21,6 +21,7 @@ public:
   virtual void showRegisters(void) = 0;
   virtual void debug(bool debug_on) {_debug = debug_on;}
   virtual bool debug() {return _debug;}
+  bool usingGPIO() {return _use_gpio;}
   // debug and experimenting support
   virtual uint8_t readRegister(uint8_t reg) {return (uint8_t)-1;}
   virtual bool writeRegister(uint8_t reg, uint8_t data) {return false;}
@@ -187,6 +188,7 @@ public:
   void showRegisters(void);
   void debug(bool debug_on);
   bool debug();
+  bool usingGPIO(); // Is the camera configured to use GPIO instead of flexio?
   int setPixformat(pixformat_t pfmt);
   uint8_t setFramesize(framesize_t framesize);
   int setFramerate(int framerate);
