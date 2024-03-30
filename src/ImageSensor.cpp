@@ -6,9 +6,9 @@
 
 #define debug     Serial
 
-#define DEBUG_CAMERA
+//#define DEBUG_CAMERA
 //#define DEBUG_CAMERA_VERBOSE
-#define DEBUG_FLEXIO
+//#define DEBUG_FLEXIO
 //#define USE_DEBUG_PINS
 
 ImageSensor *ImageSensor::active_dma_camera = nullptr;

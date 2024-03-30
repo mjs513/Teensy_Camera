@@ -613,7 +613,7 @@ int HM01B0::setPixformat( pixformat_t pfmt)
 
 uint8_t HM01B0::setFramesize(framesize_t new_framesize)
 {
-    Serial.printf("HM01B0::setFramesize(%x) _hw_config:%u\n", new_framesize, _hw_config);
+    //Serial.printf("HM01B0::setFramesize(%x) _hw_config:%u\n", new_framesize, _hw_config);
     int ret=0;
     //uint16_t w = resolution[framesize][0];
     //uint16_t h = resolution[framesize][1];
@@ -634,7 +634,6 @@ uint8_t HM01B0::setFramesize(framesize_t new_framesize)
                 ret |= cameraWriteRegister( QVGA_regs[i][0], QVGA_regs[i][1]);
             }
             if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT ) {
-                    Serial.println("HM01B0::setFramesize() QVGA 4 Bit");
                     ret |= cameraWriteRegister(BIT_CONTROL, 0x42);
             }                    
             break;
