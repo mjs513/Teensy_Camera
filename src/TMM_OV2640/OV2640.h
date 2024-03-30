@@ -216,7 +216,7 @@ private:
   uint8_t cameraWriteRegister(uint8_t reg, uint8_t data);
 private:
   
-  int _xclk_freq = 20;
+  int _xclk_freq = 12;
 
     bool _grayscale;
 

@@ -328,12 +328,12 @@ static const uint8_t yuv422_regs[][2] = {
 };
 
 static const uint8_t rgb565_regs[][2] = {
-    {BANK_SEL, BANK_SEL_DSP},
-    {RESET, RESET_DVP},
-    {IMAGE_MODE, IMAGE_MODE_RGB565},
-    {0xD7, 0x03},
-    {0xE1, 0x77},
-    {RESET, 0x00},
+    {BANK_SEL,      BANK_SEL_DSP},
+    {R_BYPASS,      R_BYPASS_DSP_EN},
+    {IMAGE_MODE,    IMAGE_MODE_RGB565},
+    {0xd7,          0x03},
+    {RESET,         0x00},
+    {R_BYPASS,      R_BYPASS_DSP_EN},
     {0,             0},
 };
 
@@ -603,6 +603,7 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
         setDMACompleteISRPriority(192);
     }
     
+  reset();
   setPixformat(format);
   setFramesize(resolution);
 

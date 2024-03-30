@@ -7,9 +7,9 @@
 #define USE_MMOD_ATP_ADAPTER
 //#define USE_SDCARD
 
-#define ARDUCAM_CAMERA_HM01B0
+//#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
-//#define ARDUCAM_CAMERA_OV2640
+#define ARDUCAM_CAMERA_OV2640
 //#define ARDUCAM_CAMERA_OV7670
 //#define ARDUCAM_CAMERA_OV7675
 //#define ARDUCAM_CAMERA_GC2145
@@ -270,7 +270,7 @@ void setup() {
 //         (GPIO  ) 15/30/60 fps works, but F and M do not hangs
 
 
-uint8_t status = 1;
+uint8_t status = 0;
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145))
   status = camera.begin(FRAMESIZE_QVGA, RGB565, 15, CameraID, false);
 #else
@@ -284,8 +284,6 @@ uint8_t status = 1;
   camera.setVflip(true);
 #endif
 
-
-camera.showRegisters();
 
 Serial.printf("Begin status: %d\n", status);
 if(!status) {
@@ -316,6 +314,9 @@ if(!status) {
   camera.setBrightness(0x80);
   camera.autoExposure(1);
 #elif defined(ARDUCAM_CAMERA_OV2640)
+  camera.setBrightness(0);
+  camera.setContrast(0);
+  camera.setSaturation(0);
 #else
   camera.setGainceiling(GAINCEILING_2X);
   camera.setBrightness(3);
@@ -324,7 +325,6 @@ if(!status) {
   camera.setMode(HIMAX_MODE_STREAMING, 0);  // turn on, continuous streaming mode
 #endif
 
-  //camera.showRegisters();
   Serial.println("Camera settings:");
   Serial.print("\twidth = ");
   Serial.println(camera.width());
@@ -342,8 +342,6 @@ if(!status) {
   // Lets setup camera interrupt priorities:
   //camera.setVSyncISRPriority(102); // higher priority than default
   camera.setDMACompleteISRPriority(192);  // lower than default
-
-  showCommandList();
 
 #if defined(ARDUCAM_CAMERA_GC2145)
   /***************note for the GC2145 the following is supported **************
@@ -369,8 +367,13 @@ if(!status) {
     0 = disabled
     1 = enabled
    *************************************************************************/
-//  camera.setColorbar(1);
+  camera.setColorbar(0);
 #endif
+
+camera.showRegisters();
+
+showCommandList();
+
 }
 
 bool hm0360_flexio_callback(void *pfb) {
@@ -384,7 +387,11 @@ bool hm0360_flexio_callback(void *pfb) {
 #define UPDATE_ON_CAMERA_FRAMES
 
 inline uint16_t HTONS(uint16_t x) {
+  #if defined(ARDUCAM_CAMERA_OV2640)
+  return x;
+  #else
   return ((x >> 8) & 0x00FF) | ((x << 8) & 0xFF00);
+  #endif
 }
 
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
