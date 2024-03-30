@@ -276,7 +276,7 @@ uint8_t status = 0;
 #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
-  status = camera.begin(FRAMESIZE_QVGA, 15);
+  status = camera.begin(FRAMESIZE_QVGA, 15, false);
 #endif
 
 #ifdef MIRROR_FLIP_CAMERA
@@ -929,8 +929,13 @@ void save_image_SD() {
 #endif
 
 void showCommandList() {
-  Serial.println("Send the 'f' character to read a frame using FlexIO (changes hardware setup!)");
-  Serial.println("Send the 'F' to start/stop continuous using FlexIO (changes hardware setup!)");
+  if (camera.usingGPIO()) {
+    Serial.println("Send the 'f' character to read a frame using GPIO");
+    Serial.println("Send the 'F' to start/stop continuous using GPIO");
+  } else {
+    Serial.println("Send the 'f' character to read a frame using FlexIO (changes hardware setup!)");
+    Serial.println("Send the 'F' to start/stop continuous using FlexIO (changes hardware setup!)");
+  }
   Serial.println("Send the 'm' character to read and display multiple frames");
   Serial.println("Send the 'M' character to read and display multiple frames use Frame buffer");
   Serial.println("Send the 'V' character DMA to TFT async continueous  ...");
