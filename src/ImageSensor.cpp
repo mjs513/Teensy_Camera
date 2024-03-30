@@ -81,17 +81,6 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
 
     //flexio_configure(); // one-time hardware setup
     // wait for VSYNC to go high and then low with a sort of glitch filter
-#if 1
-    elapsedMillis emWaitSOF = 0;
-    for (;;) {
-      if (((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0)) break;
-      if (emWaitSOF > 500) {
-        if(_debug) debug.println("Timeout waiting for VSYNC");
-        return false;
-      }
-    }
-#else
-
     elapsedMillis emWaitSOF;
     elapsedMicros emGlitch;
     for (;;) {
@@ -104,7 +93,6 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
       while ((*_vsyncPort & _vsyncMask) != 0);
       if (emGlitch > 5) break;
     }
-#endif
     _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
     _pflexio->SHIFTERR = _fshifter_mask;
     uint32_t *p = (uint32_t *)buffer;
@@ -121,45 +109,21 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
       //uint32_t *p_end = (uint32_t *)buffer + (_width*_height/4)*_bytesPerPixel;
       uint32_t count_items_left = (_width*_height/4)*_bytesPerPixel;
       uint32_t count_items_left_in_buffer = (uint32_t)cb1 / 4;
-    
-      if (_hw_config == TEENSY_MICROMOD_FLEXIO_8BIT) {
-        while (count_items_left) {
-            while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
-                // wait for FlexIO shifter data
-            }
-            // Lets simplify back to single shifter for now
-            *p++ = _pflexio->SHIFTBUF[_fshifter]; // should use DMA...
-            count_items_left--;
-            if (buffer2 && (--count_items_left_in_buffer == 0)) {
-              p = (uint32_t*)buffer2;
-              count_items_left_in_buffer = (uint32_t)cb2 / 4;
-            }
-        }
-      } else {
-        // 4 bit mode:
-        bool save_pixels = true;
-        uint8_t in_row_count = _width / 4;
-        while (count_items_left) {
-          // we want to read and save one rows worth of pixels
-          // and skipt the second half
+   
+      // Same code should work for 4 bit or 8 bit as the differences are
+      // handled by the FlexIO code on how many bits at a time get shifted
+      // into the shift register. 
+      while (count_items_left) {
           while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
-            // wait for FlexIO shifter data
+              // wait for FlexIO shifter data
           }
-          uint32_t sbuf = _pflexio->SHIFTBUF[_fshifter];
-          if (save_pixels) {
-            *p++ = sbuf;  // should use DMA...
-            count_items_left--;
-            if (buffer2 && (--count_items_left_in_buffer == 0)) {
-              p = (uint32_t*)buffer2;
-              count_items_left_in_buffer = (uint32_t)cb2 / 4;
-            }
+          // Lets simplify back to single shifter for now
+          *p++ = _pflexio->SHIFTBUF[_fshifter]; // should use DMA...
+          count_items_left--;
+          if (buffer2 && (--count_items_left_in_buffer == 0)) {
+            p = (uint32_t*)buffer2;
+            count_items_left_in_buffer = (uint32_t)cb2 / 4;
           }
-          in_row_count--;
-          if (in_row_count == 0) {
-            save_pixels = !save_pixels;
-            in_row_count = _width / 4;
-          }
-        }
       }
       #ifdef USE_DEBUG_PINS
       digitalWriteFast(2, LOW);
