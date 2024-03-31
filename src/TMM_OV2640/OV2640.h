@@ -219,10 +219,10 @@ private:
   
   int _xclk_freq = 12;
 
-    bool _grayscale;
+  bool _grayscale;
 
   void* _OV2640;
-
+  int _format;
 
   int _saturation;
   int _hue;
