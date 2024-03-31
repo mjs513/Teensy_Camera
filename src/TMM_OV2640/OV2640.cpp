@@ -59,6 +59,25 @@
 #define LOG2(x)               (((x) & 0xFFFFFFFF00000000ULL) ? (32 + LOG2_32((x) >> 32)) : LOG2_32(x)) // NO ({ ... }) !
 
 
+typedef struct {
+        union {
+                struct {
+                        uint8_t pclk_div:7;
+                        uint8_t pclk_auto:1;
+                };
+                uint8_t pclk;
+        };
+        union {
+                struct {
+                        uint8_t clk_div:6;
+                        uint8_t reserved:1;
+                        uint8_t clk_2x:1;
+                };
+                uint8_t clk;
+        };
+} ov2640_clk_t;
+
+
 // Sensor frame size/resolution table.
 const int resolution[][2] = {
     {640,  480 },    /* VGA       */
@@ -473,7 +492,7 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
 {
 
   int _framesize = 0;
-  int _format = 0;
+  _format = 0;
   
   _use_gpio = use_gpio;
   // BUGBUG::: see where frame is
@@ -540,7 +559,10 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
     _grayscale = true;
     _format = 4;
     break;
-
+  case JPEG:
+    _bytesPerPixel = 2;
+    _format = 8;
+    break;
   default:
     return 0;
   }
@@ -721,6 +743,8 @@ uint8_t OV2640::setFramesize(framesize_t framesize) {
     uint16_t sensor_h = 0;
     int ret = 0;
     
+    ov2640_clk_t c;
+    
     uint16_t w = resolution[framesize][0];
     uint16_t h = resolution[framesize][1];
     
@@ -792,6 +816,51 @@ uint8_t OV2640::setFramesize(framesize_t framesize) {
     ret |= cameraWriteRegister(  ZMHH, ZMHH_OUTW_SET(w) | ZMHH_OUTH_SET(h));
     ret |= cameraWriteRegister(  R_DVP_SP, div);
     ret |= cameraWriteRegister(  RESET, 0x00);
+    
+    
+    //Extracted from the ESP32 Camera implementation to address cameras
+    // without CLK Pins
+    if (_format == 8) {  //jpeg
+        c.clk_2x = 0;
+        c.clk_div = 0;
+        c.pclk_auto = 0;
+        c.pclk_div = 8;
+        if(w <= SVGA_WIDTH) {
+            c.pclk_div = 12;
+        }
+        // if (sensor->xclk_freq_hz == 16000000) {
+        //     c.pclk_div = c.pclk_div / 2;
+        // }
+    } else {
+#if CONFIG_IDF_TARGET_ESP32
+        c.clk_2x = 0;
+#else
+        c.clk_2x = 0;  //ELSE 1
+#endif
+        c.clk_div = 7;
+        c.pclk_auto = 1;
+        c.pclk_div = 8;
+        if(w <= CIF_WIDTH) {
+            c.clk_div = 3;
+        } else if(w <= SVGA_WIDTH) {
+            c.pclk_div = 12;
+        }
+    }
+    
+    if(_debug) {
+      debug.printf("Set PLL: clk_2x: %u, clk_div: %u, pclk_auto: %u, pclk_div: %u\n", c.clk_2x, c.clk_div, c.pclk_auto, c.pclk_div);
+      debug.printf("c.clk value: %u\n", c.clk);
+      debug.printf("c.pclk value: %u\n", c.pclk);
+    }
+
+    ret |=cameraWriteRegister(BANK_SEL, BANK_SEL_SENSOR);
+    ret |=cameraWriteRegister(CLKRC, c.clk);
+    ret |=cameraWriteRegister(BANK_SEL, BANK_SEL_DSP);
+    ret |=cameraWriteRegister(R_DVP_SP, c.pclk);
+    ret |=cameraWriteRegister(BANK_SEL, BANK_SEL_DSP);
+    ret |=cameraWriteRegister( R_BYPASS, R_BYPASS_DSP_EN);
+
+    delay(100);
 
     return ret;
 }
