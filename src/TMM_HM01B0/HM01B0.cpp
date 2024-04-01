@@ -162,7 +162,7 @@ const uint16_t Walking1s_reg[][2] =
     {0x0601, 0x11},    //W 24 0601 11 2 1 ; Test pattern
     {0x0104, 0x01},    //W 24 0104 01 2 1 ;
     //============= End of regs marker ==================
-    {0x0000,            0x00},	
+    {0x0000,            0x00},  
 };
 
 
@@ -194,7 +194,7 @@ const uint16_t QVGA_regs[][2] = {
     {FRAME_LEN_LINES_L,     (HIMAX_FRAME_LENGTH_QVGA&0xFF)},
     {LINE_LEN_PCK_H,        (HIMAX_LINE_LEN_PCK_QVGA>>8)},
     {LINE_LEN_PCK_L,        (HIMAX_LINE_LEN_PCK_QVGA&0xFF)},
-	{BIT_CONTROL,			0x02},
+    {BIT_CONTROL,           0x02},
     {GRP_PARAM_HOLD,        0x01},
     //============= End of regs marker ==================
     {0x0000,            0x00},
@@ -541,43 +541,15 @@ const uint16_t Arducam_hm01b0_324x244[][2]  = {
 
 HM01B0::HM01B0() {}
 
-void HM01B0::setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, uint8_t en_pin,
-                     uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4, uint8_t g5, uint8_t g6, uint8_t g7, TwoWire &wire) {
-
-  _wire = &wire;
-
-  MCLK_PIN = mclk_pin;
-  PCLK_PIN = pclk_pin;
-  VSYNC_PIN = vsync_pin;
-  HSYNC_PIN = hsync_pin;
-  EN_PIN = en_pin,
-
-  G0 = g0;
-  G1 = g1;
-  G2 = g2;
-  G3 = g3;
-  G4 = g4;
-  G5 = g5;
-  G6 = g6;
-  G7 = g7;
-
-  if (g4 == 0xff) {
-    _hw_config = TEENSY_MICROMOD_FLEXIO_4BIT;
-  } else {
-    _hw_config = TEENSY_MICROMOD_FLEXIO_8BIT;
-  }
-}
-
-
 int HM01B0::reset()
 {
     // Reset sensor.
      if (cameraWriteRegister(SW_RESET, HIMAX_RESET) != 0) { //cambus_writeb2(&sensor->bus, sensor->slv_addr, SW_RESET, HIMAX_RESET
             return -1;
         }
-		
-	// Delay for 1ms.
-	delay(1);
+        
+    // Delay for 1ms.
+    delay(1);
 
     // Write default regsiters
     int ret = 0;
@@ -626,13 +598,13 @@ int HM01B0::setPixformat( pixformat_t pfmt)
     int ret = 0;
     switch (pfmt) {
         case PIXFORMAT_BAYER:
-			pixformat = PIXFORMAT_BAYER;
-			break;
+            pixformat = PIXFORMAT_BAYER;
+            break;
         case PIXFORMAT_GRAYSCALE:
-			pixformat = PIXFORMAT_GRAYSCALE;
+            pixformat = PIXFORMAT_GRAYSCALE;
             break;
         default:
-			pixformat = PIXFORMAT_INVALID;
+            pixformat = PIXFORMAT_INVALID;
             return -1;
     }
 
@@ -641,14 +613,15 @@ int HM01B0::setPixformat( pixformat_t pfmt)
 
 uint8_t HM01B0::setFramesize(framesize_t new_framesize)
 {
+    //Serial.printf("HM01B0::setFramesize(%x) _hw_config:%u\n", new_framesize, _hw_config);
     int ret=0;
     //uint16_t w = resolution[framesize][0];
     //uint16_t h = resolution[framesize][1];
-	framesize = new_framesize;
-
+    framesize = new_framesize;
+    _bytesPerPixel = 1;
     switch (framesize) {
         case FRAMESIZE_320X320:
-			_width = 320; _height = 320;
+            _width = 320; _height = 320;
             for (int i=0; FULL_regs[i][0] && ret == 0; i++) {
                 ret |=  cameraWriteRegister(FULL_regs[i][0], FULL_regs[i][1]);  //cambus_writeb2(&sensor->bus, sensor->slv_addr, FULL_regs[i][0], FULL_regs[i][1]
             }
@@ -656,15 +629,16 @@ uint8_t HM01B0::setFramesize(framesize_t new_framesize)
                     ret = cameraWriteRegister(BIT_CONTROL, 0x42);
             break;
         case FRAMESIZE_QVGA:
-			_width = 324; _height = 244;
+            _width = 324; _height = 244;
             for (int i=0; QVGA_regs[i][0] && ret == 0; i++) {
                 ret |= cameraWriteRegister( QVGA_regs[i][0], QVGA_regs[i][1]);
             }
-            if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT ) 
+            if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT ) {
                     ret |= cameraWriteRegister(BIT_CONTROL, 0x42);
+            }                    
             break;
         case FRAMESIZE_QQVGA:
-			_width = 160; _height = 120;
+            _width = 160; _height = 120;
             for (int i=0; QQVGA_regs[i][0] && ret == 0; i++) {
                 ret |= cameraWriteRegister( QQVGA_regs[i][0], QQVGA_regs[i][1]);
             }
@@ -672,18 +646,18 @@ uint8_t HM01B0::setFramesize(framesize_t new_framesize)
                     ret |= cameraWriteRegister(BIT_CONTROL, 0x42);
             break;
         case FRAMESIZE_QVGA4BIT:
-			_width = 324; _height = 244;
+            _width = 324; _height = 244;
             for (int i=0; QVGA_regs[i][0] && ret == 0; i++) {
                 ret |= cameraWriteRegister( QVGA_regs[i][0], QVGA_regs[i][1]);
             }
-			ret = cameraWriteRegister(BIT_CONTROL, 0x42);
+            ret = cameraWriteRegister(BIT_CONTROL, 0x42);
             break;
-		case FRAMESIZE_INVALID:
+        case FRAMESIZE_INVALID:
             for (int i=0; default_regs[i][0] && ret == 0; i++) {
                 ret |= cameraWriteRegister( default_regs[i][0], default_regs[i][1]);
-			}
-			break;
-		default:
+            }
+            break;
+        default:
             ret = -1;
             
     }
@@ -694,7 +668,7 @@ int HM01B0::setFramerate(int framerate)
 {
     uint8_t osc_div = 0;
     bool    highres = false;
-	//framesize_t framesize;
+    //framesize_t framesize;
 
     if (framesize == FRAMESIZE_INVALID
             || framesize == FRAMESIZE_QVGA
@@ -817,7 +791,7 @@ int HM01B0::get_vt_pix_clk(uint32_t *vt_pix_clk)
 int HM01B0::getGain_db(float *gain_db)
 {
     uint8_t gain;
-	gain = cameraReadRegister(ANALOG_GAIN);
+    gain = cameraReadRegister(ANALOG_GAIN);
     if (gain != 0) {
         return -1;
     }
@@ -828,7 +802,7 @@ int HM01B0::getGain_db(float *gain_db)
 int HM01B0::getCameraClock(uint32_t *vt_pix_clk)
 {
     uint8_t reg;
-	reg = cameraReadRegister(OSC_CLK_DIV);
+    reg = cameraReadRegister(OSC_CLK_DIV);
 
     // 00 -> MCLK / 8
     // 01 -> MCLK / 4
@@ -900,12 +874,12 @@ int HM01B0::getExposure_us(int *exposure_us)
         line_len = HIMAX_LINE_LEN_PCK_QQVGA;
     }
     ret |= get_vt_pix_clk(&vt_pix_clk);
-	((uint8_t*)&coarse_int)[1] = cameraReadRegister( INTEGRATION_H);
+    ((uint8_t*)&coarse_int)[1] = cameraReadRegister( INTEGRATION_H);
     ((uint8_t*)&coarse_int)[0] = cameraReadRegister( INTEGRATION_L);
-	
+    
     ret |= ((uint8_t*)&coarse_int)[1];
     ret |= ((uint8_t*)&coarse_int)[0] ;
-	
+    
     *exposure_us = fast_roundf(coarse_int * line_len / (vt_pix_clk / 1000000.0f));
     return ret;
 }
@@ -913,7 +887,7 @@ int HM01B0::getExposure_us(int *exposure_us)
 int HM01B0::setHmirror(int enable)
 {
     uint8_t reg;
-	reg = cameraReadRegister( IMG_ORIENTATION);
+    reg = cameraReadRegister( IMG_ORIENTATION);
     int ret = reg;
     ret |= cameraWriteRegister( IMG_ORIENTATION, HIMAX_SET_HMIRROR(reg, enable)) ;
     ret |= cameraWriteRegister(  GRP_PARAM_HOLD, 0x01);
@@ -932,18 +906,18 @@ int HM01B0::setVflip( int enable)
 
 uint8_t HM01B0::setMode(uint8_t Mode, uint8_t FrameCnt)
 {
-	uint8_t Err = 0;
-	
+    uint8_t Err = 0;
+    
     if (Mode == HIMAX_MODE_STREAMING_NFRAMES)
     {
         Err = cameraWriteRegister(PMU_AUTOSLEEP_FRAMECNT, FrameCnt);
     } else {
         Err = cameraWriteRegister(MODE_SELECT, Mode);
-	}
-	
+    }
+    
     if(Err != 0)
     {
-		if(_debug) debug.println("Mode Could not be set");
+        if(_debug) debug.println("Mode Could not be set");
     }
 
     return Err;
@@ -951,37 +925,37 @@ uint8_t HM01B0::setMode(uint8_t Mode, uint8_t FrameCnt)
 
 uint8_t HM01B0::cmdUpdate()
 {
-	uint8_t status = 0;
+    uint8_t status = 0;
     status = cameraWriteRegister(GRP_PARAM_HOLD, 0x01);
-	return status;
+    return status;
 }
 
 
 uint8_t HM01B0::loadSettings(camera_reg_settings_t settings)
 {
-	uint8_t ret = 0;
-	switch(settings) {
-		case LOAD_DEFAULT_REGS:
-			for (int i=0; default_regs[i][0] && ret == 0; i++) {
-				ret |=  cameraWriteRegister(default_regs[i][0], default_regs[i][1]);
-			}
-			break;
-		case LOAD_WALKING1S_REG:
-			for (int i=0; Walking1s_reg[i][0] && ret == 0; i++) {
-				ret |=  cameraWriteRegister(Walking1s_reg[i][0], Walking1s_reg[i][1]);  
-			}
-			break;
-		case LOAD_SHM01B0INIT_REGS:
-			_width = 320; _height = 240;
-			framesize = FRAMESIZE_QVGA;
-			for (int i=0; sHM01B0Init_regs[i][0] && ret == 0; i++) {
-				ret |=  cameraWriteRegister(sHM01B0Init_regs[i][0], sHM01B0Init_regs[i][1]);  
-			}
-			break;		
-		default:
-			ret = -1;
-	}
-	return ret;
+    uint8_t ret = 0;
+    switch(settings) {
+        case LOAD_DEFAULT_REGS:
+            for (int i=0; default_regs[i][0] && ret == 0; i++) {
+                ret |=  cameraWriteRegister(default_regs[i][0], default_regs[i][1]);
+            }
+            break;
+        case LOAD_WALKING1S_REG:
+            for (int i=0; Walking1s_reg[i][0] && ret == 0; i++) {
+                ret |=  cameraWriteRegister(Walking1s_reg[i][0], Walking1s_reg[i][1]);  
+            }
+            break;
+        case LOAD_SHM01B0INIT_REGS:
+            _width = 320; _height = 240;
+            framesize = FRAMESIZE_QVGA;
+            for (int i=0; sHM01B0Init_regs[i][0] && ret == 0; i++) {
+                ret |=  cameraWriteRegister(sHM01B0Init_regs[i][0], sHM01B0Init_regs[i][1]);  
+            }
+            break;      
+        default:
+            ret = -1;
+    }
+    return ret;
 }
 
 
@@ -1037,7 +1011,7 @@ uint8_t HM01B0::calAE( uint8_t CalFrames, uint8_t* Buffer, uint32_t ui32BufferLe
 
     for (uint8_t i = 0; i < CalFrames; i++)
     {
-		setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
+        setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
         readFrame(Buffer, ui32BufferLen);
         ui32Err = getAE(pAECfg);
 
@@ -1078,7 +1052,7 @@ uint8_t HM01B0::getAE( ae_cfg_t *psAECfg)
     uint8_t     ui8ConvergeInTh;
     uint8_t     ui8ConvergeOutTh;
 
-	//Read target mean
+    //Read target mean
     ui8AETargetMean = cameraReadRegister( AE_TARGET_MEAN);
     ui8AEMinMean = cameraReadRegister(AE_MIN_MEAN);
     ui8ConvergeInTh = cameraReadRegister( CONVERGE_IN_TH);
@@ -1111,76 +1085,76 @@ bool HM01B0::begin(framesize_t framesize, int framerate, bool use_gpio)
 
     _wire->begin();
 
-	pinMode(VSYNC_PIN, INPUT_PULLDOWN); // VSYNC Pin
-	pinMode(PCLK_PIN, INPUT_PULLDOWN);  //PCLK
-	pinMode(HSYNC_PIN, INPUT_PULLDOWN);  //HSYNC
-	//pinMode(MCLK_PIN, OUTPUT);
-	
-	/*Thanks to @luni for how to read 8bit port	\
-	 * https://forum.pjrc.com/threads/66771-MicroMod-Beta-Testing?p=275567&viewfull=1#post275567
-	 * This interesting too: https://forum.pjrc.com/threads/57698-Parallel-IO-is-it-possible?p=216501&viewfull=1#post216501
-	*/
-	if(G4 == 0xff) {
-		for (uint8_t pin : {G0, G1, G2, G3})
-		{
-			pinMode(pin, INPUT_PULLUP);
-		}
-	} else {
-		for (uint8_t pin : {G0, G1, G2, G3, G4, G5, G6, G7})
-		{
-			pinMode(pin, INPUT_PULLUP);
-		}
-	}
-	
+    pinMode(_vsyncPin, INPUT_PULLDOWN); // VSYNC Pin
+    pinMode(_pclkPin, INPUT_PULLDOWN);  //PCLK
+    pinMode(_hrefPin, INPUT_PULLDOWN);  //HSYNC
+    //pinMode(_xclkPin, OUTPUT);
+    
+    /*Thanks to @luni for how to read 8bit port \
+     * https://forum.pjrc.com/threads/66771-MicroMod-Beta-Testing?p=275567&viewfull=1#post275567
+     * This interesting too: https://forum.pjrc.com/threads/57698-Parallel-IO-is-it-possible?p=216501&viewfull=1#post216501
+    */
+    if(_dPins[4] == 0xff) {
+        for (uint8_t pin : {_dPins[0], _dPins[1], _dPins[2], _dPins[3]})
+        {
+            pinMode(pin, INPUT_PULLUP);
+        }
+    } else {
+        for (uint8_t pin : {_dPins[0], _dPins[1], _dPins[2], _dPins[3], _dPins[4], _dPins[5], _dPins[6], _dPins[7]})
+        {
+            pinMode(pin, INPUT_PULLUP);
+        }
+    }
+    
 #ifdef DEBUG_CAMERA
-  debug.printf("  VS=%d, HR=%d, PC=%d XC=%d\n", VSYNC_PIN, HSYNC_PIN, PCLK_PIN, MCLK_PIN);
-  debug.printf("  G0 = %d\n", G0);
-  debug.printf("  G1 = %d\n", G1);
-  debug.printf("  G2 = %d\n", G2);
-  debug.printf("  G3 = %d\n", G3);
-  if(G4 != 0xFF){
-    debug.printf("  G4 = %d\n", G4);
-    debug.printf("  G5 = %d\n", G5);
-    debug.printf("  G6 = %d\n", G6);
-    debug.printf("  G7 = %d\n", G7);
+  debug.printf("  VS=%d, HR=%d, PC=%d XC=%d\n", _vsyncPin, _hrefPin, _pclkPin, _xclkPin);
+  debug.printf("  _dPins[0] = %d\n", _dPins[0]);
+  debug.printf("  _dPins[1] = %d\n", _dPins[1]);
+  debug.printf("  _dPins[2] = %d\n", _dPins[2]);
+  debug.printf("  _dPins[3] = %d\n", _dPins[3]);
+  if(_dPins[4] != 0xFF){
+    debug.printf("  _dPins[4] = %d\n", _dPins[4]);
+    debug.printf("  _dPins[5] = %d\n", _dPins[5]);
+    debug.printf("  _dPins[6] = %d\n", _dPins[6]);
+    debug.printf("  _dPins[7] = %d\n", _dPins[7]);
   }
 #endif
     
-	_vsyncMask = digitalPinToBitMask(VSYNC_PIN);
-    _hrefMask = digitalPinToBitMask(HSYNC_PIN);
-    _pclkMask = digitalPinToBitMask(PCLK_PIN);
+    _vsyncMask = digitalPinToBitMask(_vsyncPin);
+    _hrefMask = digitalPinToBitMask(_hrefPin);
+    _pclkMask = digitalPinToBitMask(_pclkPin);
 
-    _vsyncPort = portInputRegister(digitalPinToPort(VSYNC_PIN));
-    _hrefPort = portInputRegister(digitalPinToPort(HSYNC_PIN));
-    _pclkPort = portInputRegister(digitalPinToPort(PCLK_PIN));
-	
-	// turn on power to camera (1.8V - might be an issue?)
-	if(EN_PIN < 255) {
-		pinMode(EN_PIN, OUTPUT);
-		digitalWrite(EN_PIN, HIGH);
-	}
-	delay(10);
+    _vsyncPort = portInputRegister(digitalPinToPort(_vsyncPin));
+    _hrefPort = portInputRegister(digitalPinToPort(_hrefPin));
+    _pclkPort = portInputRegister(digitalPinToPort(_pclkPin));
+    
+    // turn on power to camera (1.8V - might be an issue?)
+    if(_rst < 255) {
+        pinMode(_rst, OUTPUT);
+        digitalWrite(_rst, HIGH);
+    }
+    delay(10);
 
-	// turn on MCLK
+    // turn on MCLK
     beginXClk();
-	
+    
     if (!_use_gpio) {
         flexio_configure();
     }
-	setVSyncISRPriority(102);
-	setDMACompleteISRPriority(192);
+    setVSyncISRPriority(102);
+    setDMACompleteISRPriority(192);
     
   if(getModelid() != 0x01B0) return 0;
   
-	reset();
+    reset();
     
     setFramesize(framesize);   
     setFramerate(framerate);
 
-	setPixformat(PIXFORMAT_GRAYSCALE);    //Sparkfun camera only supports grayscale
-	
-	//setMode(HIMAX_MODE_STREAMING,0);
-		
+    setPixformat(PIXFORMAT_GRAYSCALE);    //Sparkfun camera only supports grayscale
+    
+    //setMode(HIMAX_MODE_STREAMING,0);
+        
     return 1;
 }
 
@@ -1189,7 +1163,7 @@ void HM01B0::end()
 {
   endXClk();
 
-  pinMode(MCLK_PIN, INPUT);
+  pinMode(_xclkPin, INPUT);
 
   Wire.end();
 
@@ -1198,9 +1172,9 @@ void HM01B0::end()
 void HM01B0::beginXClk()
 {
   // Generates MCLK clock
-	analogWriteFrequency(MCLK_PIN, OMV_XCLK_FREQUENCY);
-	analogWrite(MCLK_PIN, 128);
-	delay(100);
+    analogWriteFrequency(_xclkPin, OMV_XCLK_FREQUENCY);
+    analogWrite(_xclkPin, 128);
+    delay(100);
 }
 
 void HM01B0::endXClk()
@@ -1210,35 +1184,6 @@ void HM01B0::endXClk()
 
 
 #define FLEXIO_USE_DMA
-
-bool HM01B0::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
-    if(!_use_gpio) {
-        return readFrameFlexIO(buffer1, cb1, buffer2, cb2);
-    } else {
-        if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT) {
-            readFrame4BitGPIO(buffer1);
-            return true;
-        } else {
-            return readFrameGPIO(buffer1, cb1, buffer2, cb2);
-        }
-    }
-
-}
-
-
-
-bool HM01B0::readContinuous(bool(*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2) {
-	//setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
-
-	return startReadFlexIO(callback, fb1, cb1, fb2, cb2);
-
-}
-
-void HM01B0::stopReadContinuous() {
-	
-  stopReadFlexIO();
-
-}
 
 
 bool HM01B0::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
@@ -1257,7 +1202,7 @@ bool HM01B0::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 #endif
 
   // Falling edge indicates start of frame
-  //pinMode(PCLK_PIN, INPUT); // make sure back to input pin...
+  //pinMode(_pclkPin, INPUT); // make sure back to input pin...
   // lets add our own glitch filter.  Say it must be hig for at least 100us
   elapsedMicros emHigh;
   do {
@@ -1317,15 +1262,15 @@ void HM01B0::readFrame4BitGPIO(void* buffer)
   
   //Change for Monodchrome only Sparkfun HB01b0
   #if defined(SensorMonochrome) 
-	_grayscale = false;
-	bytesPerRow = _width * 2;
+    _grayscale = false;
+    bytesPerRow = _width * 2;
   #else
-	_grayscale = (pixformat == PIXFORMAT_GRAYSCALE);
-	bytesPerRow = _width * 2 * 2;
+    _grayscale = (pixformat == PIXFORMAT_GRAYSCALE);
+    bytesPerRow = _width * 2 * 2;
   #endif
 
   // Falling edge indicates start of frame
-  //pinMode(PCLK_PIN, INPUT); // make sure back to input pin...
+  //pinMode(_pclkPin, INPUT); // make sure back to input pin...
   // lets add our own glitch filter.  Say it must be hig for at least 100us
   elapsedMicros emHigh;
   do {
@@ -1346,18 +1291,18 @@ void HM01B0::readFrame4BitGPIO(void* buffer)
 
       //uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >> 18; // read all bits in parallel
       uint8_t in =  (GPIO7_PSR >> 4); // read all bits in parallel
-	  //uint32_t in = mmBus; 
-	  in &= 0x0F;
-	  
-	  if((j + 1) % 2) {
-		  in = (in0 << 4) | (in);
-		  if (!(j & 1) || !_grayscale) {
-			*b++ = in;
-		  }
-	  } else {
-		  in0 = in;
-	  }
-	  
+      //uint32_t in = mmBus; 
+      in &= 0x0F;
+      
+      if((j + 1) % 2) {
+          in = (in0 << 4) | (in);
+          if (!(j & 1) || !_grayscale) {
+            *b++ = in;
+          }
+      } else {
+          in0 = in;
+      }
+      
       while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0)) ; // wait for LOW bail if _href is lost
     }
 
@@ -1370,599 +1315,14 @@ void HM01B0::readFrame4BitGPIO(void* buffer)
 }
 
 
-bool HM01B0::flexio_configure()
-{
-    // Going to try this using my FlexIO library.
-
-    // BUGBUG - starting off not going to worry about maybe first pin I choos is on multipl Flex IO controllers (yet)
-    uint8_t tpclk_pin; 
-    _pflex = FlexIOHandler::mapIOPinToFlexIOHandler(PCLK_PIN, tpclk_pin);
-    if (!_pflex) {
-        debug.printf("HM01B0 PCLK(%u) is not a valid Flex IO pin\n", PCLK_PIN);
-        return false;
-    }
-    _pflexio = &(_pflex->port());
-
-    // Quick and dirty:
-    uint8_t thsync_pin = _pflex->mapIOPinToFlexPin(HSYNC_PIN);
-    uint8_t tg0 = _pflex->mapIOPinToFlexPin(G0);
-    uint8_t tg1 = _pflex->mapIOPinToFlexPin(G1);
-    uint8_t tg2 = _pflex->mapIOPinToFlexPin(G2);
-    uint8_t tg3 = _pflex->mapIOPinToFlexPin(G3);
-
-    // make sure the minimum here is valid: 
-    if ((thsync_pin == 0xff) || (tg0 == 0xff) || (tg1 == 0xff) || (tg2 == 0xff) || (tg3 == 0xff)) {
-        #ifdef DEBUG_FLEXIO
-        debug.printf("HM01B0 Some pins did not map to valid Flex IO pin\n");
-        debug.printf("    HSYNC(%u %u) G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)", 
-            HSYNC_PIN, thsync_pin, G0, tg0, G1, tg1, G2, tg2, G3, tg3 );
-        #endif
-        return false;
-    } 
-    // Verify that the G numbers are consecutive... Should use arrays!
-    if ((tg1 != (tg0+1)) || (tg2 != (tg0+2)) || (tg3 != (tg0+3))) {
-        #ifdef DEBUG_FLEXIO
-        debug.printf("HM01B0 Flex IO pins G0-G3 are not consective\n");
-        debug.printf("    G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)", 
-            G0, tg0, G1, tg1, G2, tg2, G3, tg3 );
-        #endif
-        return false;
-    }
-    if (G4 != 0xff) {
-        uint8_t tg4 = _pflex->mapIOPinToFlexPin(G4);
-        uint8_t tg5 = _pflex->mapIOPinToFlexPin(G5);
-        uint8_t tg6 = _pflex->mapIOPinToFlexPin(G6);
-        uint8_t tg7 = _pflex->mapIOPinToFlexPin(G7);
-        if ((tg4 != (tg0+4)) || (tg5 != (tg0+5)) || (tg6 != (tg0+6)) || (tg7 != (tg0+7))) {
-            #ifdef DEBUG_FLEXIO
-            debug.printf("HM01B0 Flex IO pins G4-G7 are not consective with G0-3\n");
-            debug.printf("    G0(%u %u) G4(%u %u) G5(%u %u) G6(%u %u) G7(%u %u)", 
-                G0, tg0, G4, tg4, G5, tg5, G6, tg6, G7, tg7 );
-            #endif
-            return false;
-        }
-        _hw_config = TEENSY_MICROMOD_FLEXIO_8BIT;
-        if(_debug) debug.println("Custom - Flexio is 8 bit mode");
-    } else {
-        _hw_config = TEENSY_MICROMOD_FLEXIO_4BIT;
-        if(_debug) debug.println("Custom - Flexio is 4 bit mode");
-    }
-
-    // Needs Shifter 3 (maybe 7 would work as well?)
-    // Needs Shifter 3 (maybe 7 would work as well?)
-    if (_pflex->claimShifter(3)) _fshifter = 3;
-    else if (_pflex->claimShifter(7)) _fshifter = 7;
-    else {
-      if(_debug) debug.printf("HM01B0 Flex IO: Could not claim Shifter 3 or 7\n");
-      return false;
-    }
-    _fshifter_mask = 1 << _fshifter;   // 4 channels.
-    _dma_source = _pflex->shiftersDMAChannel(_fshifter); // looks like they use 
-    
-    // Now request one timer
-    uint8_t _ftimer = _pflex->requestTimers(); // request 1 timer. 
-    if (_ftimer == 0xff) {
-        if(_debug) debug.printf("HM01B0 Flex IO: failed to request timer\n");
-        return false;
-    }
-
-    _pflex->setIOPinToFlexMode(HSYNC_PIN);
-    _pflex->setIOPinToFlexMode(PCLK_PIN);
-    _pflex->setIOPinToFlexMode(G0);
-    _pflex->setIOPinToFlexMode(G1);
-    _pflex->setIOPinToFlexMode(G2);
-    _pflex->setIOPinToFlexMode(G3);
-    if (G4 != 0xff) {
-        _pflex->setIOPinToFlexMode(G4);
-        _pflex->setIOPinToFlexMode(G5);
-        _pflex->setIOPinToFlexMode(G6);
-        _pflex->setIOPinToFlexMode(G7);
-    }
-
-
-
-    // We already configured the clock to allow access.
-    // Now sure yet aoub configuring the actual colock speed...
-
-/*
-    CCM_CSCMR2 |= CCM_CSCMR2_FLEXIO2_CLK_SEL(3); // 480 MHz from USB PLL
-
-    CCM_CS1CDR = (CCM_CS1CDR
-        & ~(CCM_CS1CDR_FLEXIO2_CLK_PRED(7) | CCM_CS1CDR_FLEXIO2_CLK_PODF(7)))
-        | CCM_CS1CDR_FLEXIO2_CLK_PRED(1) | CCM_CS1CDR_FLEXIO2_CLK_PODF(1);
-
-
-    CCM_CCGR3 |= CCM_CCGR3_FLEXIO2(CCM_CCGR_ON);
-*/    
-    // clksel(0-3PLL4, Pll3 PFD2 PLL5, *PLL3_sw)
-    // clk_pred(0, 1, 2, 7) - divide (n+1)
-    // clk_podf(0, *7) divide (n+1)
-    // So default is 480mhz/16
-    // Clock select, pred, podf:
-    _pflex->setClockSettings(3, 1, 1);
-
-
-#ifdef DEBUG_FLEXIO
-    debug.println("FlexIO Configure");
-    debug.printf(" CCM_CSCMR2 = %08X\n", CCM_CSCMR2);
-    uint32_t div1 = ((CCM_CS1CDR >> 9) & 7) + 1;
-    uint32_t div2 = ((CCM_CS1CDR >> 25) & 7) + 1;
-    debug.printf(" div1 = %u, div2 = %u\n", div1, div2);
-    debug.printf(" FlexIO2 Frequency = %.2f MHz\n", 480.0 / (float)div1 / (float)div2);
-    debug.printf(" CCM_CCGR3 = %08X\n", CCM_CCGR3);
-    debug.printf(" FLEXIO2_CTRL = %08X\n", FLEXIO2_CTRL);
-    debug.printf(" FlexIO2 Config, param=%08X\n", FLEXIO2_PARAM);
-#endif
-    
-    if(_hw_config == TEENSY_MICROMOD_FLEXIO_8BIT) {
-        // SHIFTCFG, page 2927
-        //  PWIDTH: number of bits to be shifted on each Shift clock
-        //          0 = 1 bit, 1-3 = 4 bit, 4-7 = 8 bit, 8-15 = 16 bit, 16-31 = 32 bit
-        //  INSRC: Input Source, 0 = pin, 1 = Shifter N+1 Output
-        //  SSTOP: Stop bit, 0 = disabled, 1 = match, 2 = use zero, 3 = use one
-        //  SSTART: Start bit, 0 = disabled, 1 = disabled, 2 = use zero, 3 = use one
-        _pflexio->SHIFTCFG[_fshifter] = FLEXIO_SHIFTCFG_PWIDTH(7);
-            
-        // Timer model, pages 2891-2893
-        // TIMCMP, page 2937
-        _pflexio->TIMCMP[_ftimer] = 7;
-        
-        // TIMCTL, page 2933
-        //  TRGSEL: Trigger Select ....
-        //          4*N - Pin 2*N input
-        //          4*N+1 - Shifter N status flag
-        //          4*N+2 - Pin 2*N+1 input
-        //          4*N+3 - Timer N trigger output
-        //  TRGPOL: 0 = active high, 1 = active low
-        //  TRGSRC: 0 = external, 1 = internal
-        //  PINCFG: timer pin, 0 = disable, 1 = open drain, 2 = bidir, 3 = output
-        //  PINSEL: which pin is used by the Timer input or output
-        //  PINPOL: 0 = active high, 1 = active low
-        //  TIMOD: mode, 0 = disable, 1 = 8 bit baud rate, 2 = 8 bit PWM, 3 = 16 bit
-        //#define FLEXIO_TIMER_TRIGGER_SEL_PININPUT(x) ((uint32_t)(x) << 1U)
-        _pflexio->TIMCTL[_ftimer] = FLEXIO_TIMCTL_TIMOD(3)
-            | FLEXIO_TIMCTL_PINSEL(tpclk_pin) // "Pin" is 16 = PCLK
-            | FLEXIO_TIMCTL_TRGSEL(FLEXIO_TIMER_TRIGGER_SEL_PININPUT(thsync_pin)) // "Trigger" is 12 = HSYNC
-            | FLEXIO_TIMCTL_TRGSRC;
-    }
-
-    if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT) {
-        
-        // SHIFTCFG, page 2927
-        //  PWIDTH: number of bits to be shifted on each Shift clock
-        //          0 = 1 bit, 1-3 = 4 bit, 4-7 = 8 bit, 8-15 = 16 bit, 16-31 = 32 bit
-        //  INSRC: Input Source, 0 = pin, 1 = Shifter N+1 Output
-        //  SSTOP: Stop bit, 0 = disabled, 1 = match, 2 = use zero, 3 = use one
-        //  SSTART: Start bit, 0 = disabled, 1 = disabled, 2 = use zero, 3 = use one
-        _pflexio->SHIFTCFG[_fshifter] = FLEXIO_SHIFTCFG_PWIDTH(3);
-        
-        // Timer model, pages 2891-2893
-        // TIMCMP, page 2937
-         _pflexio->TIMCMP[_ftimer] = 15;
-        
-        // TIMCTL, page 2933
-        //  TRGSEL: Trigger Select ....
-        //          4*N - Pin 2*N input
-        //          4*N+1 - Shifter N status flag
-        //          4*N+2 - Pin 2*N+1 input
-        //          4*N+3 - Timer N trigger output
-        //  TRGPOL: 0 = active high, 1 = active low
-        //  TRGSRC: 0 = external, 1 = internal
-        //  PINCFG: timer pin, 0 = disable, 1 = open drain, 2 = bidir, 3 = output
-        //  PINSEL: which pin is used by the Timer input or output
-        //  PINPOL: 0 = active high, 1 = active low
-        //  TIMOD: mode, 0 = disable, 1 = 8 bit baud rate, 2 = 8 bit PWM, 3 = 16 bit
-        _pflexio->TIMCTL[_ftimer] = FLEXIO_TIMCTL_TIMOD(3)
-            | FLEXIO_TIMCTL_PINSEL(tpclk_pin) // "Pin" is 16 = PCLK
-            | FLEXIO_TIMCTL_TRGSEL(FLEXIO_TIMER_TRIGGER_SEL_PININPUT(thsync_pin)) // "Trigger" is 12 = HSYNC
-            | FLEXIO_TIMCTL_TRGSRC;
-    }
-
-
-    // SHIFTCTL, page 2926
-    //  TIMSEL: which Timer is used for controlling the logic/shift register
-    //  TIMPOL: 0 = shift of positive edge, 1 = shift on negative edge
-    //  PINCFG: 0 = output disabled, 1 = open drain, 2 = bidir, 3 = output
-    //  PINSEL: which pin is used by the Shifter input or output
-    //  PINPOL: 0 = active high, 1 = active low
-    //  SMOD: 0 = disable, 1 = receive, 2 = transmit, 4 = match store,
-    //        5 = match continuous, 6 = state machine, 7 = logic
-    _pflexio->SHIFTCTL[_fshifter] = FLEXIO_SHIFTCTL_TIMSEL(_ftimer) | FLEXIO_SHIFTCTL_SMOD(1)
-        | FLEXIO_SHIFTCTL_PINSEL(tg0); // 4 = D0
-
-
-
-    // TIMCFG, page 2935
-    //  TIMOUT: Output
-    //          0 = output is logic one when enabled and is not affected by timer reset
-    //          1 = output is logic zero when enabled and is not affected by timer reset
-    //          2 = output is logic one when enabled and on timer reset
-    //          3 = output is logic zero when enabled and on timer reset
-    //  TIMDEC: Decrement
-    //          0 = on FlexIO clock, Shift clock equals Timer output
-    //          1 = on Trigger input (both edges), Shift clock equals Timer output
-    //          2 = on Pin input (both edges), Shift clock equals Pin input
-    //          3 = on Trigger input (both edges), Shift clock equals Trigger input
-    //  TIMRST: Reset
-    //          0 = never reset
-    //          2 = on Timer Pin equal to Timer Output
-    //          3 = on Timer Trigger equal to Timer Output
-    //          4 = on Timer Pin rising edge
-    //          6 = on Trigger rising edge
-    //          7 = on Trigger rising or falling edge
-    //  TIMDIS: Disable
-    //          0 = never disabled
-    //          1 = disabled on Timer N-1 disable
-    //          2 = disabled on Timer compare
-    //          3 = on Timer compare and Trigger Low
-    //          4 = on Pin rising or falling edge
-    //          5 = on Pin rising or falling edge provided Trigger is high
-    //          6 = on Trigger falling edge
-    //  TIMENA
-    //          0 = always enabled
-    //          1 = enabled on Timer N-1 enable
-    //          2 = enabled on Trigger high
-    //          3 = enabled on Trigger high and Pin high
-    //          4 = enabled on Pin rising edge
-    //          5 = enabled on Pin rising edge and Trigger high
-    //          6 = enabled on Trigger rising edge
-    //          7 = enabled on Trigger rising or falling edge
-    //  TSTOP Stop bit, 0 = disabled, 1 = on compare, 2 = on disable, 3 = on either
-    //  TSTART: Start bit, 0 = disabled, 1 = enabled
-    _pflexio->TIMCFG[_ftimer] = FLEXIO_TIMCFG_TIMOUT(1) | FLEXIO_TIMCFG_TIMDEC(2)
-        | FLEXIO_TIMCFG_TIMENA(6) | FLEXIO_TIMCFG_TIMDIS(6);
-
-    // CTRL, page 2916
-    _pflexio->CTRL = FLEXIO_CTRL_FLEXEN; // enable after everything configured
-    
-#ifdef DEBUG_FLEXIO
-    debug.printf(" FLEXIO:%u Shifter:%u Timer:%u\n", _pflex->FlexIOIndex(), _fshifter, _ftimer);
-    debug.printf("     SHIFTCFG = %08X\n",  _pflexio->SHIFTCFG[_fshifter]);
-    debug.printf("     SHIFTCTL = %08X\n",  _pflexio->SHIFTCTL[_fshifter]);
-    debug.printf("     TIMCMP = %08X\n", _pflexio->TIMCMP[_ftimer]);
-    debug.printf("     TIMCFG = %08X\n", _pflexio->TIMCFG[_ftimer]);
-    debug.printf("     TIMCTL = %08X\n", _pflexio->SHIFTCTL[_fshifter]);
-#endif
-return true;
-}
-
-// Overkill since this is only q QVGA device...
-static void dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title=nullptr)
-{
-  if (psz_title)
-    debug.print(psz_title);
-  debug.printf("%x %x: ", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
-
-  debug.printf(
-      "SA:%x SO:%d AT:%x (SM:%x SS:%x DM:%x DS:%x) NB:%x SL:%d DA:%x DO: %d CI:%x DL:%x CS:%x BI:%x\n",
-      (uint32_t)dmabc->TCD->SADDR, dmabc->TCD->SOFF, dmabc->TCD->ATTR,
-      (dmabc->TCD->ATTR >> 11) & 0x1f, (dmabc->TCD->ATTR >> 8) & 0x7,
-      (dmabc->TCD->ATTR >> 3) & 0x1f, (dmabc->TCD->ATTR >> 0) & 0x7,
-      dmabc->TCD->NBYTES, dmabc->TCD->SLAST, (uint32_t)dmabc->TCD->DADDR,
-      dmabc->TCD->DOFF, dmabc->TCD->CITER, dmabc->TCD->DLASTSGA,
-      dmabc->TCD->CSR, dmabc->TCD->BITER);
-}
-
-
-
-
-bool HM01B0::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2) {
-  if (_debug) debug.printf("$$HM0360::readFrameFlexIO(%p, %u, %p, %u, %u)\n", buffer, cb1, buffer2, cb2, _fuse_dma);
-  //flexio_configure(); // one-time hardware setup
-  // wait for VSYNC to be low
-  //while ((*_vsyncPort & _vsyncMask) != 0);
-  // lets wait for a vsync that is high long enough to not be pin noise
-  elapsedMillis timeout = 0;
-  const uint32_t frame_size_bytes = _width*_height /* * _bytesPerPixel*/;
-  if ((cb1 + cb2) < frame_size_bytes) return false; // not big enough
-
-  for (;;) {
-    if (((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0) && ((*_vsyncPort & _vsyncMask) == 0)) break;
-    if (timeout > 500) {
-      if(_debug) debug.println("Timeout waiting for VSYNC");
-      return false;
-    }
-  }
-
-  digitalToggleFast(5);
-  _pflexio->SHIFTSTAT = _fshifter_mask;  // clear any prior shift status
-  _pflexio->SHIFTERR = _fshifter_mask;
-
-  //#ifndef FLEXIO_USE_DMA
-  // read FlexIO by polling
-  uint32_t *p = (uint32_t *)buffer;
-
-  if (!_fuse_dma) {
-    _pflexio->SHIFTSDEN = _fshifter_mask;
-
-    uint32_t count_items_left = (_width*_height/4)/**_bytesPerPixel */;
-    uint32_t count_items_left_in_buffer = (uint32_t)cb1 / 4;
-    if (_debug) debug.printf("\tleft:%u in_buffer:%u\n", count_items_left, count_items_left_in_buffer);
-
-    if (G4 != 0xff) {
-      while (count_items_left) {
-        while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
-          // wait for FlexIO shifter data
-        }
-        *p++ = _pflexio->SHIFTBUF[_fshifter];  // should use DMA...
-        count_items_left--;
-        if (buffer2 && (--count_items_left_in_buffer == 0)) {
-          if (_debug) debug.println("\tSwitch to second buffer");
-          p = (uint32_t*)buffer2;
-          count_items_left_in_buffer = (uint32_t)cb2 / 4;
-        }
-      }
-    } else {
-      // 4 bit mode:
-      bool save_pixels = true;
-      uint8_t in_row_count = _width / 4;
-      while (count_items_left) {
-        // we want to read and save one rows worth of pixels
-        // and skipt the second half
-        while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
-          // wait for FlexIO shifter data
-        }
-        uint32_t sbuf = _pflexio->SHIFTBUF[_fshifter];
-        if (save_pixels) {
-          *p++ = sbuf;  // should use DMA...
-          count_items_left--;
-          if (buffer2 && (--count_items_left_in_buffer == 0)) {
-            p = (uint32_t*)buffer2;
-            count_items_left_in_buffer = (uint32_t)cb2 / 4;
-          }
-        }
-        in_row_count--;
-        if (in_row_count == 0) {
-          save_pixels = !save_pixels;
-          in_row_count = _width / 4;
-        }
-      }
-    }
-    return true;
-  }
-  //#else
-  // read FlexIO by DMA
-  dma_flexio.begin();
-  const uint32_t length = _width * _height;
-  // Will it fit into one DMA object. 
-  if ((buffer2 == nullptr) || (cb1 >= frame_size_bytes)) {
-    dma_flexio.source(_pflexio->SHIFTBUF[_fshifter]);
-    dma_flexio.destinationBuffer((uint32_t *)buffer, length);
-    dma_flexio.transferSize(4);
-    dma_flexio.transferCount(length / 4);
-    dma_flexio.disableOnCompletion();
-    dma_flexio.clearComplete();
-    dma_flexio.triggerAtHardwareEvent(_dma_source);
-    if (_debug) {
-      dumpDMA_TCD(&dma_flexio,     "flexio: ");
-    }
-  } else {
-    // We need to use dma settings.
-    
-    _dmasettings[0].TCD->CSR = 0;
-    _dmasettings[0].source(_pflexio->SHIFTBUF[_fshifter]);
-    _dmasettings[0].destinationBuffer(p, cb1);
-    _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
-
-    uint32_t cb_left = frame_size_bytes - cb1;
-    uint32_t *p = (uint32_t *)buffer2;
-
-    _dmasettings[1].TCD->CSR = 0;
-    _dmasettings[1].source(_pflexio->SHIFTBUF[_fshifter]);
-    _dmasettings[1].destinationBuffer(p, cb_left);
-    _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
-
-    _dmasettings[1].disableOnCompletion();
-    _dmasettings[1].interruptAtCompletion();
-    dma_flexio.triggerAtHardwareEvent(_dma_source);
-    dma_flexio = _dmasettings[0];
-    dma_flexio.clearComplete();
-
-    if (_debug) {
-      dumpDMA_TCD(&dma_flexio,     "flexio: ");
-      dumpDMA_TCD(&_dmasettings[0],"     0: " );
-      dumpDMA_TCD(&_dmasettings[1],"     1: " );
-    }
-  }
-
-  dma_flexio.enable();
-  _pflexio->SHIFTSDEN = _fshifter_mask;
-
-  timeout = 0;
-  while (!dma_flexio.complete()) {
-    // wait - we should not need to actually do anything during the DMA transfer
-    if (dma_flexio.error()) {
-      debug.println("DMA error");
-      break;
-    }
-    if (timeout > 500) {
-      debug.println("Timeout waiting for DMA");
-      if (_pflexio->SHIFTSTAT & _fshifter_mask) debug.println(" SHIFTSTAT bit was set");
-      #ifdef DEBUG_FLEXIO
-      debug.printf(" DMA channel #%u\n", dma_flexio.channel);
-      debug.printf(" DMAMUX = %08X\n", *(&DMAMUX_CHCFG0 + dma_flexio.channel));
-      debug.printf(" FLEXIO2_SHIFTSDEN = %02X\n", FLEXIO2_SHIFTSDEN);
-      debug.printf(" TCD CITER = %u\n", dma_flexio.TCD->CITER_ELINKNO);
-      debug.printf(" TCD CSR = %08X\n", dma_flexio.TCD->CSR);
-      #endif
-      break;
-    }
-  }
-  if ((uint32_t)buffer >= 0x20200000u) arm_dcache_delete(buffer, min(cb1, frame_size_bytes));
-  if (frame_size_bytes > cb1) {
-    if ((uint32_t)buffer2 >= 0x20200000u) arm_dcache_delete(buffer2, frame_size_bytes - cb1);
-  } 
-  return true;
-  //arm_dcache_delete(buffer, length);
-  //#endif
-}
-
-#if 0
-void HM01B0::readFrameFlexIO(void* buffer, bool fUseDMA)
-{
-    //flexio_configure(); // one-time hardware setup
-    // wait for VSYNC to be low
-    while ((*_vsyncPort & _vsyncMask) != 0);
-    _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
-    _pflexio->SHIFTERR = _fshifter_mask;
-
-#ifndef FLEXIO_USE_DMA
-    // read FlexIO by polling
-    uint32_t *p = (uint32_t *)buffer;
-    //uint32_t *p_end = (uint32_t *)buffer + _width*_height/4; ???
-    uint32_t *p_end = (uint32_t *)buffer + _width*_height/8;
-
-    while (p < p_end) {
-        while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
-            // wait for FlexIO shifter data
-        }
-        *p++ = _pflexio->SHIFTBUF[_fshifter]; // should use DMA...
-    }
-#else
-    // read FlexIO by DMA
-    dma_flexio.begin();
-    const uint32_t length = _width*_height;
-    dma_flexio.source(_pflexio->SHIFTBUF[_fshifter]);
-    dma_flexio.destinationBuffer((uint32_t *)buffer, length);
-    dma_flexio.transferSize(4);
-    dma_flexio.transferCount(length / 4);
-    dma_flexio.disableOnCompletion();
-    dma_flexio.clearComplete();
-    dma_flexio.triggerAtHardwareEvent(_dma_source);
-    dma_flexio.enable();
-    _pflexio->SHIFTSDEN = _fshifter_mask;
-
-    elapsedMillis timeout = 0;
-    while (!dma_flexio.complete()) {
-        // wait - we should not need to actually do anything during the DMA transfer
-        if (dma_flexio.error()) {
-            debug.println("DMA error");
-            break;
-        }
-        if (timeout > 500) {
-            if(_debug) debug.println("Timeout waiting for DMA");
-            if (_pflexio->SHIFTSTAT & _fshifter_mask) debug.println(" SHIFTSTAT bit was set");
-            #ifdef DEBUG_FLEXIO
-            debug.printf(" DMA channel #%u\n", dma_flexio.channel);
-            debug.printf(" DMAMUX = %08X\n", *(&DMAMUX_CHCFG0 + dma_flexio.channel));
-            debug.printf(" FLEXIO2_SHIFTSDEN = %02X\n", FLEXIO2_SHIFTSDEN);
-            debug.printf(" TCD CITER = %u\n", dma_flexio.TCD->CITER_ELINKNO);
-            debug.printf(" TCD CSR = %08X\n", dma_flexio.TCD->CSR);
-            #endif
-            break;
-        }
-    }
-    arm_dcache_delete(buffer, length);
-#endif
-}
-#endif
-
-
-bool HM01B0::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2)
-{
-#ifdef FLEXIO_USE_DMA
-    if (fb1 == nullptr || fb2 == nullptr) return false;
-    _frame_buffer_1 = (uint8_t *)fb1;
-    _frame_buffer_2 = (uint8_t *)fb2;
-    _callback = callback;
-    active_dma_camera = this;
-    //debug.printf("startReadFrameFlexIO called buffers %x %x\n", (uint32_t)fb1, (uint32_t)fb2);
-
-    //flexio_configure(); // one-time hardware setup
-    dma_flexio.begin();
-    const uint32_t length = _width*_height;
-    dma_flexio.source(_pflexio->SHIFTBUF[_fshifter]);
-    dma_flexio.destinationBuffer((uint32_t *)fb1, length);
-    dma_flexio.transferSize(4);
-    dma_flexio.transferCount(length / 4);
-    dma_flexio.disableOnCompletion();
-    dma_flexio.clearComplete();
-    dma_flexio.triggerAtHardwareEvent(_dma_source);
-    dma_flexio.interruptAtCompletion();
-    dma_flexio.attachInterrupt(dmaInterruptFlexIO);
-    FLEXIO2_SHIFTSDEN = _fshifter_mask;
-    _dma_frame_count = 0;
-    _dma_active = false;
-
-    // wait for VSYNC to be low
-    while ((*_vsyncPort & _vsyncMask) != 0);
-    //NVIC_SET_PRIORITY(IRQ_GPIO6789, 102);
-    //NVIC_SET_PRIORITY(dma_flexio.channel & 0xf, 102);
-    attachInterrupt(VSYNC_PIN, &frameStartInterruptFlexIO, RISING);
-    return true;
-#else
-    return false;
-#endif
-}
-
-
-void HM01B0::frameStartInterruptFlexIO()
-{
-	active_dma_camera->processFrameStartInterruptFlexIO();
-}
-
-void HM01B0::processFrameStartInterruptFlexIO()
-{
-    if (!_dma_active) {
-    	FLEXIO2_SHIFTSTAT = _fshifter_mask; // clear any prior shift status
-    	FLEXIO2_SHIFTERR = _fshifter_mask;
-
-    	// TODO: could a prior status have a DMA request still be pending?
-    	void *dest = (_dma_frame_count & 1) ? _frame_buffer_2 : _frame_buffer_1;
-    	const uint32_t length = _width*_height;
-    	//dma_flexio.TCD->DADDR = dest;
-    	dma_flexio.destinationBuffer((uint32_t *)dest, length);
-    	dma_flexio.transferSize(4);
-    	dma_flexio.transferCount(length / 4);
-    	dma_flexio.enable();
-    	//debug.println("VSYNC");
-        _dma_active = true;
-    }
-	asm("DSB");
-}
-
-void HM01B0::dmaInterruptFlexIO()
-{
-	active_dma_camera->processDMAInterruptFlexIO();
-}
-
-void HM01B0::processDMAInterruptFlexIO()
-{
-	dma_flexio.clearInterrupt();
-	if (dma_flexio.error()) return; // TODO: report or handle error??
-	void *dest = (_dma_frame_count & 1) ? _frame_buffer_2 : _frame_buffer_1;
-	const uint32_t length = _width*_height;
-	_dma_frame_count++;
-	arm_dcache_delete(dest, length);
-	if (_callback) (*_callback)(dest); // TODO: use EventResponder
-    _dma_active = false;
-	asm("DSB");
-}
-
-
-bool HM01B0::stopReadFlexIO()
-{
-	detachInterrupt(VSYNC_PIN);
-	dma_flexio.disable();
-	_frame_buffer_1 = nullptr;
-	_frame_buffer_2 = nullptr;
-	_callback = nullptr;
-	return true;
-}
-
-
 //======================================== DMA JUNK
 //================================================================================
 // experiment with DMA
 //================================================================================
 // Define our DMA structure.
-DMAChannel HM01B0::_dmachannel;
-DMASetting HM01B0::_dmasettings[2];
 uint32_t HM01B0::_dmaBuffer1[DMABUFFER_SIZE] __attribute__ ((used, aligned(32)));
 uint32_t HM01B0::_dmaBuffer2[DMABUFFER_SIZE] __attribute__ ((used, aligned(32)));
 extern "C" void xbar_connect(unsigned int input, unsigned int output); // in pwm.c
-
-HM01B0 *HM01B0::active_dma_camera = nullptr;
 
 
 //===================================================================
@@ -2021,8 +1381,8 @@ bool HM01B0::startReadFrameDMA(bool(*callback)(void *frame_buffer), uint8_t *fb1
     // OV7670_PLK   4
   // OV7670_PLK   8    //8       B1_00   FlexIO2:16  XBAR IO14
 
-  _save_pclkPin_portConfigRegister = *(portConfigRegister(PCLK_PIN));
-  *(portConfigRegister(PCLK_PIN)) = 1; // set to XBAR mode 14
+  _save_pclkPin_portConfigRegister = *(portConfigRegister(_pclkPin));
+  *(portConfigRegister(_pclkPin)) = 1; // set to XBAR mode 14
 
   // route the timer outputs through XBAR to edge trigger DMA request
   CCM_CCGR2 |= CCM_CCGR2_XBAR1(CCM_CCGR_ON);
@@ -2074,7 +1434,7 @@ bool HM01B0::startReadFrameDMA(bool(*callback)(void *frame_buffer), uint8_t *fb1
   dumpDMA_TCD(&_dmachannel);
   dumpDMA_TCD(&_dmasettings[0]);
   dumpDMA_TCD(&_dmasettings[1]);
-  debug.printf("pclk pin: %d config:%lx control:%lx\n", PCLK_PIN, *(portConfigRegister(PCLK_PIN)), *(portControlRegister(PCLK_PIN)));
+  debug.printf("pclk pin: %d config:%lx control:%lx\n", _pclkPin, *(portConfigRegister(_pclkPin)), *(portControlRegister(_pclkPin)));
   debug.printf("IOMUXC_GPR_GPR26-29:%lx %lx %lx %lx\n", IOMUXC_GPR_GPR26, IOMUXC_GPR_GPR27, IOMUXC_GPR_GPR28, IOMUXC_GPR_GPR29);
   debug.printf("GPIO1: %lx %lx, GPIO6: %lx %lx\n", GPIO1_DR, GPIO1_PSR, GPIO6_DR, GPIO6_PSR);
   debug.printf("XBAR CTRL0:%x CTRL1:%x\n\n", XBARA1_CTRL0, XBARA1_CTRL1);
@@ -2084,7 +1444,7 @@ bool HM01B0::startReadFrameDMA(bool(*callback)(void *frame_buffer), uint8_t *fb1
   _dma_frame_count = 0;
 
   // Now start an interrupt for start of frame. 
-  attachInterrupt(VSYNC_PIN, &frameStartInterrupt, RISING);
+  attachInterrupt(_vsyncPin, &frameStartInterrupt, RISING);
 
   //DebugDigitalToggle(OV7670_DEBUG_PIN_1);
   return true;
@@ -2125,7 +1485,7 @@ bool HM01B0::stopReadFrameDMA()
 #else
   IOMUXC_GPR_GPR26 = _save_IOMUXC_GPR_GPR26;  // Restore... away the configuration before we change...
 #endif
-  *(portConfigRegister(PCLK_PIN)) = _save_pclkPin_portConfigRegister;
+  *(portConfigRegister(_pclkPin)) = _save_pclkPin_portConfigRegister;
 
   return (em < 1000); // did we stop...
 }
@@ -2151,7 +1511,7 @@ void  HM01B0::processFrameStartInterrupt() {
   _dmachannel = _dmasettings[0];  // setup the first on...
   _dmachannel.enable();
   
-  detachInterrupt(VSYNC_PIN);
+  detachInterrupt(_vsyncPin);
 }
 
 //===================================================================
@@ -2268,7 +1628,7 @@ void HM01B0::processDMAInterrupt() {
   _dmachannel.enable();
 
 #else
-      attachInterrupt(VSYNC_PIN, &frameStartInterrupt, RISING);
+      attachInterrupt(_vsyncPin, &frameStartInterrupt, RISING);
 #endif
     }
   } else {

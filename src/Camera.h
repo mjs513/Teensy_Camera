@@ -14,13 +14,14 @@ public:
   // must be called before Camera.begin()
   virtual void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, uint8_t en_pin,
                        uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3,
-                       uint8_t g4 = 0xff, uint8_t g5 = 0xff, uint8_t g6 = 0xff, uint8_t g7 = 0xff, TwoWire &wire = Wire) = 0;
+                       uint8_t g4 = 0xff, uint8_t g5 = 0xff, uint8_t g6 = 0xff, uint8_t g7 = 0xff, TwoWire &wire = Wire);
   virtual bool begin(framesize_t framesize = FRAMESIZE_QVGA, int framerate = 30, bool use_gpio = false) = 0;
   virtual void end() = 0;
   virtual int reset() = 0;
   virtual void showRegisters(void) = 0;
-  virtual void debug(bool debug_on) {}; // 
-  virtual bool debug() { return false; }
+  virtual void debug(bool debug_on) {_debug = debug_on;}
+  virtual bool debug() {return _debug;}
+  bool usingGPIO() {return _use_gpio;}
   // debug and experimenting support
   virtual uint8_t readRegister(uint8_t reg) {return (uint8_t)-1;}
   virtual bool writeRegister(uint8_t reg, uint8_t data) {return false;}
@@ -64,21 +65,23 @@ public:
   //Generic Read Frame base on _hw_config
   virtual bool readFrame(void *buffer1, size_t cb1, void *buffer2=nullptr, size_t cb2=0); // give default one for now
 
-  virtual void useDMA(bool f) {}
-  virtual bool useDMA() {return false;}
+  virtual void useDMA(bool f) {_fuse_dma = f;}
+  virtual bool useDMA() {return _fuse_dma; }
 
   //normal Read mode
   virtual bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0) = 0;
   virtual void readFrame4BitGPIO(void *buffer) = 0;
-  virtual bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2) = 0;
-  virtual void stopReadContinuous() = 0;
+
+  // Have default implementations that simply call off to flexio or GPIO...
+  virtual bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2);
+  virtual void stopReadContinuous();
 
   //FlexIO is default mode for the camera
   //virtual void readFrameFlexIO(void* buffer);
-  virtual bool readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0) = 0;
+  virtual bool readFrameFlexIO(void *buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
 
-  virtual bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2) = 0;
-  virtual bool stopReadFlexIO() = 0;
+  virtual bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2);
+  virtual bool stopReadFlexIO();
 
   // Lets try a dma version.  Doing one DMA that is synchronous does not gain anything
   // So lets have a start, stop... Have it allocate 2 frame buffers and it's own DMA
@@ -92,8 +95,8 @@ public:
 
   virtual uint32_t frameCount() = 0;  //{return _dma_frame_count;}
 
-  virtual int16_t width(void) = 0;
-  virtual int16_t height(void) = 0;
+  virtual int16_t width(void) {return _width;}
+  virtual int16_t height(void) {return _height;}
   virtual int16_t mode(void) = 0;
 
   framesize_t framesize;
@@ -101,6 +104,72 @@ public:
   camera_reg_settings_t settings;
   hw_config_t _hw_config;
   hw_carrier_t _hw_carrier;
+
+  // FlexIO transfer variables and methods:
+  static void dmaInterruptFlexIO();
+  virtual void processDMAInterruptFlexIO();
+  static void frameStartInterruptFlexIO();
+  virtual void processFrameStartInterruptFlexIO();
+  virtual void processDMAInterrupt() {}
+  virtual bool flexio_configure();
+  virtual void processFrameStartInterrupt() {};
+  virtual bool supports4BitMode() {return false;}
+
+  void dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title);
+
+
+protected:
+  bool _debug = true;     // Should the camera code print out debug information?
+  bool _fuse_dma = true;  // in some cameras should we use DMA or do the Io directly
+  bool _use_gpio = false; // set in the begin of some cameras
+
+  int _vsyncPin;
+  int _hrefPin;
+  int _pclkPin;
+  int _xclkPin;
+  int _rst;
+  int _dPins[8];
+
+
+  int16_t _width;
+  int16_t _height;
+  int _bytesPerPixel;
+
+
+  TwoWire *_wire;
+
+  
+  static DMAChannel _dmachannel;
+  static DMASetting _dmasettings[10];  // For now lets have enough for two full size buffers...
+  volatile bool _dma_active = false;
+  uint8_t *_frame_buffer_1 = nullptr;
+  size_t  _frame_buffer_1_size = 0;
+  uint8_t *_frame_buffer_2 = nullptr;
+  size_t  _frame_buffer_2_size = 0;
+  FlexIOHandler *_pflex;
+  IMXRT_FLEXIO_t *_pflexio;
+  uint8_t _fshifter;
+  uint8_t _fshifter_mask;
+  uint8_t _ftimer;
+  uint8_t _dma_source;
+
+  volatile uint32_t* _vsyncPort;
+  uint32_t _vsyncMask;
+  volatile uint32_t* _hrefPort;
+  uint32_t _hrefMask;
+  volatile uint32_t* _pclkPort;
+  uint32_t _pclkMask;
+
+  bool (*_callback)(void *frame_buffer) = nullptr ;
+  uint32_t  _dma_frame_count;
+  uint8_t *_dma_last_completed_frame;
+
+
+  enum {DMASTATE_INITIAL=0, DMASTATE_RUNNING, DMASTATE_STOP_REQUESTED, DMA_STATE_STOPPED, DMA_STATE_ONE_FRAME};
+  volatile uint8_t _dma_state = DMASTATE_INITIAL;
+  static ImageSensor *active_dma_camera;
+
+
 private:
 
 };
@@ -119,6 +188,7 @@ public:
   void showRegisters(void);
   void debug(bool debug_on);
   bool debug();
+  bool usingGPIO(); // Is the camera configured to use GPIO instead of flexio?
   int setPixformat(pixformat_t pfmt);
   uint8_t setFramesize(framesize_t framesize);
   int setFramerate(int framerate);

@@ -7,8 +7,8 @@
 #define USE_MMOD_ATP_ADAPTER
 #define USE_SDCARD
 
-//#define ARDUCAM_CAMERA_HM01B0
-#define ARDUCAM_CAMERA_HM0360
+#define ARDUCAM_CAMERA_HM01B0
+//#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
 //#define ARDUCAM_CAMERA_OV7675
 //#define ARDUCAM_CAMERA_GC2145
@@ -299,7 +299,7 @@ void setup() {
   //HM0360(8pin) 15/30/60/120 works :)
   //HM01B0(4pin only) 15/30/60 works, 120 not supported
   //camera.begin(FRAMESIZE_QVGA, 30);
-  camera.begin(FRAMESIZE_QVGA4BIT, 15);
+  camera.begin(FRAMESIZE_QVGA4BIT, 15, false);
 #endif
 
 #ifdef MIRROR_FLIP_CAMERA
@@ -1019,9 +1019,16 @@ void save_image_SD() {
 #endif
 
 void showCommandList() {
-  Serial.println("Send the 'f' character to read a frame using FlexIO (changes hardware setup!)");
-  Serial.println("Send the 'F' to start/stop continuous using FlexIO (changes hardware setup!)");
-  Serial.println("Send the 'n' character to read a frame using FlexIO without DMA (changes hardware setup!)");
+  if (camera.usingGPIO()) {
+    Serial.println("Send the 'f' character to read a frame using GPIO");
+    Serial.println("Send the 'F' to start/stop continuous using GPIO");
+    Serial.println("Send the 'n' character to read a frame using GPIO without DMA?");
+
+  } else {
+    Serial.println("Send the 'f' character to read a frame using FlexIO (changes hardware setup!)");
+    Serial.println("Send the 'F' to start/stop continuous using FlexIO (changes hardware setup!)");
+    Serial.println("Send the 'n' character to read a frame using FlexIO without DMA (changes hardware setup!)");
+  }
   Serial.println("Send the 'm' character to read and display multiple frames");
   Serial.println("Send the 'M' character to read and display multiple frames use Frame buffer");
   Serial.println("Send the 'V' character DMA to TFT async continueous  ...");

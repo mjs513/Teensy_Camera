@@ -130,21 +130,8 @@ public:
 
 /********************************************************************************************/
 	//-------------------------------------------------------
-	//Generic Read Frame base on _hw_config
-  bool readFrame(void *buffer1, size_t cb1, void *buffer2=nullptr, size_t cb2=0); // give default one for now
-
-  void useDMA(bool f) {_fuse_dma = f;}
-  bool useDMA() {return _fuse_dma; }
-
 	//normal Read mode
 	bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
-	bool readContinuous(bool(*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2);
-	void stopReadContinuous();
-
-	//FlexIO is default mode for the camera
-  bool readFrameFlexIO(void *buffer, size_t cb1, void* buffer2=nullptr, size_t cb2=0);
-	bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2);
-	bool stopReadFlexIO();
 
 	// Lets try a dma version.  Doing one DMA that is synchronous does not gain anything
 	// So lets have a start, stop... Have it allocate 2 frame buffers and it's own DMA 
@@ -167,19 +154,15 @@ public:
   // TBD Allow user to set all of the buffers...
   void readFrameDMA(void* buffer);
 
-
   void end();
 
-  // must be called after Camera.begin():
-  int16_t width();
-  int16_t height();
   int bitsPerPixel() {return 16; }
   int bytesPerPixel() { return 2; }
   
 
   bool begin_omnivision(framesize_t resolution, pixformat_t format, int fps, int camera_name, bool use_gpio);
-  void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, uint8_t en_pin,
-                     uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4, uint8_t g5, uint8_t g6, uint8_t g7, TwoWire &wire);
+  //void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, uint8_t en_pin,
+  //                   uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4, uint8_t g5, uint8_t g6, uint8_t g7, TwoWire &wire);
 
   int reset();
   uint16_t getModelid();
@@ -200,11 +183,10 @@ public:
   int setHmirror(int enable);
   int setVflip(int enable);
   int setSpecialEffect(sde_t sde);
+  int setWBmode(int mode);
   
-  void showRegisters() { }  //for now
-  
-  void debug(bool debug_on) {_debug = debug_on;}
-  bool debug() {return _debug;}
+  void showRegisters();
+
   uint8_t readRegister(uint8_t reg) {return (uint8_t)-1;}
   bool writeRegister(uint8_t reg, uint8_t data) {return false;}
 
@@ -234,40 +216,18 @@ private:
   uint8_t cameraReadRegister(uint8_t reg);
   uint8_t cameraWriteRegister(uint8_t reg, uint8_t data);
 private:
-  int _vsyncPin;
-  int _hrefPin;
-  int _pclkPin;
-  int _xclkPin;
-  int _rst;
-  int _dPins[8];
   
-  int _xclk_freq = 20;
+  int _xclk_freq = 12;
 
-  bool _use_gpio = false;
-  bool _debug = true;
-  bool _fuse_dma = true;
-
-  TwoWire *_wire;
-  
-  int16_t _width;
-  int16_t _height;
-  int _bytesPerPixel;
   bool _grayscale;
 
   void* _OV2640;
-
-
-  volatile uint32_t* _vsyncPort;
-  uint32_t _vsyncMask;
-  volatile uint32_t* _hrefPort;
-  uint32_t _hrefMask;
-  volatile uint32_t* _pclkPort;
-  uint32_t _pclkMask;
+  int _format;
 
   int _saturation;
   int _hue;
 
-	bool flexio_configure();
+	//bool flexio_configure();
 
 	// DMA STUFF
 	enum {DMABUFFER_SIZE=1296};  // 640x480  so 640*2*2
@@ -279,17 +239,6 @@ private:
 	bool (*_callback)(void *frame_buffer) = nullptr ;
 	uint32_t  _dma_frame_count;
 	uint8_t *_dma_last_completed_frame;
-	// TBD Allow user to set all of the buffers...
-
-
-	// Added settings for configurable flexio
-  FlexIOHandler *_pflex;
-  IMXRT_FLEXIO_t *_pflexio;
-  uint8_t _fshifter;
-  uint8_t _fshifter_mask;
-  uint8_t _ftimer;
-  uint8_t _dma_source;
-
 
 
 	#if defined (ARDUINO_TEENSY_MICROMOD)
@@ -304,29 +253,19 @@ private:
 	uint16_t  _frame_col_index;  // which column we are in a row
 	uint16_t  _frame_row_index;  // which row
 	const uint16_t  _frame_ignore_cols = 0; // how many cols to ignore per row
-	uint8_t *_frame_buffer_1 = nullptr;
-  size_t  _frame_buffer_1_size = 0;
-	uint8_t *_frame_buffer_2 = nullptr;
-	size_t  _frame_buffer_2_size = 0;
+
   uint8_t *_frame_buffer_pointer;
 	uint8_t *_frame_row_buffer_pointer; // start of the row
 	uint8_t _dma_index;
 	volatile bool	_dma_active;
 	volatile uint32_t _vsync_high_time = 0;
-	enum {DMASTATE_INITIAL=0, DMASTATE_RUNNING, DMASTATE_STOP_REQUESTED, DMA_STATE_STOPPED, DMA_STATE_ONE_FRAME};
-	volatile uint8_t _dma_state;
+
 	static void dmaInterrupt(); 
 	void processDMAInterrupt();
 #if 0
 	static void frameStartInterrupt();
 	void processFrameStartInterrupt();
 #endif	
-	static void dmaInterruptFlexIO();
-	void processDMAInterruptFlexIO();
-	static void frameStartInterruptFlexIO();
-	void processFrameStartInterruptFlexIO();
-  
-	static OV2640 *active_dma_camera;
 
 
   //OpenMV support functions extracted from imglib.h

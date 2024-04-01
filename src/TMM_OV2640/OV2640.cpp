@@ -59,6 +59,25 @@
 #define LOG2(x)               (((x) & 0xFFFFFFFF00000000ULL) ? (32 + LOG2_32((x) >> 32)) : LOG2_32(x)) // NO ({ ... }) !
 
 
+typedef struct {
+        union {
+                struct {
+                        uint8_t pclk_div:7;
+                        uint8_t pclk_auto:1;
+                };
+                uint8_t pclk;
+        };
+        union {
+                struct {
+                        uint8_t clk_div:6;
+                        uint8_t reserved:1;
+                        uint8_t clk_2x:1;
+                };
+                uint8_t clk;
+        };
+} ov2640_clk_t;
+
+
 // Sensor frame size/resolution table.
 const int resolution[][2] = {
     {640,  480 },    /* VGA       */
@@ -71,7 +90,6 @@ const int resolution[][2] = {
     {352,  288 },    /* CIF       */
     {0,    0   },
 };
-
 
 static const uint8_t default_regs[][2] = {
 
@@ -388,6 +406,27 @@ static const uint8_t saturation_regs[NUM_SATURATION_LEVELS + 1][5] = {
     {0x00, 0x02, 0x03, 0x68, 0x68}, /* +2 */
 };
 
+#define NUM_SPECIAL_EFFECTS (7)
+static const uint8_t special_effects_regs[NUM_SPECIAL_EFFECTS + 1][5] = {
+    {BPADDR, BPDATA, BPADDR, BPDATA, BPDATA },
+    {0x00, 0X00, 0x05, 0X80, 0X80 }, /* no effect */
+    {0x00, 0X40, 0x05, 0X80, 0X80 }, /* negative */
+    {0x00, 0X18, 0x05, 0X80, 0X80 }, /* black and white */
+    {0x00, 0X18, 0x05, 0X40, 0XC0 }, /* reddish */
+    {0x00, 0X18, 0x05, 0X40, 0X40 }, /* greenish */
+    {0x00, 0X18, 0x05, 0XA0, 0X40 }, /* blue */
+    {0x00, 0X18, 0x05, 0X40, 0XA6 }, /* retro */
+};
+
+#define NUM_WB_MODES (4)
+static const uint8_t wb_modes_regs[NUM_WB_MODES + 1][3] = {
+    {0XCC, 0XCD, 0XCE },
+    {0x5E, 0X41, 0x54 }, /* sunny */
+    {0x65, 0X41, 0x4F }, /* cloudy */
+    {0x52, 0X41, 0x66 }, /* office */
+    {0x42, 0X3F, 0x71 }, /* home */
+};
+
 const int OV2640_D[8] = {
   OV2640_D0, OV2640_D1, OV2640_D2, OV2640_D3, OV2640_D4, OV2640_D5, OV2640_D6, OV2640_D7
 };
@@ -402,29 +441,6 @@ OV2640::OV2640() :
   setPins(OV2640_XCLK, OV2640_PLK, OV2640_VSYNC, OV2640_HREF, OV2640_RST,
                      OV2640_D0, OV2640_D1, OV2640_D2, OV2640_D3, OV2640_D4, OV2640_D5, OV2640_D6, OV2640_D7, Wire);
 
-}
-
-//void OV767X::setPins(int vsync, int href, int pclk, int xclk, int rst, const int dpins[8])
-void OV2640::setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, uint8_t en_pin,
-                     uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4, uint8_t g5, uint8_t g6, uint8_t g7, TwoWire &wire)
-{
-  _vsyncPin = vsync_pin;
-  _hrefPin = hsync_pin;
-  _pclkPin = pclk_pin;
-  _xclkPin = mclk_pin;
-  _rst = en_pin;
-  _dPins[0] = g0;
-  _dPins[1] = g1;
-  _dPins[2] = g2;
-  _dPins[3] = g3;
-  _dPins[4] = g4;
-  _dPins[5] = g5;
-  _dPins[6] = g6;
-  _dPins[7] = g7;
-  
-  _wire = &wire;
-              
-  //memcpy(_dPins, dpins, sizeof(_dPins));
 }
 
 
@@ -470,12 +486,12 @@ uint16_t OV2640::getModelid()
 }
 
 
-//int OV767X::begin(int resolution, int format, int fps,  int camera_name, bool use_gpio)
+//int OV2640::begin(int resolution, int format, int fps,  int camera_name, bool use_gpio)
 bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format, int fps, int camera_name, bool use_gpio)
 {
 
   int _framesize = 0;
-  int _format = 0;
+  _format = 0;
   
   _use_gpio = use_gpio;
   // BUGBUG::: see where frame is
@@ -542,7 +558,10 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
     _grayscale = true;
     _format = 4;
     break;
-
+  case JPEG:
+    _bytesPerPixel = 2;
+    _format = 8;
+    break;
   default:
     return 0;
   }
@@ -625,9 +644,11 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
         setVSyncISRPriority(102);
         setDMACompleteISRPriority(192);
     }
-
-  setFramesize(resolution);
+    
+  reset();
   setPixformat(format);
+  setFramesize(resolution);
+
   //for now frame rate is fixed
 
   return 1;
@@ -676,17 +697,6 @@ void OV2640::end()
 
 }
 
-int16_t OV2640::width()
-{
-  return _width;
-}
-
-int16_t OV2640::height()
-{
-  return _height;
-}
-
-
 int OV2640::setPixformat(pixformat_t pixformat)
 {
     //const uint8_t(*regs)[2];
@@ -727,15 +737,26 @@ int OV2640::setPixformat(pixformat_t pixformat)
 
 
 uint8_t OV2640::setFramesize(framesize_t framesize) {
-
+  
     uint16_t sensor_w = 0;
     uint16_t sensor_h = 0;
     int ret = 0;
+    
+    ov2640_clk_t c;
+    
     uint16_t w = resolution[framesize][0];
     uint16_t h = resolution[framesize][1];
+    
+    if(_debug) {
+      debug.printf("UXGA Width: %d, Height: %d\n", UXGA_WIDTH, UXGA_HEIGHT);
+      debug.printf("Width: %d, Height: %d\n", w, h);
+    }
 
     if ((w % 4) || (h % 4) || (w > UXGA_WIDTH) || (h > UXGA_HEIGHT)) {
         // w/h must be divisible by 4
+        if(_debug) {
+          debug.println("width/height must be divisible by 4");
+        }
         return 0;
     }
 
@@ -769,6 +790,14 @@ uint8_t OV2640::setFramesize(framesize_t framesize) {
     uint16_t h_mul = h * div;
     uint16_t x_off = (sensor_w - w_mul) / 2;
     uint16_t y_off = (sensor_h - h_mul) / 2;
+    
+    if(_debug) {
+      debug.printf("Sensor w,h: %d - %d\n", sensor_w, sensor_h);
+      debug.printf("sensor_w / w: %d, sensor_h / h: %d\n", sensor_w / w, sensor_h / h);
+      debug.printf("temp_div: %d, log_div: %d, div: %d\n", tmp_div, log_div, div);
+      debug.printf("w_mul: %d, h_mul: %d\n", w_mul, h_mul);
+      debug.printf("x_off: %d, y_off: %d\n", x_off, y_off);    
+    }
 
     ret |=
         cameraWriteRegister(  CTRLI,
@@ -786,6 +815,51 @@ uint8_t OV2640::setFramesize(framesize_t framesize) {
     ret |= cameraWriteRegister(  ZMHH, ZMHH_OUTW_SET(w) | ZMHH_OUTH_SET(h));
     ret |= cameraWriteRegister(  R_DVP_SP, div);
     ret |= cameraWriteRegister(  RESET, 0x00);
+    
+    
+    //Extracted from the ESP32 Camera implementation to address cameras
+    // without CLK Pins
+    if (_format == 8) {  //jpeg
+        c.clk_2x = 0;
+        c.clk_div = 0;
+        c.pclk_auto = 0;
+        c.pclk_div = 8;
+        if(w <= SVGA_WIDTH) {
+            c.pclk_div = 12;
+        }
+        // if (sensor->xclk_freq_hz == 16000000) {
+        //     c.pclk_div = c.pclk_div / 2;
+        // }
+    } else {
+#if CONFIG_IDF_TARGET_ESP32
+        c.clk_2x = 0;
+#else
+        c.clk_2x = 0;  //ELSE 1
+#endif
+        c.clk_div = 7;
+        c.pclk_auto = 1;
+        c.pclk_div = 8;
+        if(w <= CIF_WIDTH) {
+            c.clk_div = 3;
+        } else if(w <= SVGA_WIDTH) {
+            c.pclk_div = 12;
+        }
+    }
+    
+    if(_debug) {
+      debug.printf("Set PLL: clk_2x: %u, clk_div: %u, pclk_auto: %u, pclk_div: %u\n", c.clk_2x, c.clk_div, c.pclk_auto, c.pclk_div);
+      debug.printf("c.clk value: %u\n", c.clk);
+      debug.printf("c.pclk value: %u\n", c.pclk);
+    }
+
+    ret |=cameraWriteRegister(BANK_SEL, BANK_SEL_SENSOR);
+    ret |=cameraWriteRegister(CLKRC, c.clk);
+    ret |=cameraWriteRegister(BANK_SEL, BANK_SEL_DSP);
+    ret |=cameraWriteRegister(R_DVP_SP, c.pclk);
+    ret |=cameraWriteRegister(BANK_SEL, BANK_SEL_DSP);
+    ret |=cameraWriteRegister( R_BYPASS, R_BYPASS_DSP_EN);
+
+    delay(100);
 
     return ret;
 }
@@ -884,7 +958,6 @@ int OV2640::setColorbar(int enable) {
     } else {
         reg &= ~COM7_COLOR_BAR;
     }
-
     return cameraWriteRegister(  COM7, reg) | ret;
 }
 
@@ -1124,55 +1197,57 @@ int OV2640::setVflip(int enable) {
 
 int OV2640::setSpecialEffect(sde_t sde) {
     int ret = 0;
+    int effect;
+    
+    effect = sde;
+    effect++;
+    if (effect <= 0 || effect > NUM_SPECIAL_EFFECTS) {
+        return 1;
+    }
 
-    switch (sde) {
-        case SDE_NEGATIVE:
-            ret |= cameraWriteRegister(  BANK_SEL, BANK_SEL_DSP);
-            ret |= cameraWriteRegister(  BPADDR, 0x00);
-            ret |= cameraWriteRegister(  BPDATA, 0x40);
-            ret |= cameraWriteRegister(  BPADDR, 0x05);
-            ret |= cameraWriteRegister(  BPDATA, 0x80);
-            ret |= cameraWriteRegister(  BPDATA, 0x80);
-            break;
-        case SDE_NORMAL:
-            ret |= cameraWriteRegister(  BANK_SEL, BANK_SEL_DSP);
-            ret |= cameraWriteRegister(  BPADDR, 0x00);
-            ret |= cameraWriteRegister(  BPDATA, 0x00);
-            ret |= cameraWriteRegister(  BPADDR, 0x05);
-            ret |= cameraWriteRegister(  BPDATA, 0x80);
-            ret |= cameraWriteRegister(  BPDATA, 0x80);
-            break;
-        default:
-            return -1;
+    /* Switch to DSP register bank */
+    ret |= cameraWriteRegister(  BANK_SEL, BANK_SEL_DSP);
+
+    /* Write special effect registers */
+    for (int i = 0; i < 5; i++) {
+        ret |= cameraWriteRegister(  special_effects_regs[0][i], special_effects_regs[effect][i]);
     }
 
     return ret;
 }
 
+
+int OV2640::setWBmode(int mode)
+{
+    int ret=0;
+    if (mode < 0 || mode > NUM_WB_MODES) {
+      /* Switch to DSP register bank */
+      ret |= cameraWriteRegister(  BANK_SEL, BANK_SEL_DSP);
+      /* AWB ON */
+      ret |= cameraWriteRegister( 0xC7, 0x00 );
+      return 1;
+    }
+    
+    /* Switch to DSP register bank */
+    ret |= cameraWriteRegister(  BANK_SEL, BANK_SEL_DSP);
+
+    /* AWB OFF */
+    ret |= cameraWriteRegister( 0xC7, 0x40 );
+    
+    if(mode) {
+      for (int i=0; i<3; i++) {
+        ret |= cameraWriteRegister(  wb_modes_regs[0][i], wb_modes_regs[mode][i]);
+      }
+    }
+    return ret;
+}
+
+
 /*******************************************************************/
 
 #define FLEXIO_USE_DMA
-bool OV2640::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
-    if(!_use_gpio) {
-        return readFrameFlexIO(buffer1, cb1, buffer2, cb2);
-    } else {
-        return readFrameGPIO(buffer1, cb1, buffer2, cb2);
-    }
-
-}
 
 
-bool OV2640::readContinuous(bool(*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2) {
-
-	return startReadFlexIO(callback, fb1, cb1, fb2, cb2);
-
-}
-
-void OV2640::stopReadContinuous() {
-	
-  stopReadFlexIO();
-
-}
 
 bool OV2640::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 {    
@@ -1212,6 +1287,7 @@ bool OV2640::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
       // bugbug what happens to the the data if grayscale?
       if (!(j & 1) || !_grayscale) {
         *b++ = in;
+
         if ( buffer2 && (--cb == 0) ) {
           if(_debug) debug.printf("\t$$ 2nd buffer: %u %u\n", i, j);
           b = (uint8_t *)buffer2;
@@ -1230,790 +1306,6 @@ bool OV2640::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 
 /*********************************************************************/
 
-bool OV2640::flexio_configure()
-{
-
-    // Going to try this using my FlexIO library.
-
-    // BUGBUG - starting off not going to worry about maybe first pin I choos is on multipl Flex IO controllers (yet)
-    uint8_t tpclk_pin; 
-    _pflex = FlexIOHandler::mapIOPinToFlexIOHandler(_pclkPin, tpclk_pin);
-    if (!_pflex) {
-        debug.printf("OV2640 PCLK(%u) is not a valid Flex IO pin\n", _pclkPin);
-        return false;
-    }
-    _pflexio = &(_pflex->port());
-
-    // Quick and dirty:
-    uint8_t thsync_pin = _pflex->mapIOPinToFlexPin(_hrefPin);
-    uint8_t tg0 = _pflex->mapIOPinToFlexPin(_dPins[0]);
-    uint8_t tg1 = _pflex->mapIOPinToFlexPin(_dPins[1]);
-    uint8_t tg2 = _pflex->mapIOPinToFlexPin(_dPins[2]);
-    uint8_t tg3 = _pflex->mapIOPinToFlexPin(_dPins[3]);
-
-    // make sure the minimum here is valid: 
-    if ((thsync_pin == 0xff) || (tg0 == 0xff) || (tg1 == 0xff) || (tg2 == 0xff) || (tg3 == 0xff)) {
-        debug.printf("OV2640 Some pins did not map to valid Flex IO pin\n");
-        if(_debug) debug.printf("    HSYNC(%u %u) G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)", 
-            _hrefPin, thsync_pin, _dPins[0], tg0, _dPins[1], tg1, _dPins[2], tg2, _dPins[3], tg3 );
-        return false;
-    } 
-    // Verify that the G numbers are consecutive... Should use arrays!
-    if ((tg1 != (tg0+1)) || (tg2 != (tg0+2)) || (tg3 != (tg0+3))) {
-        debug.printf("OV2640 Flex IO pins G0-G3 are not consective\n");
-        if(_debug) debug.printf("    G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)", 
-            _dPins[0], tg0, _dPins[1], tg1, _dPins[2], tg2, _dPins[3], tg3 );
-        return false;
-    }
-    if (_dPins[4] != 0xff) {
-        uint8_t tg4 = _pflex->mapIOPinToFlexPin(_dPins[4]);
-        uint8_t tg5 = _pflex->mapIOPinToFlexPin(_dPins[5]);
-        uint8_t tg6 = _pflex->mapIOPinToFlexPin(_dPins[6]);
-        uint8_t tg7 = _pflex->mapIOPinToFlexPin(_dPins[7]);
-        if ((tg4 != (tg0+4)) || (tg5 != (tg0+5)) || (tg6 != (tg0+6)) || (tg7 != (tg0+7))) {
-            debug.printf("OV2640 Flex IO pins G4-G7 are not consective with G0-3\n");
-            if(_debug) debug.printf("    G0(%u %u) G4(%u %u) G5(%u %u) G6(%u %u) G7(%u %u)", 
-                _dPins[0], tg0, _dPins[4], tg4, _dPins[5], tg5, _dPins[6], tg6, _dPins[7], tg7 );
-            return false;
-        }
-        if(_debug) debug.println("Custom - Flexio is 8 bit mode");
-    } else {
-      // only 8 bit mode supported
-      debug.println("Custom - Flexio 4 bit mode not supported");
-      return false;
-    }
-#if (CNT_SHIFTERS == 1)
-    // Needs Shifter 3 (maybe 7 would work as well?)
-    if (_pflex->claimShifter(3)) _fshifter = 3;
-    else if (_pflex->claimShifter(7)) _fshifter = 7;
-    else {
-      if(_debug) debug.printf("OV2640 Flex IO: Could not claim Shifter 3 or 7\n");
-      return false;
-    }
-    _fshifter_mask = 1 << _fshifter;   // 4 channels.
-    _dma_source = _pflex->shiftersDMAChannel(_fshifter); // looks like they use 
-
-#elif (CNT_SHIFTERS == 4)
-    // lets try to claim for shifters 0-3 or 4-7
-    // Needs Shifter 3 (maybe 7 would work as well?)
-    for (_fshifter = 0; _fshifter < 4; _fshifter++) {
-      if (!_pflex->claimShifter(_fshifter)) break;
-    }
-
-    if (_fshifter < CNT_SHIFTERS) {
-      // failed on 0-3 - released any we claimed
-      if(_debug) debug.printf("Failed to claim 0-3(%u) shifters trying 4-7\n", _fshifter);
-      while (_fshifter > 0) _pflex->freeShifter(--_fshifter);  // release any we grabbed
-
-      for (_fshifter = 4; _fshifter < (4 + CNT_SHIFTERS); _fshifter++) {
-        if (!_pflex->claimShifter(_fshifter)) {
-          debug.printf("OV2640 Flex IO: Could not claim Shifter %u\n", _fshifter);
-          while (_fshifter > 4) _pflex->freeShifter(--_fshifter);  // release any we grabbed
-          return false;
-        }
-      }
-      _fshifter = 4;
-    } else {
-      _fshifter = 0;
-    }
-
-
-    // ?????????? dma source... 
-    _fshifter_mask = 1 << _fshifter;   // 4 channels.
-    _dma_source = _pflex->shiftersDMAChannel(_fshifter); // looks like they use 
-#else
-    // all 8 shifters.
-    for (_fshifter = 0; _fshifter < 8; _fshifter++) {
-      if (!_pflex->claimShifter(_fshifter)) {
-        if(_debug) debug.printf("OV2640 Flex IO: Could not claim Shifter %u\n", _fshifter);
-        while (_fshifter > 4) _pflex->freeShifter(--_fshifter);  // release any we grabbed
-        return false;
-      }
-    }
-    _fshifter = 0;
-    _fshifter_mask = 1 /*0xff */; // 8 channels << _fshifter;   // 4 channels.
-    _dma_source = _pflex->shiftersDMAChannel(_fshifter); // looks like they use 
-#endif    
-    
-    // Now request one timer
-    uint8_t _ftimer = _pflex->requestTimers(); // request 1 timer. 
-    if (_ftimer == 0xff) {
-        if(_debug) debug.printf("OV2640 Flex IO: failed to request timer\n");
-        return false;
-    }
-
-    _pflex->setIOPinToFlexMode(_hrefPin);
-    _pflex->setIOPinToFlexMode(_pclkPin);
-    _pflex->setIOPinToFlexMode(_dPins[0]);
-    _pflex->setIOPinToFlexMode(_dPins[1]);
-    _pflex->setIOPinToFlexMode(_dPins[2]);
-    _pflex->setIOPinToFlexMode(_dPins[3]);
-    _pflex->setIOPinToFlexMode(_dPins[4]);
-    _pflex->setIOPinToFlexMode(_dPins[5]);
-    _pflex->setIOPinToFlexMode(_dPins[6]);
-    _pflex->setIOPinToFlexMode(_dPins[7]);
-
-
-
-    // We already configured the clock to allow access.
-    // Now sure yet aoub configuring the actual colock speed...
-
-/*
-    CCM_CSCMR2 |= CCM_CSCMR2__pflex->CLK_SEL(3); // 480 MHz from USB PLL
-
-    CCM_CS1CDR = (CCM_CS1CDR
-        & ~(CCM_CS1CDR__pflex->CLK_PRED(7) | CCM_CS1CDR__pflex->CLK_PODF(7)))
-        | CCM_CS1CDR__pflex->CLK_PRED(1) | CCM_CS1CDR__pflex->CLK_PODF(1);
-
-
-    CCM_CCGR3 |= CCM_CCGR3_FLEXIO2(CCM_CCGR_ON);
-*/    
-    // clksel(0-3PLL4, Pll3 PFD2 PLL5, *PLL3_sw)
-    // clk_pred(0, 1, 2, 7) - divide (n+1)
-    // clk_podf(0, *7) divide (n+1)
-    // So default is 480mhz/16
-    // Clock select, pred, podf:
-    _pflex->setClockSettings(3, 1, 1);
-
-
-#ifdef DEBUG_FLEXIO
-    debug.println("FlexIO Configure");
-    debug.printf(" CCM_CSCMR2 = %08X\n", CCM_CSCMR2);
-    uint32_t div1 = ((CCM_CS1CDR >> 9) & 7) + 1;
-    uint32_t div2 = ((CCM_CS1CDR >> 25) & 7) + 1;
-    debug.printf(" div1 = %u, div2 = %u\n", div1, div2);
-    debug.printf(" FlexIO Frequency = %.2f MHz\n", 480.0 / (float)div1 / (float)div2);
-    debug.printf(" CCM_CCGR3 = %08X\n", CCM_CCGR3);
-    debug.printf(" FlexIO CTRL = %08X\n", _pflexio->CTRL);
-    debug.printf(" FlexIO Config, param=%08X\n", _pflexio->PARAM);
-    
-	  debug.println("8Bit FlexIO");
-#endif
-      // SHIFTCFG, page 2927
-      //  PWIDTH: number of bits to be shifted on each Shift clock
-      //          0 = 1 bit, 1-3 = 4 bit, 4-7 = 8 bit, 8-15 = 16 bit, 16-31 = 32 bit
-      //  INSRC: Input Source, 0 = pin, 1 = Shifter N+1 Output
-      //  SSTOP: Stop bit, 0 = disabled, 1 = match, 2 = use zero, 3 = use one
-      //  SSTART: Start bit, 0 = disabled, 1 = disabled, 2 = use zero, 3 = use one
-      // setup the for shifters
-      #if (CNT_SHIFTERS == 1)
-      _pflexio->SHIFTCFG[_fshifter] = FLEXIO_SHIFTCFG_PWIDTH(7);
-      #else
-      for (int i = 0; i < (CNT_SHIFTERS - 1); i++) {
-        _pflexio->SHIFTCFG[_fshifter + i] = FLEXIO_SHIFTCFG_PWIDTH(7) | FLEXIO_SHIFTCFG_INSRC;
-      }
-      _pflexio->SHIFTCFG[_fshifter + CNT_SHIFTERS-1] = FLEXIO_SHIFTCFG_PWIDTH(7);
-      #endif
-
-      // Timer model, pages 2891-2893
-      // TIMCMP, page 2937
-      // using 4 shifters
-      _pflexio->TIMCMP[_ftimer] = (8U * CNT_SHIFTERS) -1 ;
-      
-      // TIMCTL, page 2933
-      //  TRGSEL: Trigger Select ....
-      //          4*N - Pin 2*N input
-      //          4*N+1 - Shifter N status flag
-      //          4*N+2 - Pin 2*N+1 input
-      //          4*N+3 - Timer N trigger output
-      //  TRGPOL: 0 = active high, 1 = active low
-      //  TRGSRC: 0 = external, 1 = internal
-      //  PINCFG: timer pin, 0 = disable, 1 = open drain, 2 = bidir, 3 = output
-      //  PINSEL: which pin is used by the Timer input or output
-      //  PINPOL: 0 = active high, 1 = active low
-      //  TIMOD: mode, 0 = disable, 1 = 8 bit baud rate, 2 = 8 bit PWM, 3 = 16 bit
-      #define FLEXIO_TIMER_TRIGGER_SEL_PININPUT(x) ((uint32_t)(x) << 1U)
-      _pflexio->TIMCTL[_ftimer] = FLEXIO_TIMCTL_TIMOD(3)
-          | FLEXIO_TIMCTL_PINSEL(tpclk_pin) // "Pin" is 16 = PCLK
-          //| FLEXIO_TIMCTL_TRGSEL(4 * (thsync_pin/2)) // "Trigger" is 12 = HSYNC
-          | FLEXIO_TIMCTL_TRGSEL(FLEXIO_TIMER_TRIGGER_SEL_PININPUT(thsync_pin)) // "Trigger" is 12 = HSYNC
-          | FLEXIO_TIMCTL_TRGSRC;
-    #ifdef DEBUG_FLEXIO
-      debug.printf("TIMCTL: %08X PINSEL: %x THSYNC: %x\n", _pflexio->TIMCTL[_ftimer], tpclk_pin, thsync_pin);
-    #endif
-    
-    // SHIFTCTL, page 2926
-    //  TIMSEL: which Timer is used for controlling the logic/shift register
-    //  TIMPOL: 0 = shift of positive edge, 1 = shift on negative edge
-    //  PINCFG: 0 = output disabled, 1 = open drain, 2 = bidir, 3 = output
-    //  PINSEL: which pin is used by the Shifter input or output
-    //  PINPOL: 0 = active high, 1 = active low
-    //  SMOD: 0 = disable, 1 = receive, 2 = transmit, 4 = match store,
-    //        5 = match continuous, 6 = state machine, 7 = logic
-    // 4 shifters
-    uint32_t shiftctl = FLEXIO_SHIFTCTL_TIMSEL(_ftimer) | FLEXIO_SHIFTCTL_SMOD(1)
-        | FLEXIO_SHIFTCTL_PINSEL(tg0);    
-
-    for (uint8_t i = 0; i < CNT_SHIFTERS; i++) {
-      _pflexio->SHIFTCTL[_fshifter + i] = shiftctl; // 4 = D0
-    }
-
-    // TIMCFG, page 2935
-    //  TIMOUT: Output
-    //          0 = output is logic one when enabled and is not affected by timer reset
-    //          1 = output is logic zero when enabled and is not affected by timer reset
-    //          2 = output is logic one when enabled and on timer reset
-    //          3 = output is logic zero when enabled and on timer reset
-    //  TIMDEC: Decrement
-    //          0 = on FlexIO clock, Shift clock equals Timer output
-    //          1 = on Trigger input (both edges), Shift clock equals Timer output
-    //          2 = on Pin input (both edges), Shift clock equals Pin input
-    //          3 = on Trigger input (both edges), Shift clock equals Trigger input
-    //  TIMRST: Reset
-    //          0 = never reset
-    //          2 = on Timer Pin equal to Timer Output
-    //          3 = on Timer Trigger equal to Timer Output
-    //          4 = on Timer Pin rising edge
-    //          6 = on Trigger rising edge
-    //          7 = on Trigger rising or falling edge
-    //  TIMDIS: Disable
-    //          0 = never disabled
-    //          1 = disabled on Timer N-1 disable
-    //          2 = disabled on Timer compare
-    //          3 = on Timer compare and Trigger Low
-    //          4 = on Pin rising or falling edge
-    //          5 = on Pin rising or falling edge provided Trigger is high
-    //          6 = on Trigger falling edge
-    //  TIMENA
-    //          0 = always enabled
-    //          1 = enabled on Timer N-1 enable
-    //          2 = enabled on Trigger high
-    //          3 = enabled on Trigger high and Pin high
-    //          4 = enabled on Pin rising edge
-    //          5 = enabled on Pin rising edge and Trigger high
-    //          6 = enabled on Trigger rising edge
-    //          7 = enabled on Trigger rising or falling edge
-    //  TSTOP Stop bit, 0 = disabled, 1 = on compare, 2 = on disable, 3 = on either
-    //  TSTART: Start bit, 0 = disabled, 1 = enabled
-    _pflexio->TIMCFG[_ftimer] = FLEXIO_TIMCFG_TIMOUT(1) | FLEXIO_TIMCFG_TIMDEC(2)
-        | FLEXIO_TIMCFG_TIMENA(6) | FLEXIO_TIMCFG_TIMDIS(6);
-
-    // CTRL, page 2916
-    _pflexio->CTRL = FLEXIO_CTRL_FLEXEN; // enable after everything configured
-    
-#ifdef DEBUG_FLEXIO
-    debug.printf(" FLEXIO:%u Shifter:%u Timer:%u\n", _pflex->FlexIOIndex(), _fshifter, _ftimer);
-    debug.print("     SHIFTCFG = ");
-    for (uint8_t i = 0; i < CNT_SHIFTERS; i++) debug.printf(" %08X", _pflexio->SHIFTCFG[_fshifter + i]);
-    debug.print("\n     SHIFTCTL = ");
-    for (uint8_t i = 0; i < CNT_SHIFTERS; i++) debug.printf(" %08X", _pflexio->SHIFTCTL[_fshifter + i]);
-    debug.printf("\n     TIMCMP = %08X\n", _pflexio->TIMCMP[_ftimer]);
-    debug.printf("     TIMCFG = %08X\n", _pflexio->TIMCFG[_ftimer]);
-    debug.printf("     TIMCTL = %08X\n", _pflexio->TIMCTL[_ftimer]);
-#endif
-return true;
-}
-
-
-void dumpDMA_TCD_5(DMABaseClass *dmabc, const char *psz_title) {
-  if (psz_title)
-    debug.print(psz_title);
-  debug.printf("%x %x: ", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
-
-  debug.printf(
-      "SA:%x SO:%d AT:%x (SM:%x SS:%x DM:%x DS:%x) NB:%x SL:%d DA:%x DO: %d CI:%x DL:%x CS:%x BI:%x\n",
-      (uint32_t)dmabc->TCD->SADDR, dmabc->TCD->SOFF, dmabc->TCD->ATTR,
-      (dmabc->TCD->ATTR >> 11) & 0x1f, (dmabc->TCD->ATTR >> 8) & 0x7,
-      (dmabc->TCD->ATTR >> 3) & 0x1f, (dmabc->TCD->ATTR >> 0) & 0x7,
-      dmabc->TCD->NBYTES, dmabc->TCD->SLAST, (uint32_t)dmabc->TCD->DADDR,
-      dmabc->TCD->DOFF, dmabc->TCD->CITER, dmabc->TCD->DLASTSGA,
-      dmabc->TCD->CSR, dmabc->TCD->BITER);
-}
-
-bool OV2640::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2)
-{
-    if (_debug)debug.printf("$$OV2640::readFrameFlexIO(%p, %u, %p, %u, %u)\n", buffer, cb1, buffer2, cb2, _fuse_dma);
-    const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
-    if ((cb1+cb2) < frame_size_bytes) return false; // not enough to hold image
-
-    //flexio_configure(); // one-time hardware setup
-    // wait for VSYNC to go high and then low with a sort of glitch filter
-    elapsedMillis emWaitSOF;
-    elapsedMicros emGlitch;
-    for (;;) {
-      if (emWaitSOF > 2000) {
-        if(_debug) debug.println("Timeout waiting for Start of Frame");
-        return false;
-      }
-      while ((*_vsyncPort & _vsyncMask) == 0);
-      emGlitch = 0;
-      while ((*_vsyncPort & _vsyncMask) != 0);
-      if (emGlitch > 5) break;
-    }
-
-    _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
-    _pflexio->SHIFTERR = _fshifter_mask;
-    uint32_t *p = (uint32_t *)buffer;
-
-    //----------------------------------------------------------------------
-    // Polling FlexIO version
-    //----------------------------------------------------------------------
-    if (!_fuse_dma) {
-      if (_debug)debug.println("\tNot DMA");
-      #ifdef USE_DEBUG_PINS
-      digitalWriteFast(2, HIGH);
-      #endif
-      // read FlexIO by polling
-      //uint32_t *p_end = (uint32_t *)buffer + (_width*_height/4)*_bytesPerPixel;
-      uint32_t count_items_left = (_width*_height/4)*_bytesPerPixel;
-      uint32_t count_items_left_in_buffer = (uint32_t)cb1 / 4;
-
-      while (count_items_left) {
-          while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
-              // wait for FlexIO shifter data
-          }
-          // Lets try to load in multiple shifters
-          for (uint8_t i = 0; i < CNT_SHIFTERS; i++) {
-            *p++ = _pflexio->SHIFTBUF[_fshifter+i]; // should use DMA...
-            count_items_left--;
-            if (buffer2 && (--count_items_left_in_buffer == 0)) {
-              p = (uint32_t*)buffer2;
-              count_items_left_in_buffer = (uint32_t)cb2 / 4;
-            }
-          }
-      }
-      #ifdef USE_DEBUG_PINS
-      digitalWriteFast(2, LOW);
-      #endif
-      return true;
-    }
-
-    //----------------------------------------------------------------------
-    // Use DMA FlexIO version
-    //----------------------------------------------------------------------
-
-    _dmachannel.begin();
-    _dmachannel.triggerAtHardwareEvent(_dma_source);
-    active_dma_camera = this;
-    _dmachannel.attachInterrupt(dmaInterruptFlexIO);
-    /* Configure DMA MUX Source */
-    //DMAMUX->CHCFG[FLEXIO_CAMERA_DMA_CHN] = DMAMUX->CHCFG[FLEXIO_CAMERA_DMA_CHN] &
-    //                                        (~DMAMUX_CHCFG_SOURCE_MASK) | 
-    //                                        DMAMUX_CHCFG_SOURCE(FLEXIO_CAMERA_DMA_MUX_SRC);
-    /* Enable DMA channel. */
-    // if only one buffer split over the one buffer assuming big enough.
-    // Total length of bytes transfered
-    // do it over 2 
-    // first pass split into two
-    uint8_t dmas_index = 0;
-    // We will do like above with both buffers, maybe later try to merge the two sections.
-    uint32_t cb_left = min(frame_size_bytes, cb1);
-    uint8_t count_dma_settings = (cb_left / (32767 * 4)) + 1;
-    uint32_t cb_per_setting = ((cb_left / count_dma_settings) + 3) & 0xfffffffc; // round up to next multiple of 4.
-    if (_debug) debug.printf("frame size: %u, cb1:%u cnt dma: %u CB per: %u\n", frame_size_bytes, cb1, count_dma_settings, cb_per_setting);
-
-    for (; dmas_index < count_dma_settings; dmas_index++) {
-      _dmasettings[dmas_index].TCD->CSR = 0;
-      _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[dmas_index].destinationBuffer(p, cb_per_setting);
-      _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
-      p += (cb_per_setting / 4);
-      cb_left -= cb_per_setting;
-      if (cb_left < cb_per_setting) cb_per_setting = cb_left;
-    }
-    if (frame_size_bytes > cb1) {
-      cb_left = frame_size_bytes - cb1;
-      count_dma_settings = (cb_left / (32767 * 4)) + 1;
-      cb_per_setting = ((cb_left / count_dma_settings) + 3) & 0xfffffffc; // round up to next multiple of 4.
-      if (_debug) debug.printf("frame size left: %u, cb2:%u cnt dma: %u CB per: %u\n", cb_left, cb2, count_dma_settings, cb_per_setting);
-      
-      p = (uint32_t *)buffer2;
-
-      for (uint8_t i=0; i < count_dma_settings; i++, dmas_index++) {
-        _dmasettings[dmas_index].TCD->CSR = 0;
-        _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
-        _dmasettings[dmas_index].destinationBuffer(p, cb_per_setting);
-        _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
-        p += (cb_per_setting / 4);
-        cb_left -= cb_per_setting;
-        if (cb_left < cb_per_setting) cb_per_setting = cb_left;
-      }
-    }  
-    dmas_index--; // lets point back to the last one
-    _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[0]);
-    _dmasettings[dmas_index].disableOnCompletion();
-    _dmasettings[dmas_index].interruptAtCompletion();
-    _dmachannel = _dmasettings[0];
-
-    _dmachannel.clearComplete();
-#ifdef DEBUG_FLEXIO
-    if (_debug) {
-      dumpDMA_TCD_5(&_dmachannel," CH: ");
-      for (uint8_t i = 0; i <= dmas_index; i++) {
-        debug.printf(" %u: ", i);
-        dumpDMA_TCD_5(&_dmasettings[i], nullptr);
-      }
-    }
-#endif
-
-
-    _dma_state = DMA_STATE_ONE_FRAME;
-    _pflexio->SHIFTSDEN = _fshifter_mask;
-    _dmachannel.enable();
-    
-#ifdef DEBUG_FLEXIO
-    if (_debug) debug.printf("Flexio DMA: length: %d\n", frame_size_bytes);
-#endif
-    
-    elapsedMillis timeout = 0;
-    //while (!_dmachannel.complete()) {
-    while (_dma_state == DMA_STATE_ONE_FRAME) {
-        // wait - we should not need to actually do anything during the DMA transfer
-        if (_dmachannel.error()) {
-            debug.println("DMA error");
-            if (_pflexio->SHIFTSTAT) debug.printf(" SHIFTSTAT %08X\n", _pflexio->SHIFTSTAT);
-            debug.flush();
-            uint32_t i = _pflexio->SHIFTBUF[_fshifter];
-            debug.printf("Result: %x\n", i);
-
-
-            _dmachannel.clearError();
-            break;
-        }
-        if (timeout > 500) {
-            if (_debug) debug.println("Timeout waiting for DMA");
-            if (_pflexio->SHIFTSTAT & _fshifter_mask) debug.printf(" SHIFTSTAT bit was set (%08X)\n", _pflexio->SHIFTSTAT);
-            #ifdef DEBUG_CAMERA
-            debug.printf(" DMA channel #%u\n", _dmachannel.channel);
-            debug.printf(" DMAMUX = %08X\n", *(&DMAMUX_CHCFG0 + _dmachannel.channel));
-            debug.printf(" _pflexio->SHIFTSDEN = %02X\n", _pflexio->SHIFTSDEN);
-            debug.printf(" TCD CITER = %u\n", _dmachannel.TCD->CITER_ELINKNO);
-            debug.printf(" TCD CSR = %08X\n", _dmachannel.TCD->CSR);
-            #endif
-            break;
-        }
-    }
-    #ifdef USE_DEBUG_PINS
-        digitalWriteFast(2, LOW);
-    #endif
-    //arm_dcache_delete(buffer, frame_size_bytes);
-    if ((uint32_t)buffer >= 0x20200000u) arm_dcache_delete(buffer, min(cb1, frame_size_bytes));
-    if (frame_size_bytes > cb1) {
-      if ((uint32_t)buffer2 >= 0x20200000u) arm_dcache_delete(buffer2, frame_size_bytes - cb1);
-    } 
-
-#ifdef DEBUG_FLEXIO
-    if (_debug) dumpDMA_TCD_5(&_dmachannel,"CM: ");
-#endif
-//    dumpDMA_TCD_5(&_dmasettings[0], " 0: ");
-//    dumpDMA_TCD_5(&_dmasettings[1], " 1: ");
-    return true;
-}
-
-
-
-bool OV2640::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2)
-{
-
-#ifdef FLEXIO_USE_DMA
-    const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
-    // lets handle a few cases.
-    if (fb1 == nullptr) return false;
-    if (cb1 < frame_size_bytes) {
-      if ((fb2 == nullptr) || ((cb1+cb2) < frame_size_bytes)) return false;
-    }
-
-    _frame_buffer_1 = (uint8_t *)fb1;
-    _frame_buffer_1_size = cb1;
-    _frame_buffer_2 = (uint8_t *)fb2;
-    _frame_buffer_2_size = cb2;
-    _callback = callback;
-    active_dma_camera = this;
-
-    //flexio_configure(); // one-time hardware setup
-    _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
-    _pflexio->SHIFTERR = _fshifter_mask;
-    uint32_t *p = (uint32_t *)fb1;
-
-    //----------------------------------------------------------------------
-    // Use DMA FlexIO version
-    //----------------------------------------------------------------------
-    // Currently lets setup for only one shifter
-//    digitalWriteFast(2, HIGH);
-
-
-    _dmachannel.begin();
-    _dmachannel.triggerAtHardwareEvent(_dma_source);
-    active_dma_camera = this;
-    _dmachannel.attachInterrupt(dmaInterruptFlexIO);
-
-
-    #if 1
-    // Two versions.  If one buffer is large enough, we will use the two buffers to 
-    // read in two frames.  If the combined in large enough for one frame, we will 
-    // setup to read one frame but still interrupt on each buffer filled completion
-
-    uint8_t dmas_index = 0;
-    
-    uint32_t cb_left = min(frame_size_bytes, cb1);
-    uint8_t count_dma_settings = (cb_left / (32767 * 4)) + 1;
-    uint32_t cb_per_setting = ((cb_left / count_dma_settings) + 3) & 0xfffffffc; // round up to next multiple of 4.
-    if (_debug) debug.printf("frame size: %u, cb1:%u cnt dma: %u CB per: %u\n", frame_size_bytes, cb1, count_dma_settings, cb_per_setting);
-
-    for (; dmas_index < count_dma_settings; dmas_index++) {
-      _dmasettings[dmas_index].TCD->CSR = 0;
-      _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
-      _dmasettings[dmas_index].destinationBuffer(p, cb_per_setting);
-      _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
-      p += (cb_per_setting / 4);
-      cb_left -= cb_per_setting;
-      if (cb_left < cb_per_setting) cb_per_setting = cb_left;
-    }
-    // Interrupt after each buffer is filled.
-    _dmasettings[dmas_index-1].interruptAtCompletion();
-    if (cb1 >= frame_size_bytes) {
-      _dmasettings[dmas_index-1].disableOnCompletion();  // full frame
-      if (fb2 && (cb2 >= frame_size_bytes)) cb_left = min(frame_size_bytes, cb2);
-    } else cb_left = frame_size_bytes - cb1;  // need second buffer to complete one frame.
-
-    if (cb_left) {
-      count_dma_settings = (cb_left / (32767 * 4)) + 1;
-      cb_per_setting = ((cb_left / count_dma_settings) + 3) & 0xfffffffc; // round up to next multiple of 4.
-      if (_debug) debug.printf("frame size left: %u, cb2:%u cnt dma: %u CB per: %u\n", cb_left, cb2, count_dma_settings, cb_per_setting);
-      
-      p = (uint32_t *)fb2;
-
-      for (uint8_t i=0; i < count_dma_settings; i++, dmas_index++) {
-        _dmasettings[dmas_index].TCD->CSR = 0;
-        _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
-        _dmasettings[dmas_index].destinationBuffer(p, cb_per_setting);
-        _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[dmas_index + 1]);
-        p += (cb_per_setting / 4);
-        cb_left -= cb_per_setting;
-        if (cb_left < cb_per_setting) cb_per_setting = cb_left;
-      }
-      _dmasettings[dmas_index-1].disableOnCompletion();
-      _dmasettings[dmas_index-1].interruptAtCompletion();
-    }  
-    dmas_index--; // lets point back to the last one
-    _dmasettings[dmas_index].replaceSettingsOnCompletion(_dmasettings[0]);
-    _dmachannel = _dmasettings[0];
-    _dmachannel.clearComplete();
-
-#ifdef DEBUG_FLEXIO
-    if (_debug) {
-      dumpDMA_TCD_5(&_dmachannel," CH: ");
-      for (uint8_t i = 0; i <= dmas_index; i++) {
-        debug.printf(" %u: ", i);
-        dumpDMA_TCD_5(&_dmasettings[i], nullptr);
-      }
-    }
-    debug.printf("Flexio DMA: length: %d\n", frame_size_bytes);
-
-#endif
-
-    #else
-    // Total length of bytes transfered
-    // do it over 2 
-    // first pass split into two
-    _dmasettings[0].source(_pflexio->SHIFTBUF[_fshifter]);
-    _dmasettings[0].destinationBuffer(p, frame_size_bytes / 2);
-    _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
-
-    _dmasettings[1].source(_pflexio->SHIFTBUF[_fshifter]);
-    _dmasettings[1].destinationBuffer(&p[frame_size_bytes / 8], frame_size_bytes / 2);
-    _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[2]);
-    _dmasettings[1].interruptAtCompletion();
-
-    // lets preset up the dmasettings for second buffer
-    p = (uint32_t *)fb2;
-    _dmasettings[2].source(_pflexio->SHIFTBUF[_fshifter]);
-    _dmasettings[2].destinationBuffer(p, frame_size_bytes / 2);
-    _dmasettings[2].replaceSettingsOnCompletion(_dmasettings[3]);
-
-    _dmasettings[3].source(_pflexio->SHIFTBUF[_fshifter]);
-    _dmasettings[3].destinationBuffer(&p[frame_size_bytes / 8], frame_size_bytes / 2);
-    _dmasettings[3].replaceSettingsOnCompletion(_dmasettings[0]);
-    _dmasettings[3].interruptAtCompletion();
-
-
-    #ifdef USE_VSYNC_PIN_INT
-    // disable when we have received a full frame. 
-    _dmasettings[1].disableOnCompletion();
-    _dmasettings[3].disableOnCompletion();
-    #else
-    _dmasettings[1].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
-    _dmasettings[3].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
-    #endif
-
-    _dmachannel = _dmasettings[0];
-
-    _dmachannel.clearComplete();
-#ifdef DEBUG_FLEXIO
-
-    dumpDMA_TCD_5(&_dmachannel," CH: ");
-    dumpDMA_TCD_5(&_dmasettings[0], " 0: ");
-    dumpDMA_TCD_5(&_dmasettings[1], " 1: ");
-    dumpDMA_TCD_5(&_dmasettings[2], " 2: ");
-    dumpDMA_TCD_5(&_dmasettings[3], " 3: ");
-    debug.printf("Flexio DMA: length: %d\n", frame_size_bytes);
-
-#endif
-#endif
-    _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
-    _pflexio->SHIFTERR = _fshifter_mask;
-
-
-    _dma_last_completed_frame = nullptr;
-    _dma_frame_count = 0;
-
-    _dma_state = DMASTATE_RUNNING;
-
-#ifdef USE_VSYNC_PIN_INT
-    // Lets use interrupt on interrupt on VSYNC pin to start the capture of a frame
-    _dma_active = false;
-    _vsync_high_time = 0;
-    NVIC_SET_PRIORITY(IRQ_GPIO6789, 102);
-    //NVIC_SET_PRIORITY(dma_flexio.channel & 0xf, 102);
-    attachInterrupt(_vsyncPin, &frameStartInterruptFlexIO, RISING);
-    _pflexio->SHIFTSDEN = _fshifter_mask;
-#else    
-    // wait for VSYNC to go high and then low with a sort of glitch filter
-    elapsedMillis emWaitSOF;
-    elapsedMicros emGlitch;
-    for (;;) {
-      if (emWaitSOF > 2000) {
-        if(_debug) debug.println("Timeout waiting for Start of Frame");
-        return false;
-      }
-      while ((*_vsyncPort & _vsyncMask) == 0);
-      emGlitch = 0;
-      while ((*_vsyncPort & _vsyncMask) != 0);
-      if (emGlitch > 2) break;
-    }
-
-    _pflexio->SHIFTSDEN = _fshifter_mask;
-    _dmachannel.enable();
-#endif    
-
-    return true;
-#else
-    return false;
-#endif
-}
-
-#ifdef USE_VSYNC_PIN_INT
-void OV2640::frameStartInterruptFlexIO()
-{
-	active_dma_camera->processFrameStartInterruptFlexIO();
-}
-
-void OV2640::processFrameStartInterruptFlexIO()
-{
-  #ifdef USE_DEBUG_PINS
-  digitalWriteFast(5, HIGH);
-  #endif
-  //debug.println("VSYNC");
-  // See if we read the state of it a few times if the pin stays high...
-  if (digitalReadFast(_vsyncPin) && digitalReadFast(_vsyncPin) && digitalReadFast(_vsyncPin) 
-          && digitalReadFast(_vsyncPin) )  {
-    // stop this interrupt.
-    #ifdef USE_DEBUG_PINS
-    //digitalToggleFast(2);
-    digitalWriteFast(2, LOW);
-    digitalWriteFast(2, HIGH);
-    #endif
-    detachInterrupt(_vsyncPin);
-
-    // For this pass will leave in longer DMAChain with both buffers.
-  	_pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
-  	_pflexio->SHIFTERR = _fshifter_mask;
-
-    _vsync_high_time = 0; // clear out the time.
-    _dmachannel.clearComplete();
-    _dmachannel.enable();
-  }
-	asm("DSB");
-  #ifdef USE_DEBUG_PINS
-  digitalWriteFast(5, LOW);
-  #endif
-}
-
-#endif
-
-void OV2640::dmaInterruptFlexIO()
-{
-	active_dma_camera->processDMAInterruptFlexIO();
-}
-
-void OV2640::processDMAInterruptFlexIO()
-{
-
-  _dmachannel.clearInterrupt();
-  #ifdef USE_DEBUG_PINS
-//  digitalToggleFast(2);
-  digitalWriteFast(2, HIGH);
-  digitalWriteFast(2, LOW);
-  #endif
-  if (_dma_state == DMA_STATE_ONE_FRAME) {
-    _dma_state = DMA_STATE_STOPPED;
-    asm("DSB");
-    return;
-
-  } else if (_dma_state == DMASTATE_STOP_REQUESTED) {
-    _dmachannel.disable();
-    _frame_buffer_1 = nullptr;
-    _frame_buffer_2 = nullptr;
-    _callback = nullptr;
-    _dma_state = DMA_STATE_STOPPED;
-    asm("DSB");
-    return;
-  }
-
-#if 0
-  static uint8_t debug_print_count = 8;
-  if (debug_print_count) {
-    debug_print_count--;
-    debug.printf("PDMAIF: %x\n", (uint32_t)_dmachannel.TCD->DADDR);
-    dumpDMA_TCD_5(&_dmachannel," CH: ");
-
-  }
-#endif  
-	_dmachannel.clearComplete();
-  const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
-  if (((uint32_t)_dmachannel.TCD->DADDR) == (uint32_t)_frame_buffer_1) {
-     _dma_last_completed_frame = _frame_buffer_2;
-    if ((uint32_t)_frame_buffer_2 >= 0x20200000u) arm_dcache_delete(_frame_buffer_2, min(_frame_buffer_2_size, frame_size_bytes));
-  } else {
-     _dma_last_completed_frame = _frame_buffer_1;
-    if ((uint32_t)_frame_buffer_1 >= 0x20200000u) arm_dcache_delete(_frame_buffer_1, min(_frame_buffer_1_size, frame_size_bytes));    
-  }
-
-	if (_callback) (*_callback)(_dma_last_completed_frame); // TODO: use EventResponder
-  // if we disabled the DMA, then setup to wait for vsyncpin...
-  if ((_dma_last_completed_frame == _frame_buffer_2) || (_frame_buffer_1_size >= frame_size_bytes)) {
-    _dma_active = false;
-    // start up interrupt to look for next start of interrupt.
-    _vsync_high_time = 0; // remember the time we were called
-
-    if (_dma_state == DMASTATE_RUNNING) attachInterrupt(_vsyncPin, &frameStartInterruptFlexIO, RISING);
-  }
-
-	asm("DSB");
-}
-
-
-bool OV2640::stopReadFlexIO()
-{
-  #ifdef USE_VSYNC_PIN_INT
-  // first disable the vsync interrupt
-  detachInterrupt(_vsyncPin);
-  if (!_dma_active) {
-    _dma_state = DMA_STATE_STOPPED;
-  } else {
-    cli();
-    if (_dma_state != DMA_STATE_STOPPED) _dma_state = DMASTATE_STOP_REQUESTED;
-    sei();
-  }
-  #else
-  _dmasettings[1].disableOnCompletion();
-  _dmasettings[3].disableOnCompletion();
-  _dma_state = DMASTATE_STOP_REQUESTED;
-  #endif
-	return true;
-}
-
-
 //======================================== DMA JUNK
 //================================================================================
 // experiment with DMA
@@ -2025,12 +1317,17 @@ uint32_t OV2640::_dmaBuffer1[DMABUFFER_SIZE] __attribute__ ((used, aligned(32)))
 uint32_t OV2640::_dmaBuffer2[DMABUFFER_SIZE] __attribute__ ((used, aligned(32)));
 extern "C" void xbar_connect(unsigned int input, unsigned int output); // in pwm.c
 
-OV2640 *OV2640::active_dma_camera = nullptr;
+//OV2640 *OV2640::active_dma_camera = nullptr;
 
 
 //===================================================================
 // Start a DMA operation -
 //===================================================================
+#if 0 //def later
+bool OV2640::startReadFrameDMA(bool(*callback)(void *frame_buffer), uint8_t *fb1, uint8_t *fb2) {return false;}
+bool OV2640::stopReadFrameDMA() {return false;}
+
+#else
 bool OV2640::startReadFrameDMA(bool(*callback)(void *frame_buffer), uint8_t *fb1, uint8_t *fb2)
 {
   // First see if we need to allocate frame buffers.
@@ -2134,9 +1431,9 @@ bool OV2640::startReadFrameDMA(bool(*callback)(void *frame_buffer), uint8_t *fb1
 
   // We have the start of a frame, so lets start the dma.
 #ifdef DEBUG_CAMERA
-  dumpDMA_TCD_5(&_dmachannel," CH: ");
-  dumpDMA_TCD_5(&_dmasettings[0], " 0: ");
-  dumpDMA_TCD_5(&_dmasettings[1], " 1: ");
+  dumpDMA_TCD(&_dmachannel," CH: ");
+  dumpDMA_TCD(&_dmasettings[0], " 0: ");
+  dumpDMA_TCD(&_dmasettings[1], " 1: ");
 
   debug.printf("pclk pin: %d config:%lx control:%lx\n", _pclkPin, *(portConfigRegister(_pclkPin)), *(portControlRegister(_pclkPin)));
   debug.printf("IOMUXC_GPR_GPR26-29:%lx %lx %lx %lx\n", IOMUXC_GPR_GPR26, IOMUXC_GPR_GPR27, IOMUXC_GPR_GPR28, IOMUXC_GPR_GPR29);
@@ -2179,9 +1476,9 @@ bool OV2640::stopReadFrameDMA()
   //DebugDigitalWrite(OV7670_DEBUG_PIN_2, LOW);
   #endif
 #ifdef DEBUG_CAMERA
-  dumpDMA_TCD_5(&_dmachannel, nullptr);
-  dumpDMA_TCD_5(&_dmasettings[0], nullptr);
-  dumpDMA_TCD_5(&_dmasettings[1], nullptr);
+  dumpDMA_TCD(&_dmachannel, nullptr);
+  dumpDMA_TCD(&_dmasettings[0], nullptr);
+  dumpDMA_TCD(&_dmasettings[1], nullptr);
   debug.println();
 #endif
   // Lets restore some hardware pieces back to the way we found them.
@@ -2355,6 +1652,7 @@ void OV2640::processDMAInterrupt() {
   #endif
 }
 
+#endif // LATER
 typedef struct {
     uint32_t frameTimeMicros;
     uint16_t vsyncStartCycleCount;
@@ -2417,3 +1715,123 @@ void OV2640::captureFrameStatistics()
 
 /*****************************************************************/
 
+typedef struct {
+  const __FlashStringHelper *reg_name;
+  uint8_t bank;
+  uint16_t reg;
+} OV2640_TO_NAME_t;
+
+
+static const OV2640_TO_NAME_t OV2640_reg_name_table[] PROGMEM {
+  {F(" QS" ), 0, 0x44 },
+  {F(" HSIZE" ), 0, 0x51 },
+  {F(" VSIZE" ), 0, 0x52 },
+  {F(" XOFFL" ), 0, 0x53 },
+  {F(" YOFFL" ), 0, 0x54 },
+  {F(" VHYX" ), 0, 0x55 },
+  {F(" DPRP" ), 0, 0x56 },
+  {F(" TEST" ), 0, 0x57 },
+  {F(" ZMOW" ), 0, 0x5A },
+  {F(" ZMOH" ), 0, 0x5B },
+  {F(" ZMHH" ), 0, 0x5C },
+  {F(" BPADDR" ), 0, 0x7C },
+  {F(" BPDATA" ), 0, 0x7D },
+  {F(" SIZEL" ), 0, 0x8C },
+  {F(" HSIZE8" ), 0, 0xC0 },
+  {F(" VSIZE8" ), 0, 0xC1 },
+  {F(" CTRL1" ), 0, 0xC3 },
+  {F(" MS_SP" ), 0, 0xF0 },
+  {F(" SS_ID" ), 0, 0xF7 },
+  {F(" SS_CTRL" ), 0, 0xF7 },
+  {F(" MC_AL" ), 0, 0xFA },
+  {F(" MC_AH" ), 0, 0xFB },
+  {F(" MC_D" ), 0, 0xFC },
+  {F(" P_CMD" ), 0, 0xFD },
+  {F(" P_STATUS" ), 0, 0xFE },
+  {F(" CTRLI" ), 0, 0x50 },
+  {F(" CTRLI_LP_DP" ), 0, 0x80 },
+  {F(" CTRLI_ROUND" ), 0, 0x40 },
+  {F(" CTRL0" ), 0, 0xC2 },
+  {F(" CTRL2" ), 0, 0x86 },
+  {F(" CTRL3" ), 0, 0x87 },
+  {F(" R_DVP_SP" ), 0, 0xD3 },
+  {F(" R_DVP_SP_AUTO_MODE" ), 0, 0x80 },
+  {F(" R_BYPASS" ), 0, 0x05 },
+  {F(" R_BYPASS_DSP_EN" ), 0, 0x00 },
+  {F(" R_BYPASS_DSP_BYPAS" ), 0, 0x01 },
+  {F(" IMAGE_MODE" ), 0, 0xDA },
+  {F(" RESET" ), 0, 0xE0 },
+  {F(" MC_BIST" ), 0, 0xF9 },
+  {F(" BANK_SEL" ), 0, 0xFF },
+  {F(" BANK_SEL_DSP" ), 0, 0x00 },
+  {F(" BANK_SEL_SENSOR" ), 0, 0x01 },
+  {F(" GAIN" ), 1, 0x00 },
+  {F(" COM1" ), 1, 0x03 },
+  {F(" REG_PID" ), 1, 0x0A },
+  {F(" REG_VER" ), 1, 0x0B },
+  {F(" COM4" ), 1, 0x0D },
+  {F(" AEC" ), 1, 0x10 },
+  {F(" CLKRC" ), 1, 0x11 },
+  {F(" CLKRC_DOUBLE" ), 1, 0x82 },
+  {F(" CLKRC_DIVIDER_MASK" ), 1, 0x3F },
+  {F(" COM10" ), 1, 0x15 },
+  {F(" HSTART" ), 1, 0x17 },
+  {F(" HSTOP" ), 1, 0x18 },
+  {F(" VSTART" ), 1, 0x19 },
+  {F(" VSTOP" ), 1, 0x1A },
+  {F(" MIDH" ), 1, 0x1C },
+  {F(" MIDL" ), 1, 0x1D },
+  {F(" AEW" ), 1, 0x24 },
+  {F(" AEB" ), 1, 0x25 },
+  {F(" REG2A" ), 1, 0x2A },
+  {F(" FRARL" ), 1, 0x2B },
+  {F(" ADDVSL" ), 1, 0x2D },
+  {F(" ADDVSH" ), 1, 0x2E },
+  {F(" YAVG" ), 1, 0x2F },
+  {F(" HSDY" ), 1, 0x30 },
+  {F(" HEDY" ), 1, 0x31 },
+  {F(" ARCOM2" ), 1, 0x34 },
+  {F(" REG45" ), 1, 0x45 },
+  {F(" FLL" ), 1, 0x46 },
+  {F(" FLH" ), 1, 0x47 },
+  {F(" COM19" ), 1, 0x48 },
+  {F(" ZOOMS" ), 1, 0x49 },
+  {F(" COM22" ), 1, 0x4B },
+  {F(" COM25" ), 1, 0x4E },
+  {F(" BD50" ), 1, 0x4F },
+  {F(" BD60" ), 1, 0x50 },
+  {F(" REG5D" ), 1, 0x5D },
+  {F(" REG5E" ), 1, 0x5E },
+  {F(" REG5F" ), 1, 0x5F },
+  {F(" REG60" ), 1, 0x60 },
+  {F(" HISTO_LOW" ), 1, 0x61 },
+  {F(" HISTO_HIGH" ), 1, 0x62 },
+  {F(" REG04" ), 1, 0x04 },
+  {F(" REG08" ), 1, 0x08 },
+  {F(" COM2" ), 1, 0x09 },
+  {F(" COM2_STDBY" ), 1, 0x10 },
+  {F(" COM3" ), 1, 0x0C },
+  {F(" COM7" ), 1, 0x12 },
+  {F(" COM8" ), 1, 0x13 },
+  {F(" COM8_DEFAULT" ), 1, 0xC0 },
+  {F(" COM8_BNDF_EN" ), 1, 0x20 },
+  {F(" COM8_AGC_EN" ), 1, 0x04 },
+  {F(" COM8_AEC_EN" ), 1, 0x01 },
+  {F(" COM9" ), 1, 0x14 },
+  {F(" CTRL1_AWB" ), 1, 0x08 },
+  {F(" VV" ), 1, 0x26 },
+  {F(" REG32" ), 1, 0x32 },
+};
+
+
+void OV2640::showRegisters(void) {
+  debug.println("\n*** Camera Registers ***");
+  cameraWriteRegister(0xFF, 0x00);  //bank 0
+  for (uint16_t ii = 0; ii < (sizeof(OV2640_reg_name_table) / sizeof(OV2640_reg_name_table[0])); ii++) {
+    if(OV2640_reg_name_table[ii].bank != 0) cameraWriteRegister(0xff, 0x01);
+    uint8_t reg_value = cameraReadRegister(OV2640_reg_name_table[ii].reg);
+    debug.printf("(%d) %s(%x): %u(%x)\n", OV2640_reg_name_table[ii].bank, OV2640_reg_name_table[ii].reg_name, OV2640_reg_name_table[ii].reg, reg_value, reg_value);
+  }
+   cameraWriteRegister(0xFF, 0x00);  //bank 0
+
+}

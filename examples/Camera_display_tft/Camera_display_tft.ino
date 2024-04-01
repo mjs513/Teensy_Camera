@@ -33,6 +33,7 @@ Camera camera(himax);
 OV2640 omni;
 Camera camera(omni);
 #define CameraID OV2640a
+#define MIRROR_FLIP_CAMERA
 
 #elif defined(ARDUCAM_CAMERA_OV7670)
 #include "TMM_OV767X/OV767X.h"
@@ -270,13 +271,13 @@ void setup() {
 //         (GPIO  ) 15/30/60 fps works, but F and M do not hangs
 
 
-uint8_t status = 1;
+uint8_t status = 0;
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145))
-  status = camera.begin(FRAMESIZE_QVGA, RGB565, 30, CameraID, true);
+  status = camera.begin(FRAMESIZE_QVGA, RGB565, 15, CameraID, false);
 #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
-  status = camera.begin(FRAMESIZE_QVGA, 15);
+  status = camera.begin(FRAMESIZE_QVGA, 15, false);
 #endif
 
 #ifdef MIRROR_FLIP_CAMERA
@@ -314,6 +315,11 @@ if(!status) {
   camera.setBrightness(0x80);
   camera.autoExposure(1);
 #elif defined(ARDUCAM_CAMERA_OV2640)
+  //camera.setBrightness(0);          // -2 to +2
+  //camera.setContrast(0);            // -2 to +2
+  //camera.setSaturation(0);          // -2 to +2
+  //omni.setSpecialEffect(RETRO);  // NOEFFECT, NEGATIVE, BW, REDDISH, GREEISH, BLUEISH, RETRO
+  //omni.setWBmode(3);                  // AWB ON, 1 - Sunny, 2 - Cloudy, 3 - Office, 4 - Home
 #else
   camera.setGainceiling(GAINCEILING_2X);
   camera.setBrightness(3);
@@ -322,7 +328,6 @@ if(!status) {
   camera.setMode(HIMAX_MODE_STREAMING, 0);  // turn on, continuous streaming mode
 #endif
 
-  //camera.showRegisters();
   Serial.println("Camera settings:");
   Serial.print("\twidth = ");
   Serial.println(camera.width());
@@ -340,8 +345,6 @@ if(!status) {
   // Lets setup camera interrupt priorities:
   //camera.setVSyncISRPriority(102); // higher priority than default
   camera.setDMACompleteISRPriority(192);  // lower than default
-
-  showCommandList();
 
 #if defined(ARDUCAM_CAMERA_GC2145)
   /***************note for the GC2145 the following is supported **************
@@ -369,6 +372,11 @@ if(!status) {
    *************************************************************************/
   camera.setColorbar(0);
 #endif
+
+camera.showRegisters();
+
+showCommandList();
+
 }
 
 bool hm0360_flexio_callback(void *pfb) {
@@ -382,7 +390,11 @@ bool hm0360_flexio_callback(void *pfb) {
 #define UPDATE_ON_CAMERA_FRAMES
 
 inline uint16_t HTONS(uint16_t x) {
+  #if defined(ARDUCAM_CAMERA_OV2640)
+  return x;
+  #else
   return ((x >> 8) & 0x00FF) | ((x << 8) & 0xFF00);
+  #endif
 }
 
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
@@ -920,8 +932,13 @@ void save_image_SD() {
 #endif
 
 void showCommandList() {
-  Serial.println("Send the 'f' character to read a frame using FlexIO (changes hardware setup!)");
-  Serial.println("Send the 'F' to start/stop continuous using FlexIO (changes hardware setup!)");
+  if (camera.usingGPIO()) {
+    Serial.println("Send the 'f' character to read a frame using GPIO");
+    Serial.println("Send the 'F' to start/stop continuous using GPIO");
+  } else {
+    Serial.println("Send the 'f' character to read a frame using FlexIO (changes hardware setup!)");
+    Serial.println("Send the 'F' to start/stop continuous using FlexIO (changes hardware setup!)");
+  }
   Serial.println("Send the 'm' character to read and display multiple frames");
   Serial.println("Send the 'M' character to read and display multiple frames use Frame buffer");
   Serial.println("Send the 'V' character DMA to TFT async continueous  ...");
