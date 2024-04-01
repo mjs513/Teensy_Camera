@@ -376,7 +376,6 @@ static const uint8_t jpeg_regs[][2] = {
     {0,             0},
 };
 
-
 #define NUM_BRIGHTNESS_LEVELS    (5)
 static const uint8_t brightness_regs[NUM_BRIGHTNESS_LEVELS + 1][5] = {
     {BPADDR, BPDATA, BPADDR, BPDATA, BPDATA},
