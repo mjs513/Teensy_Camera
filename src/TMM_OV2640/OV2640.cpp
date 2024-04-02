@@ -737,15 +737,18 @@ int OV2640::setPixformat(pixformat_t pixformat)
 
 
 uint8_t OV2640::setFramesize(framesize_t framesize) {
-  
-    uint16_t sensor_w = 0;
+    return setFramesize( resolution[framesize][0],  resolution[framesize][1]);    
+}
+
+uint8_t OV2640::setFramesize(int w, int h) {
+   uint16_t sensor_w = 0;
     uint16_t sensor_h = 0;
     int ret = 0;
     
     ov2640_clk_t c;
     
-    uint16_t w = resolution[framesize][0];
-    uint16_t h = resolution[framesize][1];
+    //uint16_t w = resolution[framesize][0];
+    //uint16_t h = resolution[framesize][1];
     
     if(_debug) {
       debug.printf("UXGA Width: %d, Height: %d\n", UXGA_WIDTH, UXGA_HEIGHT);
@@ -988,9 +991,12 @@ int OV2640::setAutoGain(int enable, float gain_db, float gain_db_ceiling) {
 }
 
 int OV2640::getGain_db(float *gain_db) {
-    uint8_t reg, gain;
+    //uint8_t reg;
+    uint8_t gain;
     int ret = cameraWriteRegister(  BANK_SEL, BANK_SEL_SENSOR);
-    reg = cameraReadRegister( COM8 );
+    
+    // Currently disabled
+    //reg = cameraReadRegister( COM8 );
 
     // DISABLED
     // if (reg & COM8_AGC_EN) {
@@ -1142,9 +1148,9 @@ int OV2640::setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float 
 }
 
 int OV2640::getRGB_Gain_db(float *r_gain_db, float *g_gain_db, float *b_gain_db) {
-    uint8_t reg;
+    //uint8_t reg;
     int ret = cameraWriteRegister(  BANK_SEL, BANK_SEL_DSP);
-    reg = cameraReadRegister(  CTRL1 );
+    //reg = cameraReadRegister(  CTRL1 );
 
     // DISABLED
     // if (reg & CTRL1_AWB) {

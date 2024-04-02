@@ -27,6 +27,9 @@ public:
   virtual bool writeRegister(uint8_t reg, uint8_t data) {return false;}
   virtual int setPixformat(pixformat_t pfmt) = 0;
   virtual uint8_t setFramesize(framesize_t framesize) = 0;
+  virtual uint8_t setFramesize(int w, int h) {return 0;}  // some cameras don't support
+  virtual bool setWindowOrigin(uint16_t x, uint16_t y) {return false;}
+
   virtual int setFramerate(int framerate) = 0;
   virtual int setBrightness(int level) = 0;
   virtual int setGainceiling(gainceiling_t gainceiling) = 0;
@@ -191,6 +194,8 @@ public:
   bool usingGPIO(); // Is the camera configured to use GPIO instead of flexio?
   int setPixformat(pixformat_t pfmt);
   uint8_t setFramesize(framesize_t framesize);
+  uint8_t setFramesize(int w, int h);
+  bool setWindowOrigin(uint16_t x, uint16_t y);
   int setFramerate(int framerate);
   int setBrightness(int level);
   int setGainceiling(gainceiling_t gainceiling);

@@ -168,6 +168,7 @@ public:
   uint16_t getModelid();
   int setPixformat(pixformat_t pixformat);
   uint8_t setFramesize(framesize_t framesize);
+  uint8_t setFramesize(int w, int h);
   void setContrast(int level);
   int setBrightness(int level);
   void setSaturation( int level);

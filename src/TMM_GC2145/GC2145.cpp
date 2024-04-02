@@ -1126,6 +1126,31 @@ int GC2145::setWindow(uint16_t reg, uint16_t x, uint16_t y, uint16_t w, uint16_t
     return ret;
 }
 
+int GC2145::getWindow(uint16_t reg, uint16_t &x, uint16_t &y, uint16_t &w, uint16_t &h) {
+    int ret = 0;
+
+    // P0 regs
+    ret |= cameraWriteRegister(0xFE, 0x00);
+
+    // Y/row offset
+    y =  cameraReadRegister(reg++) << 8;
+    y |= cameraReadRegister(reg++);
+
+    // X/col offset
+    x =  cameraReadRegister(reg++) << 8;
+    x |= cameraReadRegister(reg++);
+
+    // Window height
+    h =  cameraReadRegister(reg++) << 8;
+    h |= cameraReadRegister(reg++);
+    // Window width
+    w =  cameraReadRegister(reg++) << 8;
+    w |= cameraReadRegister(reg++);
+    
+    return ret;
+}
+
+
 uint8_t GC2145::setFramesize(framesize_t framesize) {
     return setFramesize(resolution[framesize][0], resolution[framesize][1]);
 }
@@ -1212,6 +1237,16 @@ uint8_t GC2145::setFramesize(int w, int h) {
 
     return ret;
 }
+
+bool GC2145::setWindowOrigin(uint16_t x, uint16_t y) {
+    uint16_t x1, y1, w, h;
+    Serial.printf("GC2145::setWindowOrigin(%u %u)\n", x, y);    
+    getWindow(0x91, x1, y1, w, h);
+    Serial.printf("\tPrev rect(%u %u %u %u)\n", x1, y1, w, h);    
+    setWindow(0x91, x, y, w, h);
+    return true;
+}
+
 
 int GC2145::setHmirror(int enable) {
     int ret = 0;
@@ -1693,8 +1728,15 @@ void GC2145::printRegisters(bool only_ones_set)
             }
             debug.println();
         }
-    }
+    } 
 #endif
+    uint16_t x, y, w, h;
+    getWindow(0x9, x, y, w, h);
+    debug.printf("\nCISCTL rect(%u, %u, %u, %u)\n", x, y, w, h);
+    getWindow(0x91, x, y, w, h);
+    debug.printf("Win rect(%u, %u, %u, %u)\n", x, y, w, h);
+    uint8_t ratio = cameraReadRegister(0x99);
+    Serial.printf("Ratio: row:%u col:%u\n", ratio >> 4, ratio & 0xf);
 }
 
 void GC2145::showRegisters(void) {
@@ -1737,16 +1779,15 @@ uint8_t GC2145::cameraReadRegister(uint8_t reg) {
 
 
 uint8_t GC2145::cameraWriteRegister(uint8_t reg, uint8_t data) {
-#ifdef DEBUG_CAMERA
     if (reg == 0xfe) gc2145_reg_page = (data & 0x7) << 8; 
 
-    debug.printf("Write Register (%u:0x%x): (0x%x - %d)", gc2145_reg_page >> 8, reg, data, data);
     uint16_t reg_lookup = reg;
     if (reg < 0xf0) reg_lookup += gc2145_reg_page;
 
     // lets remember all of the registers we wrote something to
     gc2145_registers_set[reg_lookup >> 5] |= 1 << (reg_lookup & 0x1f);
-
+#ifdef DEBUG_CAMERA
+    debug.printf("Write Register (%u:0x%x): (0x%x - %d)", gc2145_reg_page >> 8, reg, data, data);
     if(_debug) {
         for (uint16_t jj=0; jj < (sizeof(GC2145_reg_name_table)/sizeof(GC2145_reg_name_table[0])); jj++) {
             if (reg_lookup == GC2145_reg_name_table[jj].reg) {

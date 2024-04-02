@@ -50,6 +50,15 @@ uint8_t Camera::setFramesize(framesize_t framesize) {
   return sensor->setFramesize(framesize);
 }
 
+uint8_t Camera::setFramesize(int w, int h) {
+  return sensor->setFramesize(w, h);  
+}
+
+bool Camera::setWindowOrigin(uint16_t x, uint16_t y) {
+  return sensor->setWindowOrigin(x, y);
+}
+
+
 int Camera::setFramerate(int framerate) {
   return sensor->setFramerate(framerate);
 }

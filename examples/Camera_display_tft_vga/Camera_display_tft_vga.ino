@@ -7,11 +7,11 @@
 #define USE_MMOD_ATP_ADAPTER
 #define USE_SDCARD
 
-#define ARDUCAM_CAMERA_HM01B0
+//#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV7670
 //#define ARDUCAM_CAMERA_OV7675
-//#define ARDUCAM_CAMERA_GC2145
+#define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
 #include "TMM_HM0360/HM0360.h"
@@ -290,7 +290,10 @@ void setup() {
 
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
   // VGA mode
-  camera.begin(FRAMESIZE_QVGA, RGB565, 5, false);
+  camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
+  #if defined(ARDUCAM_CAMERA_GC2145)
+  camera.setFramesize(480, 320);
+  #endif
 #elif defined(ARDUCAM_CAMERA_HM0360)
   camera.begin(FRAMESIZE_VGA, 5);
 #else
@@ -346,7 +349,6 @@ void setup() {
   camera.setMode(HIMAX_MODE_STREAMING, 0);  // turn on, continuous streaming mode
 #endif
 
-  camera.showRegisters();
   Serial.println("Camera settings:");
   Serial.print("\twidth = ");
   Serial.println(camera.width());
@@ -595,6 +597,12 @@ void loop() {
         tft.fillScreen(TFT_BLACK);
         delay(500);
         break;
+      case 'r':
+        camera.showRegisters();
+        break;
+      case 'w':
+        changeCameraWindow();
+        break;  
       case 'd':
         camera.debug(!camera.debug());
         if (camera.debug()) Serial.println("Camera Debug turned on");
@@ -985,7 +993,7 @@ void save_image_SD() {
   uint32_t count_y_first_buffer = sizeof_framebuffer / w;
   uint8_t img[3];
   for (int y = h - 1; y >= 0; y--) {  // iterate image array
-    if (y < count_y_first_buffer) pfb = &frameBuffer[y * w];
+    if ((int)y < count_y_first_buffer) pfb = &frameBuffer[y * w];
     else pfb = &frameBuffer2[(y - count_y_first_buffer) * w];
     for (int x = 0; x < w; x++) {
       //r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3
@@ -1038,6 +1046,8 @@ void showCommandList() {
   Serial.println("Send the 'z' character to send current screen BMP to SD");
   Serial.println("Send the 't' character to send Check the display");
   Serial.println("Send the 'd' character to toggle camera debug on and off");
+  Serial.println("Send the 'r' character to show the current camera registers");
+  Serial.println("Send the 'w <row> <col>' to set the start window x, y");
 #ifdef ARDUINO_TEENSY_DEVBRD4
   Serial.println("Send the 's' to change if using SDRAM or other memory");
 #endif
@@ -1077,7 +1087,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
       for (uint16_t i = camera.width() - 8; i < camera.width(); i++) Serial.printf("%04x ", pfb[i]);
     }
     Serial.println("\n");
-#if 0  // Figure this out later... \
+#if 0  // Figure this out later... 
        // Lets dump out some of center of image.
             Serial.println("Show Center pixels\n");
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
@@ -1222,4 +1232,28 @@ void read_display_multiple_frames(bool use_frame_buffer) {
   }
   // turn off frame buffer
   tft.useFrameBuffer(false);
+}
+
+uint16_t get_next_value() {
+  uint16_t val = 0;
+
+  uint8_t b;
+  for (;;) {
+    b = Serial.read();
+    if (b == (uint8_t)-1) return 0;
+    if (b != ' ') break;
+  }
+  while ((b >= '0' ) && (b <= '9' )) {
+    val = val * 10 + b - '0';
+    b = Serial.read();
+  }
+  return val;
+
+}
+
+void changeCameraWindow() {
+  uint16_t start_x = get_next_value();
+  uint16_t start_y  = get_next_value();
+  Serial.printf("Set Camera origin row: %u col:%u\n", start_y, start_x);
+  camera.setWindowOrigin(start_x, start_y);
 }
