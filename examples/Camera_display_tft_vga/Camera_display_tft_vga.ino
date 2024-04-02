@@ -153,7 +153,7 @@ uint16_t frameBuffer2[640 * 240] __attribute__((aligned(32)));
 #else
 // split into two parts, part dmamem and part fast mememory to fit 640x480x2
 // mono can fit one in each.
-#if 1 // Test two full size buffers
+#if 1  // Test two full size buffers
 DMAMEM uint8_t frameBuffer[640 * 480] __attribute__((aligned(32)));
 uint8_t frameBuffer2[640 * 480] __attribute__((aligned(32)));
 #else
@@ -291,9 +291,9 @@ void setup() {
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
   // VGA mode
   camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
-  #if defined(ARDUCAM_CAMERA_GC2145)
+#if defined(ARDUCAM_CAMERA_GC2145)
   camera.setFramesize(480, 320);
-  #endif
+#endif
 #elif defined(ARDUCAM_CAMERA_HM0360)
   camera.begin(FRAMESIZE_VGA, 5);
 #else
@@ -477,7 +477,7 @@ uint8_t *pfb_last_frame_returned = nullptr;
 
 bool camera_flexio_callback_video(void *pfb) {
 #ifdef UPDATE_ON_CAMERA_FRAMES
-  if (g_flex_dual_buffer_per_frame && (pfb == g_last_flexio_data)) return true; // same frame as previous punt 
+  if (g_flex_dual_buffer_per_frame && (pfb == g_last_flexio_data)) return true;  // same frame as previous punt
   g_last_flexio_data = (uint8_t *)pfb;
 
   int numPixels = camera.width() * camera.height();
@@ -602,7 +602,10 @@ void loop() {
         break;
       case 'w':
         changeCameraWindow();
-        break;  
+        break;
+      case 'W':
+        panCameraWindow();
+        break;
       case 'd':
         camera.debug(!camera.debug());
         if (camera.debug()) Serial.println("Camera Debug turned on");
@@ -1048,6 +1051,7 @@ void showCommandList() {
   Serial.println("Send the 'd' character to toggle camera debug on and off");
   Serial.println("Send the 'r' character to show the current camera registers");
   Serial.println("Send the 'w <row> <col>' to set the start window x, y");
+  Serial.println("Send the 'W' to pan through range of windows");
 #ifdef ARDUINO_TEENSY_DEVBRD4
   Serial.println("Send the 's' to change if using SDRAM or other memory");
 #endif
@@ -1087,7 +1091,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
       for (uint16_t i = camera.width() - 8; i < camera.width(); i++) Serial.printf("%04x ", pfb[i]);
     }
     Serial.println("\n");
-#if 0  // Figure this out later... 
+#if 0  // Figure this out later... \
        // Lets dump out some of center of image.
             Serial.println("Show Center pixels\n");
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
@@ -1243,17 +1247,30 @@ uint16_t get_next_value() {
     if (b == (uint8_t)-1) return 0;
     if (b != ' ') break;
   }
-  while ((b >= '0' ) && (b <= '9' )) {
+  while ((b >= '0') && (b <= '9')) {
     val = val * 10 + b - '0';
     b = Serial.read();
   }
   return val;
-
 }
 
 void changeCameraWindow() {
   uint16_t start_x = get_next_value();
-  uint16_t start_y  = get_next_value();
+  uint16_t start_y = get_next_value();
   Serial.printf("Set Camera origin row: %u col:%u\n", start_y, start_x);
   camera.setWindowOrigin(start_x, start_y);
+}
+
+void panCameraWindow() {
+  while(Serial.read() != -1) {}
+  for (;;) {
+    for (uint16_t start_y = 0; start_y < 600; start_y += 100) {
+      for (uint16_t start_x = 0; start_x < 900; start_x += 100) {
+        camera.setWindowOrigin(start_x, start_y);
+        read_display_one_frame(true, false);
+        delay(250);
+        if (Serial.available()) return;
+      }
+    }
+  }
 }
