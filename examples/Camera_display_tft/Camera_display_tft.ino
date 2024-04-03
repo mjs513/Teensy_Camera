@@ -4,8 +4,8 @@
 
 #include "Camera.h"
 
-#define USE_MMOD_ATP_ADAPTER
-//#define USE_SDCARD
+//#define USE_MMOD_ATP_ADAPTER
+#define USE_SDCARD
 
 //#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
@@ -52,6 +52,12 @@ Camera camera(omni);
 GC2145 galaxycore;
 Camera camera(galaxycore);
 #define CameraID GC2145a
+#endif
+
+#if defined(ARDUCAM_CAMERA_OV2640)
+#define skipFrames 1
+#else
+#define skipFrames 1
 #endif
 
 File file;
@@ -138,7 +144,7 @@ uint8_t *frameBuffer2 = nullptr;
 #endif
 #else
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
-uint16_t DMAMEM frameBuffer[(320) * 240] __attribute__((aligned(32)));
+uint16_t DMAMEM frameBuffer[(480) * 320] __attribute__((aligned(32)));
 uint16_t DMAMEM frameBuffer2[(320) * 240] __attribute__((aligned(32)));
 #else
 uint8_t DMAMEM frameBuffer[(324) * 244] __attribute__((aligned(32)));
@@ -273,11 +279,11 @@ void setup() {
 
 uint8_t status = 0;
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145))
-  status = camera.begin(FRAMESIZE_QVGA, RGB565, 15, CameraID, false);
+  status = camera.begin(FRAMESIZE_QVGA, JPEG, 15, CameraID, ture);
 #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
-  status = camera.begin(FRAMESIZE_QVGA, 15, false);
+  status = camera.begin(FRAMESIZE_VGA, 15, false);
 #endif
 
 #ifdef MIRROR_FLIP_CAMERA
@@ -319,7 +325,7 @@ if(!status) {
   //camera.setContrast(0);            // -2 to +2
   //camera.setSaturation(0);          // -2 to +2
   //omni.setSpecialEffect(RETRO);  // NOEFFECT, NEGATIVE, BW, REDDISH, GREEISH, BLUEISH, RETRO
-  //omni.setWBmode(3);                  // AWB ON, 1 - Sunny, 2 - Cloudy, 3 - Office, 4 - Home
+  omni.setWBmode(0);                  // AWB ON, 1 - Sunny, 2 - Cloudy, 3 - Office, 4 - Home
 #else
   camera.setGainceiling(GAINCEILING_2X);
   camera.setBrightness(3);
@@ -504,6 +510,15 @@ void loop() {
 #endif
           break;
         }
+      case 'j':
+        {
+#if (defined(USE_SDCARD) && defined(ARDUCAM_CAMERA_OV2640) && camera.usingGPIO())
+          bool error = false;
+          error = save_jpg_SD();
+          if(!error) Serial.println("ERROR reading JPEG.  Try again....");
+#endif
+          break;
+        }
       case 'b':
         {
 #if defined(USE_SDCARD)
@@ -544,13 +559,17 @@ void loop() {
 
       case 'f':
         {
+          memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
           camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
           tft.useFrameBuffer(false);
           tft.fillScreen(TFT_BLACK);
           Serial.println("Reading frame");
           Serial.printf("Buffer: %p halfway: %p end:%p\n", frameBuffer, &frameBuffer[camera.width() * camera.height() / 2], &frameBuffer[camera.width() * camera.height()]);
           memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
-          camera.readFrame(frameBuffer, sizeof(frameBuffer));
+          for(uint8_t i = 0; i < skipFrames; i++) {
+              camera.readFrame(frameBuffer, sizeof(frameBuffer));
+          }
+
           Serial.println("Finished reading frame");
           Serial.flush();
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
@@ -590,6 +609,8 @@ void loop() {
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
           int numPixels = camera.width() * camera.height();
           Serial.printf("TFT(%u, %u) Camera(%u, %u)\n", tft.width(), tft.height(), camera.width(), camera.height());
+
+
 //int camera_width = Camera.width();
 #if 1
           //byte swap
@@ -929,6 +950,80 @@ void save_image_SD() {
   file.close();  // close file when done writing
   Serial.println("Done Writing BMP");
 }
+
+char name_jpg[] = "9px_0000.jpg";  // filename convention (will auto-increment)
+  // can probably reuse framebuffer2...
+
+bool save_jpg_SD() {
+
+  omni.setQuality(11); //svga
+
+  memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
+  if(camera.usingGPIO()) {
+    omni.readFrameGPIO_JPEG(frameBuffer, sizeof(frameBuffer));
+    delay(100);
+    omni.readFrameGPIO_JPEG(frameBuffer, sizeof(frameBuffer));
+  } else {
+    //camera.readFrame(frameBuffer, sizeof(frameBuffer));
+    //delay(100);
+    //camera.readFrame(frameBuffer, sizeof(frameBuffer));
+  }
+
+  uint16_t w = FRAME_WIDTH;
+  uint16_t h = FRAME_HEIGHT;
+  uint16_t eop = 0;
+  uint8_t eoi = 0;
+
+  uint16_t *pfb = frameBuffer;
+  Serial.printf("jpeg size: %d\n", (w*h/5));
+
+  for(uint32_t i = 0; i < (w*h/5); i++) {
+    //Serial.println(pfb[i], HEX);
+    if((i == 0) && (pfb[0] == 0xD8FF)) {
+      eoi = 1;
+      Serial.printf("Found begining of frame at position %d\n", i);
+    }
+
+    if(pfb[i] == 0xD9FF){
+      eop = i;
+      Serial.printf("Found ending of frame at position %d\n", i);
+    } 
+  }
+
+  if(eop == 0 || eoi == 0) return false;
+
+  Serial.print("Writing jpg to SD CARD File: ");
+
+  // if name exists, create new filename, SD.exists(filename)
+  for (int i = 0; i < 10000; i++) {
+    name_jpg[4] = (i / 1000) % 10 + '0';  // thousands place
+    name_jpg[5] = (i / 100) % 10 + '0';   // hundreds
+    name_jpg[6] = (i / 10) % 10 + '0';    // tens
+    name_jpg[7] = i % 10 + '0';           // ones
+    if (!SD.exists(name_jpg)) {
+      Serial.println(name_jpg);
+      file = SD.open(name_jpg, FILE_WRITE);
+      break;
+    }
+  }
+
+
+  Serial.println(" Writing to SD");
+  for(uint32_t i = 0; i < (w*h/5); i++){
+    //file.write(pfb[i]);
+    file.write(pfb[i] & 0xFF);
+    file.write((pfb[i] >> 8) & 0xFF);
+  }
+
+
+  file.close();  // close file when done writing
+  Serial.println("Done Writing JPG");
+
+  Serial.printf("%x, %x\n", pfb[0], pfb[eop]);
+
+  return true;
+
+}
 #endif
 
 void showCommandList() {
@@ -968,14 +1063,18 @@ void read_display_multiple_frames(bool use_frame_buffer) {
 
   for (;;) {
 
-    camera.readFrame(frameBuffer, sizeof(frameBuffer));
+    for(uint8_t i = 0; i < skipFrames; i++) camera.readFrame(frameBuffer, sizeof(frameBuffer));
 
     int numPixels = camera.width() * camera.height();
 
 //byte swap
 //for (int i = 0; i < numPixels; i++) frameBuffer[i] = (frameBuffer[i] >> 8) | (((frameBuffer[i] & 0xff) << 8));
 #ifdef CAMERA_USES_MONO_PALETTE
+    Serial.printf("NP:%d W:%u H:%u %p\n", numPixels, FRAME_WIDTH, FRAME_HEIGHT, frameBuffer);
+    if (use_frame_buffer) tft.waitUpdateAsyncComplete();
+    tft.setOrigin(-2, -2);
     tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBuffer, mono_palette);
+    tft.setOrigin(0, 0);
 #else
     for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
 

@@ -132,6 +132,7 @@ public:
 	//-------------------------------------------------------
 	//normal Read mode
 	bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
+  bool readFrameGPIO_JPEG(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
 
 	// Lets try a dma version.  Doing one DMA that is synchronous does not gain anything
 	// So lets have a start, stop... Have it allocate 2 frame buffers and it's own DMA 
