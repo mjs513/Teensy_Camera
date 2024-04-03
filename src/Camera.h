@@ -28,7 +28,7 @@ public:
   virtual int setPixformat(pixformat_t pfmt) = 0;
   virtual uint8_t setFramesize(framesize_t framesize) = 0;
   virtual uint8_t setFramesize(int w, int h) {return 0;}  // some cameras don't support
-  virtual bool setWindowOrigin(uint16_t x, uint16_t y) {return false;}
+  virtual bool setZoomWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {return false;}
 
   virtual int setFramerate(int framerate) = 0;
   virtual int setBrightness(int level) = 0;
@@ -98,8 +98,14 @@ public:
 
   virtual uint32_t frameCount() = 0;  //{return _dma_frame_count;}
 
+  // The width and height are the sizes of the data returned when you do a frameRead.
+  // initialially it is the size of the resolution that was passed into setFramesize
+  // however if you set a zoom window this is the size of that window. 
   virtual int16_t width(void) {return _width;}
   virtual int16_t height(void) {return _height;}
+  // Save of the frame in width and height set by setFramesize
+  virtual int16_t frameWidth(void) {return _frame_width;}
+  virtual int16_t frameHeight(void) {return _frame_height;}
   virtual int16_t mode(void) = 0;
 
   framesize_t framesize;
@@ -136,6 +142,8 @@ protected:
 
   int16_t _width;
   int16_t _height;
+  int16_t _frame_width;
+  int16_t _frame_height;
   int _bytesPerPixel;
 
 
@@ -195,7 +203,7 @@ public:
   int setPixformat(pixformat_t pfmt);
   uint8_t setFramesize(framesize_t framesize);
   uint8_t setFramesize(int w, int h);
-  bool setWindowOrigin(uint16_t x, uint16_t y);
+  bool setZoomWindow(uint16_t x=-1, uint16_t y=-1, uint16_t w=-1, uint16_t h=-1);
   int setFramerate(int framerate);
   int setBrightness(int level);
   int setGainceiling(gainceiling_t gainceiling);
@@ -276,6 +284,8 @@ public:
 
   int16_t width(void);
   int16_t height(void);
+  int16_t frameWidth(void);
+  int16_t frameHeight(void);
   int16_t mode(void);
 
   framesize_t framesize;

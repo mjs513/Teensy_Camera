@@ -226,7 +226,7 @@ public:
   int setPixelFormat(pixformat_t pixformat);
   uint8_t setFramesize(framesize_t framesize);
   uint8_t setFramesize(int w, int h);
-  bool setWindowOrigin(uint16_t x, uint16_t y);
+  bool setZoomWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   int setHmirror(int enable);
   int setVflip(int enable);
   int setAutoExposure(int enable, int exposure_us);

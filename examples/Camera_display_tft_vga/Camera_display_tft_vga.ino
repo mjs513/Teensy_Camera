@@ -290,9 +290,9 @@ void setup() {
 
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
   // VGA mode
-  camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
+  camera.begin(FRAMESIZE_UXGA, RGB565, 15, false);
 #if defined(ARDUCAM_CAMERA_GC2145)
-  camera.setFramesize(480, 320);
+  camera.setZoomWindow(-1, -1, 480, 320);
 #endif
 #elif defined(ARDUCAM_CAMERA_HM0360)
   camera.begin(FRAMESIZE_VGA, 5);
@@ -1091,7 +1091,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
       for (uint16_t i = camera.width() - 8; i < camera.width(); i++) Serial.printf("%04x ", pfb[i]);
     }
     Serial.println("\n");
-#if 0  // Figure this out later... \
+#if 0  // Figure this out later...
        // Lets dump out some of center of image.
             Serial.println("Show Center pixels\n");
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
@@ -1238,14 +1238,13 @@ void read_display_multiple_frames(bool use_frame_buffer) {
   tft.useFrameBuffer(false);
 }
 
-uint16_t get_next_value() {
+uint16_t get_next_value(uint8_t &b) {
   uint16_t val = 0;
 
-  uint8_t b;
   for (;;) {
-    b = Serial.read();
     if (b == (uint8_t)-1) return 0;
     if (b != ' ') break;
+    b = Serial.read();
   }
   while ((b >= '0') && (b <= '9')) {
     val = val * 10 + b - '0';
@@ -1255,18 +1254,25 @@ uint16_t get_next_value() {
 }
 
 void changeCameraWindow() {
-  uint16_t start_x = get_next_value();
-  uint16_t start_y = get_next_value();
-  Serial.printf("Set Camera origin row: %u col:%u\n", start_y, start_x);
-  camera.setWindowOrigin(start_x, start_y);
+
+  uint8_t b = Serial.read();
+  if (b < ' ') {
+    Serial.printf("Set Camera origin to center\n");
+    camera.setZoomWindow(-1, -1);
+  } else {
+    uint16_t start_x = get_next_value(b);
+    uint16_t start_y = get_next_value(b);
+    Serial.printf("Set Camera origin row: %u col:%u\n", start_y, start_x);
+    camera.setZoomWindow(start_x, start_y);
+  }
 }
 
 void panCameraWindow() {
   while(Serial.read() != -1) {}
   for (;;) {
-    for (uint16_t start_y = 0; start_y < 600; start_y += 100) {
-      for (uint16_t start_x = 0; start_x < 900; start_x += 100) {
-        camera.setWindowOrigin(start_x, start_y);
+    for (uint16_t start_y = 0; start_y < (camera.frameHeight() - camera.height()) ; start_y += 100) {
+      for (uint16_t start_x = 0; start_x < (camera.frameWidth() - camera.width()); start_x += 100) {
+        camera.setZoomWindow(start_x, start_y);
         read_display_one_frame(true, false);
         delay(250);
         if (Serial.available()) return;

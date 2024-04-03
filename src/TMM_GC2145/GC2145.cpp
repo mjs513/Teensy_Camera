@@ -82,6 +82,8 @@ const int resolution[][2] = {
     {320,  240 },    /* QVGA      */
     {176,  144 },    /* QCIF      */
     {352,  288 },    /* CIF       */
+    {800,  600 },    /* SVGA      */
+    {1600,1200 },    /* UXGA      */
     {0,    0   },
 };
 
@@ -1157,8 +1159,8 @@ uint8_t GC2145::setFramesize(framesize_t framesize) {
 
 uint8_t GC2145::setFramesize(int w, int h) {
     uint8_t ret = 0;
-    _width = w;
-    _height = h;
+    _frame_width = _width = w;
+    _frame_height = _height = h;
       
     // Invalid resolution.
     if ((w > ACTIVE_SENSOR_WIDTH) || (h > ACTIVE_SENSOR_HEIGHT)) {
@@ -1238,12 +1240,27 @@ uint8_t GC2145::setFramesize(int w, int h) {
     return ret;
 }
 
-bool GC2145::setWindowOrigin(uint16_t x, uint16_t y) {
-    uint16_t x1, y1, w, h;
-    Serial.printf("GC2145::setWindowOrigin(%u %u)\n", x, y);    
-    getWindow(0x91, x1, y1, w, h);
-    Serial.printf("\tPrev rect(%u %u %u %u)\n", x1, y1, w, h);    
+bool GC2145::setZoomWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+    uint16_t x1, y1, w1, h1;
+    debug.printf("GC2145::setZoomWindow(%u %u %u %u)\n", x, y, w, h);    
+    getWindow(0x91, x1, y1, w1, h1);
+    if (w == (uint16_t)-1) w = w1;
+    if (h == (uint16_t)-1) h = h1;
+    if ((w > frameWidth()) || (h > frameHeight())) return false;
+
+    if (x == (uint16_t)-1) x = (frameWidth() - w) / 2;
+    if (y == (uint16_t)-1) y = (frameHeight() - h) / 2;
+
+    if ((x + w) > frameWidth()) return false;
+    if ((y + h) > frameHeight()) return false;
+
+
+    debug.printf("\tPrev rect(%u %u %u %u)\n", x1, y1, w, h);    
     setWindow(0x91, x, y, w, h);
+
+    // remember the width and height
+    _width = w;
+    _height = h; 
     return true;
 }
 

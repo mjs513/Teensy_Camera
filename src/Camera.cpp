@@ -54,8 +54,8 @@ uint8_t Camera::setFramesize(int w, int h) {
   return sensor->setFramesize(w, h);  
 }
 
-bool Camera::setWindowOrigin(uint16_t x, uint16_t y) {
-  return sensor->setWindowOrigin(x, y);
+bool Camera::setZoomWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+  return sensor->setZoomWindow(x, y, w, h);
 }
 
 
@@ -216,6 +216,14 @@ int16_t Camera::width(void) {
 
 int16_t Camera::height(void) {
   return sensor->height();
+}
+
+int16_t Camera::frameWidth(void) {
+  return sensor->frameWidth();
+}
+
+int16_t Camera::frameHeight(void) {
+  return sensor->frameHeight();
 }
 
 int16_t Camera::mode(void) {
