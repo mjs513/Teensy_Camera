@@ -48,7 +48,7 @@ void ImageSensor::setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin,
 
 bool ImageSensor::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
     if(!_use_gpio) {
-        return readFrameFlexIO(buffer1, cb1, buffer2, cb2);
+      return readFrameFlexIO(buffer1, cb1, buffer2, cb2);
     } else {
       if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT) {
           readFrame4BitGPIO(buffer1);
@@ -76,7 +76,10 @@ void ImageSensor::stopReadContinuous() {
 bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2)
 {
     if (_debug)debug.printf("$$ImageSensor::readFrameFlexIO(%p, %u, %p, %u, %u, %u)\n", buffer, cb1, buffer2, cb2, _fuse_dma, _hw_config);
-    const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
+    uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
+    if(_format == 8){
+      frame_size_bytes = frame_size_bytes / 5;
+    }
     if ((cb1+cb2) < frame_size_bytes) return false; // not enough to hold image
 
     //flexio_configure(); // one-time hardware setup
@@ -108,7 +111,11 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
       // read FlexIO by polling
       //uint32_t *p_end = (uint32_t *)buffer + (_width*_height/4)*_bytesPerPixel;
       uint32_t count_items_left = (_width*_height/4)*_bytesPerPixel;
+      
+      if(_format == 8) count_items_left = count_items_left / 5;
+      
       uint32_t count_items_left_in_buffer = (uint32_t)cb1 / 4;
+      if(_format == 8) count_items_left_in_buffer = (frame_size_bytes / 5 ) / 4;
    
       // Same code should work for 4 bit or 8 bit as the differences are
       // handled by the FlexIO code on how many bits at a time get shifted

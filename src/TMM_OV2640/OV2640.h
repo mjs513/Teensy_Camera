@@ -224,7 +224,6 @@ private:
   bool _grayscale;
 
   void* _OV2640;
-  int _format;
 
   int _saturation;
   int _hue;

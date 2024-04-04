@@ -279,7 +279,9 @@ void setup() {
 
 uint8_t status = 0;
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145))
-  status = camera.begin(FRAMESIZE_QVGA, JPEG, 15, CameraID, ture);
+  //pixformat_t format = JPEG;  // only supported by the OV2640 Camera
+  pixformat_t format = RGB565;
+  status = camera.begin(FRAMESIZE_QVGA, format, 15, CameraID, false);
 #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
@@ -512,7 +514,7 @@ void loop() {
         }
       case 'j':
         {
-#if (defined(USE_SDCARD) && defined(ARDUCAM_CAMERA_OV2640) && camera.usingGPIO())
+#if (defined(USE_SDCARD) && defined(ARDUCAM_CAMERA_OV2640))
           bool error = false;
           error = save_jpg_SD();
           if(!error) Serial.println("ERROR reading JPEG.  Try again....");
@@ -956,7 +958,8 @@ char name_jpg[] = "9px_0000.jpg";  // filename convention (will auto-increment)
 
 bool save_jpg_SD() {
 
-  omni.setQuality(11); //svga
+  //omni.setQuality(11);
+  camera.useDMA(false);
 
   memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
   if(camera.usingGPIO()) {
@@ -964,9 +967,9 @@ bool save_jpg_SD() {
     delay(100);
     omni.readFrameGPIO_JPEG(frameBuffer, sizeof(frameBuffer));
   } else {
-    //camera.readFrame(frameBuffer, sizeof(frameBuffer));
-    //delay(100);
-    //camera.readFrame(frameBuffer, sizeof(frameBuffer));
+    camera.readFrame(frameBuffer, sizeof(frameBuffer));
+    delay(100);
+    camera.readFrame(frameBuffer, sizeof(frameBuffer));
   }
 
   uint16_t w = FRAME_WIDTH;
@@ -1039,6 +1042,7 @@ void showCommandList() {
   Serial.println("Send the 'V' character DMA to TFT async continueous  ...");
   Serial.println("Send the 'p' character to snapshot to PC on USB1");
   Serial.println("Send the 'b' character to save snapshot (BMP) to SD Card");
+  Serial.println("Send the 'j' character to save snapshot (JPEG) to SD Card");
   Serial.println("Send the '1' character to blank the display");
   Serial.println("Send the 'z' character to send current screen BMP to SD");
   Serial.println("Send the 't' character to send Check the display");

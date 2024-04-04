@@ -114,6 +114,7 @@ public:
   hw_config_t _hw_config;
   hw_carrier_t _hw_carrier;
 
+
   // FlexIO transfer variables and methods:
   static void dmaInterruptFlexIO();
   virtual void processDMAInterruptFlexIO();
@@ -125,7 +126,6 @@ public:
   virtual bool supports4BitMode() {return false;}
 
   void dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title);
-
 
 protected:
   bool _debug = true;     // Should the camera code print out debug information?
@@ -145,7 +145,7 @@ protected:
   int16_t _frame_width;
   int16_t _frame_height;
   int _bytesPerPixel;
-
+  int _format;
 
   TwoWire *_wire;
 

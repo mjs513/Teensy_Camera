@@ -573,7 +573,6 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
     return 0;
   }
 
-
   pinMode(_vsyncPin, INPUT_PULLDOWN);
 //  const struct digital_pin_bitband_and_config_table_struct *p;
 //  p = digital_pin_to_info_PGM + _vsyncPin;
@@ -708,7 +707,7 @@ int OV2640::setPixformat(pixformat_t pixformat)
 {
     //const uint8_t(*regs)[2];
     int ret = 0;
-
+    
     switch (pixformat) {
       case RGB565:
           //regs = rgb565_regs;
@@ -1375,7 +1374,6 @@ bool OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_t 
         interrupts();
         return true;
       }
-
  }
 
     while ((*_hrefPort & _hrefMask) != 0) ;  // wait for LOW
