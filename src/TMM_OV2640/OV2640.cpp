@@ -89,6 +89,7 @@ const int resolution[][2] = {
     {176,  144 },    /* QCIF      */
     {352,  288 },    /* CIF       */
     {800,  600 },    /* SVGA      */
+    {1600,1200 },    /* UXGA      */
     {0,    0   },
 };
 
@@ -573,16 +574,17 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
     return 0;
   }
 
-  pinMode(_vsyncPin, INPUT_PULLDOWN);
+  pinMode(_vsyncPin, INPUT /*INPUT_PULLDOWN*/);
 //  const struct digital_pin_bitband_and_config_table_struct *p;
 //  p = digital_pin_to_info_PGM + _vsyncPin;
 //  *(p->pad) = IOMUXC_PAD_DSE(7) | IOMUXC_PAD_HYS;  // See if I turn on HYS...
-  pinMode(_hrefPin, INPUT);
+  pinMode(_hrefPin, INPUT_PULLUP);
   pinMode(_pclkPin, INPUT_PULLDOWN);
   pinMode(_xclkPin, OUTPUT);
   
 #ifdef DEBUG_CAMERA
   debug.printf("  VS=%d, HR=%d, PC=%d XC=%d\n", _vsyncPin, _hrefPin, _pclkPin, _xclkPin);
+  debug.printf("  RST=%d\n", _rst);
 
   for (int i = 0; i < 8; i++) {
     pinMode(_dPins[i], INPUT);
@@ -791,6 +793,10 @@ uint8_t OV2640::setFramesize(int w, int h) {
       sensor_h = UXGA_HEIGHT;
     }
 
+    _width = w;
+    _height = h;
+    _frame_width = sensor_w;
+    _frame_height = sensor_h;
 
     uint64_t tmp_div = min(sensor_w / w, sensor_h / h);
     uint16_t log_div = min(LOG2(tmp_div) - 1, 3);
@@ -872,6 +878,57 @@ uint8_t OV2640::setFramesize(int w, int h) {
 
     return ret;
 }
+
+bool OV2640::setZoomWindow(uint16_t x_off, uint16_t y_off, uint16_t w, uint16_t h) {
+    if (_debug) debug.printf("OV2640::setZoomWindow(%u %u %u %u)\n", x_off, y_off, w, h);    
+
+    if (w == (uint16_t)-1) w = _width;    
+    if (h == (uint16_t)-1) h = _height;
+    if ((w > _frame_width) || (h > _frame_height)) return false;
+
+    if (x_off == (uint16_t)-1) x_off = (_frame_width - w) / 2;
+    if (y_off == (uint16_t)-1) y_off = (_frame_height - h) / 2;
+
+    if ((x_off + w) > _frame_width) return false;
+    if ((y_off + h) > _frame_height) return false;
+
+    uint64_t tmp_div = min(_frame_width / w, _frame_height / h);
+    uint16_t log_div = min(LOG2(tmp_div) - 1, 3);
+    uint16_t div = 1 << log_div;
+    uint16_t w_mul = w * div;
+    uint16_t h_mul = h * div;
+
+    if ((w != _width) || (h != _height)) {
+        if ((w % 4) || (h % 4)) {
+            // w/h must be divisible by 4
+            if(_debug) {
+            debug.println("width/height must be divisible by 4");
+            }
+            return false;
+        }
+        cameraWriteRegister(  CTRLI, CTRLI_LP_DP | CTRLI_V_DIV_SET(log_div) | CTRLI_H_DIV_SET(log_div));
+        cameraWriteRegister( HSIZE, HSIZE_SET(w_mul));
+        cameraWriteRegister( VSIZE, VSIZE_SET(h_mul));
+
+    }
+    cameraWriteRegister(  XOFFL, XOFFL_SET(x_off));
+    cameraWriteRegister(  YOFFL, YOFFL_SET(y_off));
+
+    cameraWriteRegister( VHYX, VHYX_HSIZE_SET(w_mul) | VHYX_VSIZE_SET(h_mul) | VHYX_XOFF_SET(x_off) | VHYX_YOFF_SET(y_off));
+    cameraWriteRegister(  TEST, TEST_HSIZE_SET(w_mul));
+    cameraWriteRegister(  ZMOW, ZMOW_OUTW_SET(w));
+    cameraWriteRegister(  ZMOH, ZMOH_OUTH_SET(h));
+    cameraWriteRegister(  ZMHH, ZMHH_OUTW_SET(w) | ZMHH_OUTH_SET(h));
+    cameraWriteRegister(  R_DVP_SP, div);
+    cameraWriteRegister(  RESET, 0x00);
+
+
+    _width = w;
+    _height = h;
+
+    return true;
+}
+
 
 void OV2640::setContrast(int level) {
     int ret = 0;
@@ -1266,6 +1323,7 @@ bool OV2640::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
   debug.printf("$$readFrameGPIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
   const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
   if ((cb1+cb2) < frame_size_bytes) return false; // not enough to hold image
+  digitalWriteFast(0, HIGH);
 
   uint8_t* b = (uint8_t*)buffer;
   uint32_t cb = (uint32_t)cb1;
@@ -1275,12 +1333,16 @@ bool OV2640::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
   // Falling edge indicates start of frame
   //pinMode(PCLK_PIN, INPUT); // make sure back to input pin...
   // lets add our own glitch filter.  Say it must be hig for at least 100us
+
+  delayMicroseconds(5);  // debug for digitalWrite
+  digitalWriteFast(0, LOW);
   elapsedMicros emHigh;
   do {
     while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
     emHigh = 0;
     while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
   } while (emHigh < 2);
+  digitalWriteFast(0, HIGH);
 
   for (int i = 0; i < _height; i++) {
     // rising edge indicates start of line
@@ -1313,6 +1375,7 @@ bool OV2640::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
     while ((*_hrefPort & _hrefMask) != 0) ;  // wait for LOW
     interrupts();
   }
+  digitalWriteFast(0, LOW);
   return true;
 }
 
@@ -1869,6 +1932,7 @@ static const OV2640_TO_NAME_t OV2640_reg_name_table[] PROGMEM {
   {F(" YAVG" ), 1, 0x2F },
   {F(" HSDY" ), 1, 0x30 },
   {F(" HEDY" ), 1, 0x31 },
+  {F(" REG32" ), 1, 0x32 },
   {F(" ARCOM2" ), 1, 0x34 },
   {F(" REG45" ), 1, 0x45 },
   {F(" FLL" ), 1, 0x46 },
@@ -1911,6 +1975,22 @@ void OV2640::showRegisters(void) {
     uint8_t reg_value = cameraReadRegister(OV2640_reg_name_table[ii].reg);
     debug.printf("(%d) %s(%x): %u(%x)\n", OV2640_reg_name_table[ii].bank, OV2640_reg_name_table[ii].reg_name, OV2640_reg_name_table[ii].reg, reg_value, reg_value);
   }
+
+  // Quick and dirty print out WIndows start and end:
+  uint8_t hstart_reg = cameraReadRegister(HSTART);
+  uint8_t hstop_reg = cameraReadRegister(HSTOP);
+  uint8_t reg32_reg = cameraReadRegister(REG32);
+  uint8_t vstart_reg = cameraReadRegister(VSTART);
+  uint8_t vstop_reg = cameraReadRegister(VSTOP);
+  uint8_t com1_reg = cameraReadRegister(COM1);
+  debug.printf("Window: (%u, %u) - (%u, %u)\n", 
+        (hstart_reg << 3) | (reg32_reg & 0x7),
+        (vstart_reg << 2) | (com1_reg & 0x3),
+        (hstop_reg << 3) | ((reg32_reg >> 3) & 0x7),
+        (vstop_reg << 2) | ((com1_reg >> 2) & 0x3)
+        );
+
+
    cameraWriteRegister(0xFF, 0x00);  //bank 0
 
 }

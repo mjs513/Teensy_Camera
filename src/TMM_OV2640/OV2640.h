@@ -170,6 +170,7 @@ public:
   int setPixformat(pixformat_t pixformat);
   uint8_t setFramesize(framesize_t framesize);
   uint8_t setFramesize(int w, int h);
+  bool setZoomWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void setContrast(int level);
   int setBrightness(int level);
   void setSaturation( int level);

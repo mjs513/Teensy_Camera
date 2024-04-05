@@ -76,6 +76,8 @@ void ImageSensor::stopReadContinuous() {
 bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2)
 {
     if (_debug)debug.printf("$$ImageSensor::readFrameFlexIO(%p, %u, %p, %u, %u, %u)\n", buffer, cb1, buffer2, cb2, _fuse_dma, _hw_config);
+    digitalWriteFast(0, HIGH);
+
     uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
     if(_format == 8){
       frame_size_bytes = frame_size_bytes / 5;
@@ -86,6 +88,8 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
     // wait for VSYNC to go high and then low with a sort of glitch filter
     elapsedMillis emWaitSOF;
     elapsedMicros emGlitch;
+    digitalWriteFast(0, LOW);
+
     for (;;) {
       if (emWaitSOF > 2000) {
         if(_debug) debug.println("Timeout waiting for Start of Frame");
@@ -99,6 +103,8 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
     _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
     _pflexio->SHIFTERR = _fshifter_mask;
     uint32_t *p = (uint32_t *)buffer;
+    digitalWriteFast(0, HIGH);
+
 
     //----------------------------------------------------------------------
     // Polling FlexIO version
@@ -135,7 +141,8 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
       #ifdef USE_DEBUG_PINS
       digitalWriteFast(2, LOW);
       #endif
-      return true;
+    digitalWriteFast(0, LOW);
+    return true;
     }
 
     //----------------------------------------------------------------------
@@ -266,6 +273,8 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
 #endif
 //    dumpDMA_TCD(&_dmasettings[0], " 0: ");
 //    dumpDMA_TCD(&_dmasettings[1], " 1: ");
+  digitalWriteFast(0, LOW);
+
     return true;
 }
 

@@ -9,9 +9,10 @@
 
 //#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
+#define ARDUCAM_CAMERA_OV2640
 //#define ARDUCAM_CAMERA_OV7670
 //#define ARDUCAM_CAMERA_OV7675
-#define ARDUCAM_CAMERA_GC2145
+//#define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
 #include "TMM_HM0360/HM0360.h"
@@ -28,6 +29,14 @@ Camera camera(himax);
 #define CameraID 0x01B0
 #define SCREEN_ROTATION 3
 #define MIRROR_FLIP_CAMERA
+
+#elif defined(ARDUCAM_CAMERA_OV2640)
+#include "TMM_OV2640/OV2640.h"
+OV2640 omni;
+Camera camera(omni);
+#define CameraID 0x2642
+#define MIRROR_FLIP_CAMERA
+#define SCREEN_ROTATION 3
 
 #elif defined(ARDUCAM_CAMERA_OV7670)
 #include "TMM_OV767X/OV767X.h"
@@ -50,6 +59,11 @@ Camera camera(galaxycore);
 #define CameraID 0x2145
 #define SCREEN_ROTATION 3
 
+#endif
+#if defined(ARDUCAM_CAMERA_OV2640)
+#define skipFrames 1
+#else
+#define skipFrames 1
 #endif
 
 File file;
@@ -123,7 +137,7 @@ ILI9488_t3 tft = ILI9488_t3(TFT_CS, TFT_DC, TFT_RST);
 // Setup framebuffers
 DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 #ifdef ARDUINO_TEENSY_DEVBRD4
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
 uint16_t *frameBuffer = nullptr;
 uint16_t *frameBuffer2 = nullptr;
 uint16_t *frameBufferSDRAM = nullptr;
@@ -145,7 +159,7 @@ uint32_t sizeof_framebuffer = 0;
 uint32_t sizeof_framebuffer2 = 0;
 uint32_t sizeof_framebufferSDRAM = 0;
 #else
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
 // only half buffer will fit in each of the two main memory regions
 // split into two parts, part dmamem and part fast mememory to fit 640x480x2
 DMAMEM uint16_t frameBuffer[640 * 240] __attribute__((aligned(32)));
@@ -182,8 +196,8 @@ bool g_dma_mode = false;
 ae_cfg_t aecfg;
 
 void setup() {
-  //  pinMode(0, OUTPUT);
-  //  digitalWriteFast(0, LOW);
+    pinMode(0, OUTPUT);
+    digitalWriteFast(0, LOW);
   while (!Serial && millis() < 5000) {}
   Serial.begin(921600);
 #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
@@ -288,11 +302,13 @@ void setup() {
   }
 #endif
 
-#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)) || defined(ARDUCAM_CAMERA_GC2145)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
   // VGA mode
-  camera.begin(FRAMESIZE_UXGA, RGB565, 15, false);
-#if defined(ARDUCAM_CAMERA_GC2145)
+#if defined(ARDUCAM_CAMERA_GC2145) || defined(ARDUCAM_CAMERA_OV2640) 
+  camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
   camera.setZoomWindow(-1, -1, 480, 320);
+#else
+  camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
 #endif
 #elif defined(ARDUCAM_CAMERA_HM0360)
   camera.begin(FRAMESIZE_VGA, 5);
@@ -317,11 +333,11 @@ void setup() {
   if (ModelID == CameraID) {
     Serial.printf("SENSOR DETECTED :-) MODEL %X\n", ModelID);
   } else {
-    Serial.println("SENSOR NOT DETECTED! :-(");
+    Serial.printf("SENSOR NOT DETECTED! :-( (%X)\n", ModelID);
     while (1) {}
   }
 #if defined(ARDUINO_TEENSY_DEVBRD4)
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
 
   sizeof_framebufferSDRAM = sizeof_framebuffer = sizeof_framebuffer2 = camera.width() * camera.height() * 2;
   frameBufferSDRAM = frameBuffer = (uint16_t *)((((uint32_t)(sdram_malloc(camera.width() * camera.height() * 2 + 32)) + 32) & 0xffffffe0));
@@ -338,9 +354,17 @@ void setup() {
 
 #ifndef CAMERA_USES_MONO_PALETTE
   //#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
+  #if defined(ARDUCAM_CAMERA_OV2640)
+  //camera.setBrightness(0);          // -2 to +2
+  //camera.setContrast(0);            // -2 to +2
+  //camera.setSaturation(0);          // -2 to +2
+  //omni.setSpecialEffect(RETRO);  // NOEFFECT, NEGATIVE, BW, REDDISH, GREEISH, BLUEISH, RETRO
+  //omni.setWBmode(0);                  // AWB ON, 1 - Sunny, 2 - Cloudy, 3 - Office, 4 - Home
+  #else
   camera.setContrast(0x30);
   camera.setBrightness(0x80);
   camera.autoExposure(1);
+  #endif
 #else
   camera.setGainceiling(GAINCEILING_2X);
   camera.setBrightness(3);
@@ -422,10 +446,14 @@ bool hm0360_flexio_callback(void *pfb) {
 #define UPDATE_ON_CAMERA_FRAMES
 
 inline uint16_t HTONS(uint16_t x) {
+  #if defined(ARDUCAM_CAMERA_OV2640)
+  return x;
+  #else
   return ((x >> 8) & 0x00FF) | ((x << 8) & 0xFF00);
+  #endif
 }
 
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
 
 volatile uint16_t *pfb_last_frame_returned = nullptr;
 
@@ -1079,7 +1107,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
   if (show_debug_info) {
     Serial.println("Finished reading frame");
     Serial.flush();
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_GC2145)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
     for (volatile uint16_t *pfb = frameBuffer; pfb < (frameBuffer + 4 * camera.width()); pfb += camera.width()) {
 #else
     for (volatile uint8_t *pfb = frameBuffer; pfb < (frameBuffer + 4 * camera.width()); pfb += camera.width()) {

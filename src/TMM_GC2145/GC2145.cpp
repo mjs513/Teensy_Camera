@@ -1100,7 +1100,7 @@ int GC2145::setPixelFormat(pixformat_t pixformat)
         default:
             return -1;
     }
-    debug.printf("Pixel Format: 0x%x, 0x%x, 0x%x\n", reg, REG_OUTPUT_FMT,REG_OUTPUT_SET_FMT(reg, REG_OUTPUT_FMT_RGB565));
+    if (_debug) debug.printf("Pixel Format: 0x%x, 0x%x, 0x%x\n", reg, REG_OUTPUT_FMT,REG_OUTPUT_SET_FMT(reg, REG_OUTPUT_FMT_RGB565));
 
     return ret;
 }
@@ -1183,7 +1183,7 @@ uint8_t GC2145::setFramesize(int w, int h) {
 
     // Limit the maximum amount of scaling allowed to keep the frame rate up.
     ratio = min(ratio, (fov_wide ? 5 : 3));
-    Serial.printf("\n$$$ ratio:%u, %d %d %d %d\n", ratio, readout_w, w, readout_h, h);
+    if (_debug) debug.printf("\n$$$ ratio:%u, %d %d %d %d\n", ratio, readout_w, w, readout_h, h);
    // if (!(ratio % 2)) {
    //     // camera outputs messed up bayer images at even ratios for some reason...
    //     ratio -= 1;
@@ -1242,7 +1242,7 @@ uint8_t GC2145::setFramesize(int w, int h) {
 
 bool GC2145::setZoomWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
     uint16_t x1, y1, w1, h1;
-    debug.printf("GC2145::setZoomWindow(%u %u %u %u)\n", x, y, w, h);    
+    if (_debug) debug.printf("GC2145::setZoomWindow(%u %u %u %u)\n", x, y, w, h);    
     getWindow(0x91, x1, y1, w1, h1);
     if (w == (uint16_t)-1) w = w1;
     if (h == (uint16_t)-1) h = h1;
@@ -1255,7 +1255,7 @@ bool GC2145::setZoomWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
     if ((y + h) > frameHeight()) return false;
 
 
-    debug.printf("\tPrev rect(%u %u %u %u)\n", x1, y1, w, h);    
+    if (_debug) debug.printf("\tPrev rect(%u %u %u %u)\n", x1, y1, w, h);    
     setWindow(0x91, x, y, w, h);
 
     // remember the width and height
@@ -1326,7 +1326,7 @@ int GC2145::setColorbar(int enable)
         test1 = 0x04;
         test2 = ((val - GC2145_TEST_PATTERN_SOLID_COLOR) << 4) | 0x8;
     } else if (val != GC2145_TEST_PATTERN_DISABLED) {
-        debug.println("test pattern out of range\n");
+        if (_debug) debug.println("test pattern out of range\n");
         return 0;
     }
 
@@ -1753,7 +1753,7 @@ void GC2145::printRegisters(bool only_ones_set)
     getWindow(0x91, x, y, w, h);
     debug.printf("Win rect(%u, %u, %u, %u)\n", x, y, w, h);
     uint8_t ratio = cameraReadRegister(0x99);
-    Serial.printf("Ratio: row:%u col:%u\n", ratio >> 4, ratio & 0xf);
+    if (_debug) debug.printf("Ratio: row:%u col:%u\n", ratio >> 4, ratio & 0xf);
 }
 
 void GC2145::showRegisters(void) {
