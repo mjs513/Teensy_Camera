@@ -493,9 +493,6 @@ uint16_t OV2640::getModelid()
 bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format, int fps, int camera_name, bool use_gpio)
 {
 
-  int _framesize = 0;
-  _format = 0;
-  
   _use_gpio = use_gpio;
   // BUGBUG::: see where frame is
   #ifdef USE_DEBUG_PINS
@@ -879,8 +876,8 @@ uint8_t OV2640::setFramesize(int w, int h) {
     ret |=cameraWriteRegister(BANK_SEL, BANK_SEL_DSP);
     ret |=cameraWriteRegister( R_BYPASS, R_BYPASS_DSP_EN);
     
-    delay(100);
-
+    delay(10);
+    
     return ret;
 }
 

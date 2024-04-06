@@ -223,6 +223,8 @@ private:
   int _xclk_freq = 12;
 
   bool _grayscale;
+  int _format = RGB565;
+  int _framesize = FRAMESIZE_QVGA;
 
   void* _OV2640;
 
