@@ -305,7 +305,7 @@ void setup() {
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
   // VGA mode
 #if defined(ARDUCAM_CAMERA_GC2145) || defined(ARDUCAM_CAMERA_OV2640) 
-  camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
+  camera.begin(FRAMESIZE_SVGA, RGB565, 15, false);
   camera.setZoomWindow(-1, -1, 480, 320);
 #else
   camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
@@ -378,6 +378,7 @@ void setup() {
   Serial.println(camera.width());
   Serial.print("\theight = ");
   Serial.println(camera.height());
+  Serial.printf("Camera Frame Width = %u Height = %u\n", camera.frameWidth(), camera.frameHeight());
 
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
   uint8_t href = camera.readRegister(OV767X::REG_HREF);
