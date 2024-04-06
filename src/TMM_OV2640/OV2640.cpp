@@ -13,6 +13,7 @@
 #include "OV2640.h"
 
 #define debug     Serial
+#define NO_CLK_PIN
 
 #define DEBUG_CAMERA
 //#define DEBUG_CAMERA_VERBOSE
@@ -846,7 +847,7 @@ uint8_t OV2640::setFramesize(int w, int h) {
         //     c.pclk_div = c.pclk_div / 2;
         // }
     } else {
-#if CONFIG_IDF_TARGET_ESP32
+#if defined(NO_CLK_PIN)
         c.clk_2x = 0;
 #else
         c.clk_2x = 1;  //ELSE 1
@@ -855,7 +856,11 @@ uint8_t OV2640::setFramesize(int w, int h) {
         c.pclk_auto = 1;
         c.pclk_div = 8;
         if(w <= CIF_WIDTH) {
+#if defined(NO_CLK_PIN)
+            c.clk_div = 8;
+#else
             c.clk_div = 3;
+#endif
         } else if(w <= SVGA_WIDTH) {
             c.pclk_div = 12;
         }
@@ -873,7 +878,7 @@ uint8_t OV2640::setFramesize(int w, int h) {
     ret |=cameraWriteRegister(R_DVP_SP, c.pclk);
     ret |=cameraWriteRegister(BANK_SEL, BANK_SEL_DSP);
     ret |=cameraWriteRegister( R_BYPASS, R_BYPASS_DSP_EN);
-
+    
     delay(100);
 
     return ret;
@@ -1322,6 +1327,7 @@ bool OV2640::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 {    
   debug.printf("$$readFrameGPIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
   const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
+  
   if ((cb1+cb2) < frame_size_bytes) return false; // not enough to hold image
   digitalWriteFast(0, HIGH);
 
