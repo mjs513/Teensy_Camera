@@ -538,7 +538,12 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format, int fp
     _height = 600;
     _framesize = 8;
     break;
-
+  case FRAMESIZE_UXGA:
+    _width = 1600;
+    _height = 1200;
+    _framesize = 9;
+    break;
+    
   default:
     return 0;
   }
