@@ -908,6 +908,9 @@ bool OV2640::setZoomWindow(uint16_t x_off, uint16_t y_off, uint16_t w, uint16_t 
     uint16_t div = 1 << log_div;
     uint16_t w_mul = w * div;
     uint16_t h_mul = h * div;
+    
+    // Set up to use the display bank sel
+    cameraWriteRegister(BANK_SEL, BANK_SEL_DSP);
 
     if ((w != _width) || (h != _height)) {
         if ((w % 4) || (h % 4)) {
@@ -933,7 +936,11 @@ bool OV2640::setZoomWindow(uint16_t x_off, uint16_t y_off, uint16_t w, uint16_t 
     cameraWriteRegister(  R_DVP_SP, div);
     cameraWriteRegister(  RESET, 0x00);
 
-
+    if(_debug) {
+      debug.printf("Frame w,h: %d - %d\n", _frame_width, _frame_height);
+      debug.printf("zoom w, h: %u %u\n", w, h);
+      debug.printf("x_off: %u(%u), y_off: %u(%u)\n", x_off, XOFFL_SET(x_off), y_off, YOFFL_SET(y_off));    
+    }
     _width = w;
     _height = h;
 
