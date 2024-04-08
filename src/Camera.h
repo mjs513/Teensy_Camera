@@ -91,12 +91,18 @@ public:
   // buffers, with the option of setting your own buffers if desired.
   virtual bool startReadFrameDMA(bool (*callback)(void *frame_buffer) = nullptr, uint8_t *fb1 = nullptr, uint8_t *fb2 = nullptr) = 0;
 
+  virtual void changeFrameBuffer(uint8_t *fbFrom, uint8_t *fbTo) = 0;
+
   virtual bool stopReadFrameDMA() = 0;
 
   virtual void setVSyncISRPriority(uint8_t priority) = 0;
   virtual void setDMACompleteISRPriority(uint8_t priority) = 0;
 
   virtual uint32_t frameCount() = 0;  //{return _dma_frame_count;}
+
+  // Set and retrieve read timeout
+  uint32_t timeout() { return _timeout;}
+  void timeout(uint32_t timeout_ms) {_timeout = timeout_ms;}
 
   // The width and height are the sizes of the data returned when you do a frameRead.
   // initialially it is the size of the resolution that was passed into setFramesize
@@ -131,6 +137,7 @@ protected:
   bool _debug = true;     // Should the camera code print out debug information?
   bool _fuse_dma = true;  // in some cameras should we use DMA or do the Io directly
   bool _use_gpio = false; // set in the begin of some cameras
+  uint32_t _timeout = 2000; // timeout in ms for a read
 
   int _vsyncPin;
   int _hrefPin;
@@ -269,10 +276,8 @@ public:
   // buffers, with the option of setting your own buffers if desired.
   bool startReadFrameDMA(bool (*callback)(void *frame_buffer) = nullptr, uint8_t *fb1 = nullptr, uint8_t *fb2 = nullptr);
 
-  void changeFrameBuffer(uint8_t *fbFrom, uint8_t *fbTo) {
-    if (_frame_buffer_1 == fbFrom) _frame_buffer_1 = fbTo;
-    else if (_frame_buffer_2 == fbFrom) _frame_buffer_2 = fbTo;
-  }
+  void changeFrameBuffer(uint8_t *fbFrom, uint8_t *fbTo);
+
   bool stopReadFrameDMA();
 
   void captureFrameStatistics();
@@ -288,17 +293,13 @@ public:
   int16_t frameHeight(void);
   int16_t mode(void);
 
-  framesize_t framesize;
-  pixformat_t pixformat;
-  camera_reg_settings_t settings;
-  hw_config_t _hw_config;
-  hw_carrier_t _hw_carrier;
+  // set and retrieve read timeout
+  uint32_t timeout();
+  void timeout(uint32_t timeout_ms);
+
 
 private:
   ImageSensor *sensor;  /// Pointer to the camera sensor
-
-  uint8_t *_frame_buffer_1 = nullptr;
-  uint8_t *_frame_buffer_2 = nullptr;
 
 
 };

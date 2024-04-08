@@ -271,3 +271,16 @@ bool Camera::begin(framesize_t resolution, pixformat_t format, int fps, int came
 int Camera::setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db) {
     return sensor->setAutoWhitebal(enable, r_gain_db, g_gain_db, b_gain_db);
 }
+
+void Camera::changeFrameBuffer(uint8_t *fbFrom, uint8_t *fbTo) {
+   sensor->changeFrameBuffer(fbFrom, fbTo);
+} 
+
+uint32_t Camera::timeout() {
+   return sensor->timeout();
+}
+
+void Camera::timeout(uint32_t timeout_ms) {
+   sensor->timeout(timeout_ms);
+}
+

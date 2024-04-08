@@ -91,13 +91,23 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
     digitalWriteFast(0, LOW);
 
     for (;;) {
-      if (emWaitSOF > 2000) {
+      if (emWaitSOF > _timeout) {
         if(_debug) debug.println("Timeout waiting for Start of Frame");
         return false;
       }
-      while ((*_vsyncPort & _vsyncMask) == 0);
+      while ((*_vsyncPort & _vsyncMask) == 0) {
+        if (emWaitSOF > _timeout) {
+          if(_debug) debug.println("Timeout waiting for rising edge Start of Frame");
+          return false;
+        }
+      }
       emGlitch = 0;
-      while ((*_vsyncPort & _vsyncMask) != 0);
+      while ((*_vsyncPort & _vsyncMask) != 0) {
+        if (emWaitSOF > _timeout) {
+          if(_debug) debug.println("Timeout waiting for falling edge Start of Frame");
+          return false;
+        }
+      }
       if (emGlitch > 5) break;
     }
     _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
@@ -246,7 +256,7 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
             _dmachannel.clearError();
             break;
         }
-        if (timeout > 500) {
+        if (timeout > _timeout) {
             if (_debug) debug.println("Timeout waiting for DMA");
             if (_pflexio->SHIFTSTAT & _fshifter_mask) debug.printf(" SHIFTSTAT bit was set (%08X)\n", _pflexio->SHIFTSTAT);
             #ifdef DEBUG_CAMERA

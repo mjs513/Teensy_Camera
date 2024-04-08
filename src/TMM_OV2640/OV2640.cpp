@@ -13,12 +13,13 @@
 #include "OV2640.h"
 
 #define debug     Serial
-#define NO_CLK_PIN
+//#define NO_CLK_PIN
 
 #define DEBUG_CAMERA
 //#define DEBUG_CAMERA_VERBOSE
 //#define DEBUG_FLEXIO
 //#define USE_DEBUG_PINS
+#define DEBUG_CAMERA_REG
 #define USE_VSYNC_PIN_INT
 
 // if not defined in the variant
@@ -464,6 +465,9 @@ uint8_t OV2640::cameraReadRegister(uint8_t reg) {
 
 
 uint8_t OV2640::cameraWriteRegister(uint8_t reg, uint8_t data) {
+    #ifdef DEBUG_CAMERA_REG
+    if (_debug) debug.printf("cameraWriteRegister(%x, %x)\n", reg, data);
+    #endif    
   _wire->beginTransmission(0x30);
   _wire->write(reg);
   _wire->write(data);
@@ -911,8 +915,8 @@ bool OV2640::setZoomWindow(uint16_t x_off, uint16_t y_off, uint16_t w, uint16_t 
     
     // Set up to use the display bank sel
     cameraWriteRegister(BANK_SEL, BANK_SEL_DSP);
-
-    if ((w != _width) || (h != _height)) {
+    bool width_or_height_changed = (w != _width) || (h != _height);
+    if (width_or_height_changed) {
         if ((w % 4) || (h % 4)) {
             // w/h must be divisible by 4
             if(_debug) {
@@ -943,6 +947,56 @@ bool OV2640::setZoomWindow(uint16_t x_off, uint16_t y_off, uint16_t w, uint16_t 
     }
     _width = w;
     _height = h;
+
+    if (0) { //(width_or_height_changed) {
+        ov2640_clk_t c;
+        if (_format == 8) {  //jpeg
+            c.clk_2x = 0;
+            c.clk_div = 0;
+            c.pclk_auto = 0;
+            c.pclk_div = 8;
+            if(w <= SVGA_WIDTH) {
+                c.pclk_div = 12;
+            }
+            // if (sensor->xclk_freq_hz == 16000000) {
+            //     c.pclk_div = c.pclk_div / 2;
+            // }
+        } else {
+    #if defined(NO_CLK_PIN)
+            c.clk_2x = 0;
+    #else
+            c.clk_2x = 1;  //ELSE 1
+    #endif
+            c.clk_div = 7;
+            c.pclk_auto = 1;
+            c.pclk_div = 8;
+            if(w <= CIF_WIDTH) {
+    #if defined(NO_CLK_PIN)
+                c.clk_div = 8;
+    #else
+                c.clk_div = 3;
+    #endif
+            } else if(w <= SVGA_WIDTH) {
+                c.pclk_div = 12;
+            }
+        }
+        
+        if(_debug) {
+          debug.printf("Set PLL: clk_2x: %u, clk_div: %u, pclk_auto: %u, pclk_div: %u\n", c.clk_2x, c.clk_div, c.pclk_auto, c.pclk_div);
+          debug.printf("c.clk value: %u\n", c.clk);
+          debug.printf("c.pclk value: %u\n", c.pclk);
+        }
+
+        cameraWriteRegister(BANK_SEL, BANK_SEL_SENSOR);
+        cameraWriteRegister(CLKRC, c.clk);
+        cameraWriteRegister(BANK_SEL, BANK_SEL_DSP);
+        cameraWriteRegister(R_DVP_SP, c.pclk);
+        cameraWriteRegister(BANK_SEL, BANK_SEL_DSP);
+        cameraWriteRegister( R_BYPASS, R_BYPASS_DSP_EN);
+        
+        delay(10);
+
+    }
 
     return true;
 }

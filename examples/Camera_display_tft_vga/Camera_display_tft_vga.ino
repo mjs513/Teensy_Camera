@@ -37,6 +37,7 @@ Camera camera(omni);
 #define CameraID 0x2642
 #define MIRROR_FLIP_CAMERA
 #define SCREEN_ROTATION 3
+pixformat_t camera_format = RGB565;
 
 #elif defined(ARDUCAM_CAMERA_OV7670)
 #include "TMM_OV767X/OV767X.h"
@@ -58,6 +59,7 @@ GC2145 galaxycore;
 Camera camera(galaxycore);
 #define CameraID 0x2145
 #define SCREEN_ROTATION 3
+pixformat_t camera_format = RGB565;
 
 #endif
 #if defined(ARDUCAM_CAMERA_OV2640)
@@ -114,12 +116,15 @@ static const uint16_t mono_palette[256] PROGMEM = {
 #define TFT_CS 10  // AD_B0_02
 #define TFT_DC 25  // AD_B0_03
 #define TFT_RST 24
+#define VSYNC_PIN 21
 
 #elif defined(USE_MMOD_ATP_ADAPTER)
+#define VSYNC_PIN 33
 #define TFT_DC 4   //0   // "TX1" on left side of Sparkfun ML Carrier
 #define TFT_CS 5   //4   // "CS" on left side of Sparkfun ML Carrier
 #define TFT_RST 2  //1  // "RX1" on left side of Sparkfun ML Carrier
 #else
+#define VSYNC_PIN 33
 #define TFT_DC 0   //20   // "TX1" on left side of Sparkfun ML Carrier
 #define TFT_CS 4   //5, 4   // "CS" on left side of Sparkfun ML Carrier
 #define TFT_RST 1  //2, 1  // "RX1" on left side of Sparkfun ML Carrier
@@ -196,8 +201,8 @@ bool g_dma_mode = false;
 ae_cfg_t aecfg;
 
 void setup() {
-    pinMode(0, OUTPUT);
-    digitalWriteFast(0, LOW);
+  pinMode(0, OUTPUT);
+  digitalWriteFast(0, LOW);
   while (!Serial && millis() < 5000) {}
   Serial.begin(921600);
 #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
@@ -274,7 +279,7 @@ void setup() {
 //    uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3,
 //    uint8_t g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
 #ifdef USE_MMOD_ATP_ADAPTER
-  pinMode(30, INPUT_PULLUP);
+  pinMode(30, INPUT);
   pinMode(31, INPUT_PULLUP);
 
   if ((_hmConfig == 0) || (_hmConfig == 2)) {
@@ -302,24 +307,43 @@ void setup() {
   }
 #endif
 
+  //  FRAMESIZE_VGA = 0,
+  //  FRAMESIZE_QQVGA,    // 160x120
+  //  FRAMESIZE_QVGA,     // 320x240
+  //  FRAMESIZE_480X320,
+  //  FRAMESIZE_320X320,  // 320x320
+  //  FRAMESIZE_QVGA4BIT,
+  //  FRAMESIZE_QCIF,
+  //  FRAMESIZE_CIF,
+  //  FRAMESIZE_SVGA, //800, 600
+  //  FRAMESIZE_UXGA, //1500, 1200
+
+  uint8_t status = 0;
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
   // VGA mode
-#if defined(ARDUCAM_CAMERA_GC2145) || defined(ARDUCAM_CAMERA_OV2640) 
-  camera.begin(FRAMESIZE_SVGA, RGB565, 15, false);
+#if defined(ARDUCAM_CAMERA_GC2145) || defined(ARDUCAM_CAMERA_OV2640)
+  status = camera.begin(FRAMESIZE_SVGA, camera_format, 15, false);
   camera.setZoomWindow(-1, -1, 480, 320);
 #else
-  camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
+  status = camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
 #endif
 #elif defined(ARDUCAM_CAMERA_HM0360)
-  camera.begin(FRAMESIZE_VGA, 5);
+  status = camera.begin(FRAMESIZE_VGA, 5);
 #else
   // 1b0 defaults to qvga 4 bit
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
   //HM01B0(4pin only) 15/30/60 works, 120 not supported
   //camera.begin(FRAMESIZE_QVGA, 30);
-  camera.begin(FRAMESIZE_QVGA4BIT, 15, false);
+  status = camera.begin(FRAMESIZE_QVGA4BIT, 15, false);
 #endif
+
+
+  Serial.printf("Begin status: %d\n", status);
+  if (!status) {
+    Serial.println("Camera failed to start!!!");
+    while (1) {}
+  }
 
 #ifdef MIRROR_FLIP_CAMERA
   camera.setHmirror(true);
@@ -327,15 +351,6 @@ void setup() {
 #endif
   //galaxycore.setFramesize(800, 600);
 
-  Serial.println("getting model id");
-  uint16_t ModelID;
-  ModelID = camera.getModelid();
-  if (ModelID == CameraID) {
-    Serial.printf("SENSOR DETECTED :-) MODEL %X\n", ModelID);
-  } else {
-    Serial.printf("SENSOR NOT DETECTED! :-( (%X)\n", ModelID);
-    while (1) {}
-  }
 #if defined(ARDUINO_TEENSY_DEVBRD4)
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
 
@@ -353,18 +368,18 @@ void setup() {
 
 
 #ifndef CAMERA_USES_MONO_PALETTE
-  //#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
-  #if defined(ARDUCAM_CAMERA_OV2640)
-  //camera.setBrightness(0);          // -2 to +2
-  //camera.setContrast(0);            // -2 to +2
-  //camera.setSaturation(0);          // -2 to +2
-  //omni.setSpecialEffect(RETRO);  // NOEFFECT, NEGATIVE, BW, REDDISH, GREEISH, BLUEISH, RETRO
-  //omni.setWBmode(0);                  // AWB ON, 1 - Sunny, 2 - Cloudy, 3 - Office, 4 - Home
-  #else
+//#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
+#if defined(ARDUCAM_CAMERA_OV2640)
+//camera.setBrightness(0);          // -2 to +2
+//camera.setContrast(0);            // -2 to +2
+//camera.setSaturation(0);          // -2 to +2
+//omni.setSpecialEffect(RETRO);  // NOEFFECT, NEGATIVE, BW, REDDISH, GREEISH, BLUEISH, RETRO
+//omni.setWBmode(0);                  // AWB ON, 1 - Sunny, 2 - Cloudy, 3 - Office, 4 - Home
+#else
   camera.setContrast(0x30);
   camera.setBrightness(0x80);
   camera.autoExposure(1);
-  #endif
+#endif
 #else
   camera.setGainceiling(GAINCEILING_2X);
   camera.setBrightness(3);
@@ -447,11 +462,11 @@ bool hm0360_flexio_callback(void *pfb) {
 #define UPDATE_ON_CAMERA_FRAMES
 
 inline uint16_t HTONS(uint16_t x) {
-  #if defined(ARDUCAM_CAMERA_OV2640)
+#if defined(ARDUCAM_CAMERA_OV2640)
   return x;
-  #else
+#else
   return ((x >> 8) & 0x00FF) | ((x << 8) & 0xFF00);
-  #endif
+#endif
 }
 
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
@@ -609,6 +624,15 @@ void loop() {
 #endif
           break;
         }
+      case 'j':
+        {
+#if (defined(USE_SDCARD) && defined(ARDUCAM_CAMERA_OV2640))
+          bool error = false;
+          error = save_jpg_SD();
+          if (!error) Serial.println("ERROR reading JPEG.  Try again....");
+#endif
+          break;
+        }
       case 'm':
         read_display_multiple_frames(false);
         break;
@@ -634,6 +658,9 @@ void loop() {
         break;
       case 'W':
         panCameraWindow();
+        break;
+      case 'c':
+        print_vsync_timings();
         break;
       case 'd':
         camera.debug(!camera.debug());
@@ -1056,6 +1083,134 @@ void save_image_SD() {
   file.close();  // close file when done writing
   Serial.println("Done Writing BMP");
 }
+
+char name_jpg[] = "9px_0000.jpg";  // filename convention (will auto-increment)
+  // can probably reuse framebuffer2...
+
+
+bool save_jpg_SD() {
+  camera.setPixformat(JPEG);
+  delay(100);
+  //omni.setQuality(12);
+
+  camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
+  uint32_t count_pixels_in_buffer = sizeof_framebuffer / sizeof(frameBuffer[0]);
+
+  if (0) {
+    Serial.println("Reading frame");
+    Serial.printf("Buffer1: %p(%u) halfway: %p end:%p\n", frameBuffer, sizeof_framebuffer, &frameBuffer[count_pixels_in_buffer / 2], &frameBuffer[count_pixels_in_buffer]);
+    count_pixels_in_buffer = sizeof_framebuffer2 / sizeof(frameBuffer2[0]);
+    Serial.printf("Buffer2: %p(%u) halfway: %p end:%p\n", frameBuffer2, sizeof_framebuffer2, &frameBuffer2[count_pixels_in_buffer / 2], &frameBuffer2[count_pixels_in_buffer]);
+    memset((uint8_t *)frameBuffer, 0, sizeof_framebuffer);
+    memset((uint8_t *)frameBuffer2, 0, sizeof_framebuffer2);
+  }
+
+  //  digitalWriteFast(24, HIGH);
+  camera.useDMA(false);
+  camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+  delay(10);
+  camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+
+  //  digitalWriteFast(24, LOW);
+
+  uint16_t w = FRAME_WIDTH;
+  uint16_t h = FRAME_HEIGHT;
+  uint16_t eop = 0;
+  uint8_t eoi = 0;
+
+  uint32_t numPixels = w * h;
+  uint32_t jpegSize = (w * h) / 5;
+  Serial.printf("Width: %d, Height: %d\n", w, h);
+  Serial.printf("jpeg size: %d\n", jpegSize);
+
+
+  //byte swap
+  //for (int i = 0; i < numPixels; i++) frameBuffer[i] = (frameBuffer[i] >> 8) | (((frameBuffer[i] & 0xff) << 8));
+  // now see if all fit into one buffer or part in second...
+  uint32_t numPixels1 = min((int)(sizeof_framebuffer / 2), numPixels);
+  uint32_t numPixels2 = min((int)(sizeof_framebuffer2 / 2), numPixels - numPixels1);
+  if (0) Serial.printf("\tBuffers:%p(%u) %p(%u)\n", frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+  if (1) Serial.printf("\tnumpixels %u %u %u\n", numPixels, numPixels1, numPixels2);
+  //for (int i = 0; i < numPixels1; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
+  //for (int i = 0; i < numPixels2; i++) frameBuffer2[i] = HTONS(frameBuffer2[i]);
+
+  if (numPixels2 == 0) {
+    uint16_t *pfb = frameBuffer;
+    for (uint32_t i = 0; i < numPixels1; i++) {
+      //Serial.println(pfb[i], HEX);
+      if ((i == 0) && (pfb[0] == 0xD8FF)) {
+        eoi = 1;
+        Serial.printf("Found begining of frame at position %d\n", i);
+      }
+      if (pfb[i] == 0xD9FF) {
+        eop = i;
+        Serial.printf("Found ending of frame at position %d\n", i);
+      }
+    }
+    Serial.printf("%x, %x\n", pfb[0], pfb[eop]);
+
+  } else {
+    for (uint32_t i = 0; i < numPixels1; i++) {
+      //Serial.println(pfb[i], HEX);
+      if ((i == 0) && (frameBuffer[0] == 0xD8FF)) {
+        eoi = 1;
+        Serial.printf("Found begining of frame at position %d\n", i);
+        break;
+      }
+    }
+    for (uint32_t i = 0; i < numPixels2; i++) {
+      if (frameBuffer2[i] == 0xD9FF) {
+        eop = i;
+        Serial.printf("(2)Found ending of frame at position %d\n", i);
+      }
+    }
+    Serial.printf("%x, %x\n", frameBuffer[0], frameBuffer2[eop]);
+  }
+  if (eop == 0 || eoi == 0) return false;
+
+  Serial.print("Writing jpg to SD CARD File: ");
+
+  // if name exists, create new filename, SD.exists(filename)
+  for (int i = 0; i < 10000; i++) {
+    name_jpg[4] = (i / 1000) % 10 + '0';  // thousands place
+    name_jpg[5] = (i / 100) % 10 + '0';   // hundreds
+    name_jpg[6] = (i / 10) % 10 + '0';    // tens
+    name_jpg[7] = i % 10 + '0';           // ones
+    if (!SD.exists(name_jpg)) {
+      Serial.println(name_jpg);
+      file = SD.open(name_jpg, FILE_WRITE);
+      break;
+    }
+  }
+
+  Serial.println(" Writing to SD");
+  if (numPixels2 == 0) {
+    for (uint32_t i = 0; i < jpegSize; i++) {
+      file.write(frameBuffer[i] & 0xFF);
+      file.write((frameBuffer[i] >> 8) & 0xFF);
+    }
+  } else {
+    for (uint32_t i = 0; i < numPixels1; i++) {
+      //file.write(pfb[i]);
+      file.write(frameBuffer[i] & 0xFF);
+      file.write((frameBuffer[i] >> 8) & 0xFF);
+    }
+    for (uint32_t i = 0; i < eop; i++) {
+      file.write(frameBuffer2[i] & 0xFF);
+      file.write((frameBuffer2[i] >> 8) & 0xFF);
+    }
+  }
+
+  file.close();  // close file when done writing
+  Serial.println("Done Writing JPG");
+
+  camera.setPixformat(camera_format);
+  camera.useDMA(true);
+  delay(50);
+  return true;
+}
+
+
 #endif
 
 void showCommandList() {
@@ -1077,6 +1232,7 @@ void showCommandList() {
   Serial.println("Send the '1' character to blank the display");
   Serial.println("Send the 'z' character to send current screen BMP to SD");
   Serial.println("Send the 't' character to send Check the display");
+  Serial.println("Send the 'c' character to debug clock - print vsync timing");
   Serial.println("Send the 'd' character to toggle camera debug on and off");
   Serial.println("Send the 'r' character to show the current camera registers");
   Serial.println("Send the 'w <row> <col>' to set the start window x, y");
@@ -1297,9 +1453,9 @@ void changeCameraWindow() {
 }
 
 void panCameraWindow() {
-  while(Serial.read() != -1) {}
+  while (Serial.read() != -1) {}
   for (;;) {
-    for (uint16_t start_y = 0; start_y < (camera.frameHeight() - camera.height()) ; start_y += 100) {
+    for (uint16_t start_y = 0; start_y < (camera.frameHeight() - camera.height()); start_y += 100) {
       for (uint16_t start_x = 0; start_x < (camera.frameWidth() - camera.width()); start_x += 100) {
         camera.setZoomWindow(start_x, start_y);
         read_display_one_frame(true, false);
@@ -1307,5 +1463,38 @@ void panCameraWindow() {
         if (Serial.available()) return;
       }
     }
+  }
+}
+
+void print_vsync_timings() {
+  uint8_t frame_count = 0;
+  while (Serial.read() != -1) {}  // remove any extra characters
+
+  uint32_t falling_edge_time = micros();
+  uint32_t rising_edge_time = micros();
+  while (!Serial.available() && (frame_count < 5)) {
+    elapsedMillis emTimeout = 0;
+    while (!digitalReadFast(VSYNC_PIN)) {
+      if (emTimeout > 5000) {
+        Serial.printf("Vsync Timing timeout rising edge FC:%u\n", frame_count);
+        return;
+      }
+    }
+    rising_edge_time = micros();
+    emTimeout = 0;
+    while (digitalReadFast(VSYNC_PIN)) {
+      if (emTimeout > 5000) {
+        Serial.printf("Vsync Timing timeout falling edge FC:%u\n", frame_count);
+        return;
+      }
+    }
+    uint32_t new_falling_edge_time = micros();
+    frame_count++;
+    Serial.printf("Frame %u Time: %u High:%u Low:%u fps:%0.2f\n", frame_count,
+                  (uint32_t)(new_falling_edge_time - falling_edge_time),
+                  (uint32_t)(new_falling_edge_time - rising_edge_time),
+                  (uint32_t)(rising_edge_time - falling_edge_time),
+                  1000000.0 / (float)(uint32_t)(new_falling_edge_time - falling_edge_time));
+    falling_edge_time = new_falling_edge_time;
   }
 }
