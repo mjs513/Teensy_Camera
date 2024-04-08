@@ -466,7 +466,8 @@ uint8_t OV2640::cameraReadRegister(uint8_t reg) {
 
 uint8_t OV2640::cameraWriteRegister(uint8_t reg, uint8_t data) {
     #ifdef DEBUG_CAMERA_REG
-    if (_debug) debug.printf("cameraWriteRegister(%x, %x)\n", reg, data);
+    extern void Debug_printCameraWriteRegister(uint8_t reg, uint8_t data);
+    if (_debug) Debug_printCameraWriteRegister(reg, data);
     #endif    
   _wire->beginTransmission(0x30);
   _wire->write(reg);
@@ -2039,12 +2040,53 @@ static const OV2640_TO_NAME_t OV2640_reg_name_table[] PROGMEM {
   {F(" REG32" ), 1, 0x32 },
 };
 
+#define CNT_REG_NAME_TABLE  (sizeof(OV2640_reg_name_table) / sizeof(OV2640_reg_name_table[0]))
+
+#ifdef DEBUG_CAMERA_REG
+void Debug_printCameraWriteRegister(uint8_t reg, uint8_t data) {
+    static uint8_t showing_bank = 0;
+    static uint16_t bank_1_starts_at = 0;
+    uint16_t ii;
+
+    debug.printf("cameraWriteRegister(%x, %x)", reg, data);
+    if (reg == 0xff) showing_bank = data; // remember which bank we are
+    else {
+        if (showing_bank == 0) {
+            for (ii = 0; ii < CNT_REG_NAME_TABLE; ii++) {
+                if (OV2640_reg_name_table[ii].bank != 0) break;
+                if (reg == OV2640_reg_name_table[ii].reg) break;
+            }
+        } else {
+            if (bank_1_starts_at == 0) {
+                for (ii = bank_1_starts_at; ii < CNT_REG_NAME_TABLE; ii++) {
+                    if (OV2640_reg_name_table[ii].bank != 0) {
+                        bank_1_starts_at = ii;
+                        break;
+                    }
+                }
+            }  
+            for (ii = bank_1_starts_at; ii < CNT_REG_NAME_TABLE; ii++) {
+                if (reg == OV2640_reg_name_table[ii].reg) break;
+            }
+        }
+    }
+    if ((ii < CNT_REG_NAME_TABLE) && (reg == OV2640_reg_name_table[ii].reg)) debug.printf(" - %s\n", OV2640_reg_name_table[ii].reg_name);
+    else debug.println();
+
+}
+
+#endif    
+
 
 void OV2640::showRegisters(void) {
   debug.println("\n*** Camera Registers ***");
   cameraWriteRegister(0xFF, 0x00);  //bank 0
+  bool showing_bank_0 = true;
   for (uint16_t ii = 0; ii < (sizeof(OV2640_reg_name_table) / sizeof(OV2640_reg_name_table[0])); ii++) {
-    if(OV2640_reg_name_table[ii].bank != 0) cameraWriteRegister(0xff, 0x01);
+    if((OV2640_reg_name_table[ii].bank != 0) && showing_bank_0) {
+        cameraWriteRegister(0xff, 0x01);
+        showing_bank_0 = false;
+    }
     uint8_t reg_value = cameraReadRegister(OV2640_reg_name_table[ii].reg);
     debug.printf("(%d) %s(%x): %u(%x)\n", OV2640_reg_name_table[ii].bank, OV2640_reg_name_table[ii].reg_name, OV2640_reg_name_table[ii].reg, reg_value, reg_value);
   }
