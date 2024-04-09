@@ -380,6 +380,16 @@ static const uint8_t jpeg_regs[][2] = {
     {0,             0},
 };
 
+#define NUM_AE_LEVELS (5)
+static const uint8_t ae_levels_regs[NUM_AE_LEVELS + 1][3] = {
+    { AEW,  AEB,  VV  },
+    {0x20, 0X18, 0x60 },
+    {0x34, 0X1C, 0x00 },
+    {0x3E, 0X38, 0x81 },
+    {0x48, 0X40, 0x81 },
+    {0x58, 0X50, 0x92 },
+};
+
 #define NUM_BRIGHTNESS_LEVELS    (5)
 static const uint8_t brightness_regs[NUM_BRIGHTNESS_LEVELS + 1][5] = {
     {BPADDR, BPDATA, BPADDR, BPDATA, BPDATA},
@@ -429,6 +439,11 @@ static const uint8_t wb_modes_regs[NUM_WB_MODES + 1][3] = {
     {0x65, 0X41, 0x4F }, /* cloudy */
     {0x52, 0X41, 0x66 }, /* office */
     {0x42, 0X3F, 0x71 }, /* home */
+};
+
+const uint8_t agc_gain_tbl[31] = {
+    0x00, 0x10, 0x18, 0x30, 0x34, 0x38, 0x3C, 0x70, 0x72, 0x74, 0x76, 0x78, 0x7A, 0x7C, 0x7E, 0xF0,
+    0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF
 };
 
 const int OV2640_D[8] = {
@@ -1098,6 +1113,30 @@ int OV2640::setColorbar(int enable) {
         reg &= ~COM7_COLOR_BAR;
     }
     return cameraWriteRegister(  COM7, reg) | ret;
+}
+
+void OV2640::autoExposure(int enable) //enable is really exposure level for the 2640
+{
+    int ret=0;
+    enable += 3;
+    if (enable <= 0 || enable > NUM_AE_LEVELS) {
+        debug.println("ERROR: Auto exposure level out of range!!!");
+    } else {
+      enable = enable-3;
+      for (int i=0; i<3; i++) {
+          cameraWriteRegister(ae_levels_regs[0][i], ae_levels_regs[enable][i]);
+      }
+    }
+}
+
+void OV2640::setGain(int gain) {
+    if(gain < 0) {
+        gain = 0;
+    } else if(gain > 30) {
+        gain = 30;
+    }
+    cameraWriteRegister(BANK_SEL, BANK_SEL_SENSOR);
+    cameraWriteRegister(GAIN, agc_gain_tbl[gain]);  
 }
 
 int OV2640::setAutoGain(int enable, float gain_db, float gain_db_ceiling) {

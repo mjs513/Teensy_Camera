@@ -178,7 +178,9 @@ public:
   int setQuality(int qs);
   int setColorbar(int enable);
   int setAutoGain( int enable, float gain_db, float gain_db_ceiling);
+  void setGain(int gain);
   int getGain_db(float *gain_db);
+  void autoExposure(int enable);
   int setAutoExposure(int enable, int exposure_us);
   int getExposure_us(int *exposure_us);
   int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db, float b_gain_db);
@@ -196,7 +198,6 @@ public:
   /*********************************************************/
   void setHue(int hue) {  }
   void setExposure(int exposure) { }
-  void autoExposure(int enable) {  }
   
   bool begin(framesize_t framesize = FRAMESIZE_QVGA, int framerate = 30, bool use_gpio = false) {return 0;};
   uint8_t setMode(uint8_t Mode, uint8_t FrameCnt) { return 0; };  //covers and extra
@@ -210,7 +211,6 @@ public:
   void readFrame4BitGPIO(void* buffer) {Serial.println("4 Bit mode not supported ..... !!!!!"); }
   int16_t mode(void) { return 0; }
   void printRegisters(bool only_ones_set = true) {} ;
-  void setGain(int gain) {}
   void autoGain(int enable, float gain_db, float gain_db_ceiling) {}
 
 private:
