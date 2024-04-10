@@ -15,7 +15,7 @@ Camera camera(omni);
 #define MIRROR_FLIP_CAMERA
 
 //set cam configuration - need to remember when saving jpeg
-framesize_t camera_framesize = FRAMESIZE_VGA;
+framesize_t camera_framesize = FRAMESIZE_SVGA;
 pixformat_t camera_format = RGB565;
 bool useGPIO = false;
 
@@ -111,8 +111,13 @@ uint16_t *frameBufferSDRAM2 = nullptr;
 DMAMEM uint16_t frameBufferM[640 * 240] __attribute__((aligned(32)));
 uint16_t frameBufferM2[640 * 240] __attribute__((aligned(32)));
 #else
+#if defined(USE_SDCARD)
+DMAMEM uint16_t frameBuffer[480 * 240] __attribute__((aligned(32)));
+uint16_t frameBuffer2[480 * 240] __attribute__((aligned(32)));
+#else
 DMAMEM uint16_t frameBuffer[640 * 240] __attribute__((aligned(32)));
 uint16_t frameBuffer2[640 * 240] __attribute__((aligned(32)));
+#endif
 #endif
 
 const uint32_t sizeof_framebuffer = sizeof(frameBuffer);
@@ -612,7 +617,7 @@ void loop() {
         fsCount = MTP.getFilesystemCount();
         Serial.printf("\nDump Storage list(%u)\n", fsCount);
         for (uint32_t ii = 0; ii < fsCount; ii++) {
-          Serial.printf("store:%u storage:%x name:%s fs:%x pn:", ii,
+          Serial.printf("store:%u storage:%x name:%s fs:%x pn:\n", ii,
                            MTP.Store2Storage(ii), MTP.getFilesystemNameByIndex(ii),
                            (uint32_t)MTP.getFilesystemByIndex(ii));
       /*    char dest[12];     // Destination string
@@ -967,10 +972,16 @@ bool save_jpg_SD() {
 
   //  digitalWriteFast(24, HIGH);
   camera.useDMA(false);
-  camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
-  delay(10);
-  camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
-
+  if(camera.usingGPIO()) {
+    omni.readFrameGPIO_JPEG(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+    delay(100);
+    omni.readFrameGPIO_JPEG(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+  } else {
+    camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+    delay(100);
+    camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+  }
+  delay(100);
   //  digitalWriteFast(24, LOW);
 
   uint16_t w = FRAME_WIDTH;
@@ -1036,9 +1047,9 @@ bool save_jpg_SD() {
     name_jpg[5] = (i / 100) % 10 + '0';   // hundreds
     name_jpg[6] = (i / 10) % 10 + '0';    // tens
     name_jpg[7] = i % 10 + '0';           // ones
-    if (!SD.exists(name_jpg)) {
+    if (!myfs->exists(name_jpg)) {
       Serial.println(name_jpg);
-      file = SD.open(name_jpg, FILE_WRITE);
+      file = myfs->open(name_jpg, FILE_WRITE);
       break;
     }
   }

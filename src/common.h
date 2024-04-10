@@ -30,6 +30,9 @@ typedef enum {
     GAINCEILING_4X,
     GAINCEILING_8X,
     GAINCEILING_16X,
+    GAINCEILING_32X, // greater that 32 for OV2640
+    GAINCEILING_64X,
+    GAINCEILING_128X,
 } gainceiling_t;
 
 typedef enum {
