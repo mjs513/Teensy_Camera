@@ -5,7 +5,7 @@
 #include "Camera.h"
 
 #define USE_MMOD_ATP_ADAPTER
-#define USE_SDCARD
+//#define USE_SDCARD
 
 //#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
@@ -164,7 +164,6 @@ bool g_dma_mode = false;
 ae_cfg_t aecfg;
 
 void setup() {
-  pinMode(0, OUTPUT);
   Serial.begin(921600);
   while (!Serial && millis() < 5000) {}
 #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
@@ -280,9 +279,7 @@ void setup() {
 
 uint8_t status = 0;
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145))
-  //pixformat_t format = JPEG;  // only supported by the OV2640 Camera
-  pixformat_t format = RGB565;
-  status = camera.begin(FRAMESIZE_QVGA, format, 15, CameraID, false);
+  status = camera.begin(FRAMESIZE_QVGA, RGB565, 15, CameraID, false);
 #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
@@ -328,7 +325,7 @@ if(!status) {
   //camera.setContrast(0);            // -2 to +2
   //camera.setSaturation(0);          // -2 to +2
   //omni.setSpecialEffect(RETRO);  // NOEFFECT, NEGATIVE, BW, REDDISH, GREEISH, BLUEISH, RETRO
-  //omni.setWBmode(0);                  // AWB ON, 1 - Sunny, 2 - Cloudy, 3 - Office, 4 - Home
+  omni.setWBmode(0);                  // AWB ON, 1 - Sunny, 2 - Cloudy, 3 - Office, 4 - Home
 #else
   camera.setGainceiling(GAINCEILING_2X);
   camera.setBrightness(3);
@@ -543,9 +540,6 @@ void loop() {
 
       case 'M':
         read_display_multiple_frames(true);
-        break;
-      case 'r':
-        camera.showRegisters();
         break;
       case 't':
         tft.fillScreen(TFT_RED);
@@ -962,7 +956,6 @@ char name_jpg[] = "9px_0000.jpg";  // filename convention (will auto-increment)
 
 bool save_jpg_SD() {
 
-#if defined(ARDUCAM_CAMERA_OV2640)
   //omni.setQuality(11);
   camera.useDMA(false);
 
@@ -1028,8 +1021,7 @@ bool save_jpg_SD() {
   Serial.println("Done Writing JPG");
 
   Serial.printf("%x, %x\n", pfb[0], pfb[eop]);
-#endif
- 
+
   return true;
 
 }
@@ -1052,7 +1044,6 @@ void showCommandList() {
   Serial.println("Send the '1' character to blank the display");
   Serial.println("Send the 'z' character to send current screen BMP to SD");
   Serial.println("Send the 't' character to send Check the display");
-  Serial.println("Send the 'r' character to show the current camera registers");
   Serial.println("Send the 'd' character to toggle camera debug on and off");
   Serial.println();
 }
