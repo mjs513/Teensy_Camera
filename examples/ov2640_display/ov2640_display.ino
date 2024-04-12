@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include <SPI.h>
+#include <JPEGDEC.h>
 
 #include "Camera.h"
 
@@ -133,6 +134,7 @@ uint32_t g_flexio_redraw_count = 0;
 elapsedMillis g_flexio_runtime;
 bool g_dma_mode = false;
 
+#include "jpeg_viewer.h"
 
 void setup() {
   Serial.begin(921600);
@@ -260,6 +262,35 @@ if(!status) {
   //camera.setVSyncISRPriority(102); // higher priority than default
   camera.setDMACompleteISRPriority(192);  // lower than default
 
+  /******************************************************************
+   * setup to view jpg stream                                       *
+   ******************************************************************/
+  g_tft_width = tft.width();
+  g_tft_height = tft.height(); 
+  //-----------------------------------------------------------------------------
+  // Initialize options and then read optional config file
+  //-----------------------------------------------------------------------------
+  g_jpg_scale_x_above[0] = (g_tft_width * 3) / 2;
+  g_jpg_scale_x_above[1] = g_tft_width * 3;
+  g_jpg_scale_x_above[2] = g_tft_width * 6;
+  g_jpg_scale_x_above[3] = g_tft_width * 12;
+
+  g_jpg_scale_y_above[0] = (g_tft_height * 3) / 2;
+  g_jpg_scale_y_above[1] = g_tft_height * 3;
+  g_jpg_scale_y_above[2] = g_tft_height * 6;
+  g_jpg_scale_y_above[3] = g_tft_height * 12;
+#if defined(USE_SDCARD)
+  File optionsFile = SD.open(options_file_name);
+
+  if (optionsFile) {
+    ProcessOptionsFile(optionsFile);
+    optionsFile.close();
+  }
+#endif
+
+  ShowAllOptionValues();
+/**********************************************************/
+
   showCommandList();
 
 }
@@ -322,7 +353,7 @@ void loop() {
 #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
   while (SerialUSB1.available()) {
     ch = SerialUSB1.read();
-    Serial.println(ch, HEX);
+    //Serial.println(ch, HEX);
     switch (ch) {
       case 0x10:
         {
@@ -487,6 +518,9 @@ void loop() {
 
       case 'M':
         read_display_multiple_frames(true);
+        break;
+      case 'x':
+        processJPGFile(true);
         break;
       case 't':
         test_display();
@@ -807,61 +841,52 @@ void send_raw() {
 }
 
 bool send_jpeg() {
-  camera.setPixformat(JPEG);
-  delay(100);
-  omni.setQuality(11);
-  camera.useDMA(false);
-
-  memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
-  if(camera.usingGPIO()) {
-    omni.readFrameGPIO_JPEG(frameBuffer, sizeof(frameBuffer));
-    delay(100);
-    omni.readFrameGPIO_JPEG(frameBuffer, sizeof(frameBuffer));
-  } else {
-    camera.readFrame(frameBuffer, sizeof(frameBuffer));
-    delay(100);
-    camera.readFrame(frameBuffer, sizeof(frameBuffer));
-  }
-  delay(100);
 
   uint16_t w = FRAME_WIDTH;
   uint16_t h = FRAME_HEIGHT;
-  uint16_t eop = 0;
   uint8_t eoi = 0;
+  uint16_t eop = 0;
+
+  uint8_t status = 0;
+  status = readJPG(eoi, eop);
+  if(status == 0) return false;
 
   uint16_t *pfb = frameBuffer;
   Serial.println(F("ACK BEGIN JPEG XFER"));
-  Serial.printf("jpeg size: %d\n", (w*h/5));
 
-  for(uint32_t i = 0; i < (w*h/5); i++) {
-    //Serial.println(pfb[i], HEX);
-    if((i == 0) && (pfb[0] == 0xD8FF)) {
-      eoi = 1;
-      Serial.printf("Found begining of frame at position %d\n", i);
+  uint32_t numPixels = w * h;
+  uint32_t jpegSize = (w * h) / 5;
+
+  //byte swap
+  //for (int i = 0; i < numPixels; i++) frameBuffer[i] = (frameBuffer[i] >> 8) | (((frameBuffer[i] & 0xff) << 8));
+  // now see if all fit into one buffer or part in second...
+  uint32_t numPixels1 = min((int)(sizeof_framebuffer / 2), numPixels);
+  uint32_t numPixels2 = min((int)(sizeof_framebuffer2 / 2), numPixels - numPixels1);
+  if (0) Serial.printf("\tBuffers:%p(%u) %p(%u)\n", frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+  if (0) Serial.printf("\tnumpixels %u %u %u\n", numPixels, numPixels1, numPixels2);
+  //for (int i = 0; i < numPixels1; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
+  //for (int i = 0; i < numPixels2; i++) frameBuffer2[i] = HTONS(frameBuffer2[i]);
+
+  
+  if ((numPixels2 == 0) || ((sizeof_framebuffer-jpegSize) < 0)) {
+    for (uint32_t i = 0; i < jpegSize; i++) {
+      SerialUSB1.write(frameBuffer[i] & 0xFF);
+      SerialUSB1.write((frameBuffer[i] >> 8) & 0xFF);
     }
-
-    if(pfb[i] == 0xD9FF){
-      eop = i;
-      Serial.printf("Found ending of frame at position %d\n", i);
-    } 
+  } else {
+    for (uint32_t i = 0; i < numPixels1; i++) {
+      //file.write(pfb[i]);
+      SerialUSB1.write(frameBuffer[i] & 0xFF);
+      SerialUSB1.write((frameBuffer[i] >> 8) & 0xFF);
+    }
+    for (uint32_t i = 0; i < eop; i++) {
+      SerialUSB1.write(frameBuffer2[i] & 0xFF);
+      SerialUSB1.write((frameBuffer2[i] >> 8) & 0xFF);
+    }
   }
-
-  if(eop == 0 || eoi == 0) return false;
-
-  for(uint32_t i = 0; i < (w*h/5); i++){
-    //file.write(pfb[i]);
-    SerialUSB1.write(pfb[i] & 0xFF);
-    SerialUSB1.write((pfb[i] >> 8) & 0xFF);
-    delayMicroseconds(8);
-  }
-
-
+  SerialUSB1.flush();
   Serial.println(F("ACK IMG END"));
 
-  Serial.printf("%x, %x\n", pfb[0], pfb[eop]);
-  camera.setPixformat(camera_format);
-  camera.useDMA(true);
-  delay(50);
   return true;
 
 }
@@ -954,92 +979,6 @@ char name_jpg[] = "9px_0000.jpg";  // filename convention (will auto-increment)
   // can probably reuse framebuffer2...
 
 bool save_jpg_SD() {
-  camera.setPixformat(JPEG);
-  delay(100);
-  //omni.setQuality(12);
-
-  camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
-  uint32_t count_pixels_in_buffer = sizeof_framebuffer / sizeof(frameBuffer[0]);
-
-  if (0) {
-    Serial.println("Reading frame");
-    Serial.printf("Buffer1: %p(%u) halfway: %p end:%p\n", frameBuffer, sizeof_framebuffer, &frameBuffer[count_pixels_in_buffer / 2], &frameBuffer[count_pixels_in_buffer]);
-    count_pixels_in_buffer = sizeof_framebuffer2 / sizeof(frameBuffer2[0]);
-    Serial.printf("Buffer2: %p(%u) halfway: %p end:%p\n", frameBuffer2, sizeof_framebuffer2, &frameBuffer2[count_pixels_in_buffer / 2], &frameBuffer2[count_pixels_in_buffer]);
-    memset((uint8_t *)frameBuffer, 0, sizeof_framebuffer);
-    memset((uint8_t *)frameBuffer2, 0, sizeof_framebuffer2);
-  }
-
-  //  digitalWriteFast(24, HIGH);
-  camera.useDMA(false);
-  if(camera.usingGPIO()) {
-    omni.readFrameGPIO_JPEG(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
-    delay(100);
-    omni.readFrameGPIO_JPEG(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
-  } else {
-    camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
-    delay(100);
-    camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
-  }
-  delay(100);
-  //  digitalWriteFast(24, LOW);
-
-  uint16_t w = FRAME_WIDTH;
-  uint16_t h = FRAME_HEIGHT;
-  uint16_t eop = 0;
-  uint8_t eoi = 0;
-
-  uint32_t numPixels = w * h;
-  uint32_t jpegSize = (w * h) / 5;
-  Serial.printf("Width: %d, Height: %d\n", w, h);
-  Serial.printf("jpeg size: %d\n", jpegSize);
-
-
-  //byte swap
-  //for (int i = 0; i < numPixels; i++) frameBuffer[i] = (frameBuffer[i] >> 8) | (((frameBuffer[i] & 0xff) << 8));
-  // now see if all fit into one buffer or part in second...
-  uint32_t numPixels1 = min((int)(sizeof_framebuffer / 2), numPixels);
-  uint32_t numPixels2 = min((int)(sizeof_framebuffer2 / 2), numPixels - numPixels1);
-  if (0) Serial.printf("\tBuffers:%p(%u) %p(%u)\n", frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
-  if (1) Serial.printf("\tnumpixels %u %u %u\n", numPixels, numPixels1, numPixels2);
-  //for (int i = 0; i < numPixels1; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
-  //for (int i = 0; i < numPixels2; i++) frameBuffer2[i] = HTONS(frameBuffer2[i]);
-
-  if (numPixels2 == 0) {
-    uint16_t *pfb = frameBuffer;
-    for (uint32_t i = 0; i < numPixels1; i++) {
-      //Serial.println(pfb[i], HEX);
-      if ((i == 0) && (pfb[0] == 0xD8FF)) {
-        eoi = 1;
-        Serial.printf("Found begining of frame at position %d\n", i);
-      }
-      if (pfb[i] == 0xD9FF) {
-        eop = i;
-        Serial.printf("Found ending of frame at position %d\n", i);
-      }
-    }
-    Serial.printf("%x, %x\n", pfb[0], pfb[eop]);
-
-  } else {
-    for (uint32_t i = 0; i < numPixels1; i++) {
-      //Serial.println(pfb[i], HEX);
-      if ((i == 0) && (frameBuffer[0] == 0xD8FF)) {
-        eoi = 1;
-        Serial.printf("Found begining of frame at position %d\n", i);
-        break;
-      }
-    }
-    for (uint32_t i = 0; i < numPixels2; i++) {
-      if (frameBuffer2[i] == 0xD9FF) {
-        eop = i;
-        Serial.printf("(2)Found ending of frame at position %d\n", i);
-      }
-    }
-    Serial.printf("%x, %x\n", frameBuffer[0], frameBuffer2[eop]);
-  }
-  if (eop == 0 || eoi == 0) return false;
-
-  Serial.print("Writing jpg to SD CARD File: ");
 
   // if name exists, create new filename, SD.exists(filename)
   for (int i = 0; i < 10000; i++) {
@@ -1053,9 +992,34 @@ bool save_jpg_SD() {
       break;
     }
   }
+  
+  uint8_t eoi = 0;
+  uint16_t eop = 0;
 
-  Serial.println(" Writing to SD");
-  if (numPixels2 == 0) {
+  uint8_t status = 0;
+  status = readJPG(eoi, eop);
+ if(status == 0) return false;
+
+  uint16_t *pfb = frameBuffer;
+  Serial.println(F("Writing JPEG to SD"));
+
+  uint16_t w = FRAME_WIDTH;
+  uint16_t h = FRAME_HEIGHT;
+  uint32_t numPixels = w * h;
+  uint32_t jpegSize = (w * h) / 5;
+
+  //byte swap
+  //for (int i = 0; i < numPixels; i++) frameBuffer[i] = (frameBuffer[i] >> 8) | (((frameBuffer[i] & 0xff) << 8));
+  // now see if all fit into one buffer or part in second...
+  uint32_t numPixels1 = min((int)(sizeof_framebuffer / 2), numPixels);
+  uint32_t numPixels2 = min((int)(sizeof_framebuffer2 / 2), numPixels - numPixels1);
+  if (0) Serial.printf("\tBuffers:%p(%u) %p(%u)\n", frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+  if (0) Serial.printf("\tnumpixels %u %u %u\n", numPixels, numPixels1, numPixels2);
+  //for (int i = 0; i < numPixels1; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
+  //for (int i = 0; i < numPixels2; i++) frameBuffer2[i] = HTONS(frameBuffer2[i]);
+
+  
+  if ((numPixels2 == 0) || ((sizeof_framebuffer-jpegSize) < 0)) {
     for (uint32_t i = 0; i < jpegSize; i++) {
       file.write(frameBuffer[i] & 0xFF);
       file.write((frameBuffer[i] >> 8) & 0xFF);
@@ -1075,8 +1039,6 @@ bool save_jpg_SD() {
   file.close();  // close file when done writing
   Serial.println("Done Writing JPG");
 
-  camera.setPixformat(camera_format);
-  camera.useDMA(true);
   delay(50);
   return true;
 }
@@ -1100,6 +1062,7 @@ void showCommandList() {
   Serial.println("Send the 'p' character to snapshot to PC on USB1");
   Serial.println("Send the 'b' character to save snapshot (BMP) to SD Card");
   Serial.println("Send the 'j' character to save snapshot (JPEG) to SD Card");
+  Serial.println("Send the 'x' send snapshot (JPEG) to display");
   Serial.println("Send the '0' character to blank the display");
   Serial.println("Send the 'z' character to send current screen BMP to SD");
   Serial.println("Send the 't' character to send Check the display");
@@ -1414,3 +1377,117 @@ void print_vsync_timings() {
   }
 }
 
+bool readJPG(uint8_t &eoi_jpg, uint16_t &eop_jpg) {
+  camera.setPixformat(JPEG);
+  delay(100);
+  //omni.setQuality(12);
+
+  camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
+  uint32_t count_pixels_in_buffer = sizeof_framebuffer / sizeof(frameBuffer[0]);
+
+  if (0) {
+    Serial.println("Reading frame");
+    Serial.printf("Buffer1: %p(%u) halfway: %p end:%p\n", frameBuffer, sizeof_framebuffer, &frameBuffer[count_pixels_in_buffer / 2], &frameBuffer[count_pixels_in_buffer]);
+    count_pixels_in_buffer = sizeof_framebuffer2 / sizeof(frameBuffer2[0]);
+    Serial.printf("Buffer2: %p(%u) halfway: %p end:%p\n", frameBuffer2, sizeof_framebuffer2, &frameBuffer2[count_pixels_in_buffer / 2], &frameBuffer2[count_pixels_in_buffer]);
+    memset((uint8_t *)frameBuffer, 0, sizeof_framebuffer);
+    memset((uint8_t *)frameBuffer2, 0, sizeof_framebuffer2);
+  }
+
+  uint16_t w = FRAME_WIDTH;
+  uint16_t h = FRAME_HEIGHT;
+  
+  eop_jpg = 0;
+  eoi_jpg = 0;
+
+  uint32_t numPixels = w * h;
+  uint32_t jpegSize = (w * h) / 5;
+  //Serial.printf("Width: %d, Height: %d\n", w, h);
+  //Serial.printf("jpeg size: %d\n", jpegSize);
+
+  int jpeg_delta =  sizeof_framebuffer - jpegSize;
+
+  //byte swap
+  //for (int i = 0; i < numPixels; i++) frameBuffer[i] = (frameBuffer[i] >> 8) | (((frameBuffer[i] & 0xff) << 8));
+  // now see if all fit into one buffer or part in second...
+  uint32_t numPixels1 = min((int)(sizeof_framebuffer / 2), numPixels);
+  uint32_t numPixels2 = min((int)(sizeof_framebuffer2 / 2), numPixels - numPixels1);
+  if (0) Serial.printf("\tBuffers:%p(%u) %p(%u)\n", frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+  if (0) Serial.printf("\tnumpixels %u %u %u\n", numPixels, numPixels1, numPixels2);
+  //for (int i = 0; i < numPixels1; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
+  //for (int i = 0; i < numPixels2; i++) frameBuffer2[i] = HTONS(frameBuffer2[i]);
+
+ if(jpegSize > (sizeof_framebuffer + sizeof_framebuffer2 )) return false;
+
+
+ //  digitalWriteFast(24, HIGH);
+  camera.useDMA(true);
+  if(camera.usingGPIO()) {
+    omni.readFrameGPIO_JPEG(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+    delay(1000);
+    omni.readFrameGPIO_JPEG(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+  } else {
+    camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+    delay(1000);
+    camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+  }
+  delay(1000);
+  //  digitalWriteFast(24, LOW);
+
+
+
+  if ((numPixels2 == 0) || (jpeg_delta >= 0)) {
+    uint16_t *pfb = frameBuffer;
+    for (uint32_t i = 0; i < numPixels1; i++) {
+      //Serial.println(pfb[i], HEX);
+      if ((i == 0) && (pfb[0] == 0xD8FF)) {
+        eoi_jpg = 1;
+        //Serial.printf("Found begining of frame at position %d\n", i);
+      }
+      if (pfb[i] == 0xD9FF) {
+        eop_jpg = i;
+        //Serial.printf("Found ending of frame at position %d\n", i);
+      }
+    }
+    //Serial.printf("%x, %x\n", pfb[0], pfb[eop_jpg]);
+
+  } else {
+    for (uint32_t i = 0; i < numPixels1; i++) {
+      //Serial.println(pfb[i], HEX);
+      if ((i == 0) && (frameBuffer[0] == 0xD8FF)) {
+        eoi_jpg = 1;
+        //Serial.printf("Found begining of frame at position %d\n", i);
+        break;
+      }
+    }
+    if(jpeg_delta < 0) {
+      for (uint32_t i = 0; i < numPixels2; i++) {
+        if (frameBuffer2[i] == 0xFFD9) {
+          eop_jpg = i;
+          //Serial.printf("(2)Found ending of frame at position %d\n", i);
+        }
+      }
+    } else {
+      for (uint32_t i = 0; i < numPixels1; i++) {
+        if (frameBuffer[i] == 0xFFD9) {
+          eop_jpg = i;
+          //Serial.printf("(1)Found ending of frame at position %d\n", i);
+        }
+      }
+    }
+    //Serial.printf("%x, %x\n", frameBuffer[0], frameBuffer2[eop_jpg]);
+  }
+        for (uint32_t i = 0; i < numPixels2; i++) {
+        if (frameBuffer2[i] == 0xFFD9) {
+          eop_jpg = i;
+          //Serial.printf("(2)Found ending of frame at position %d\n", i);
+        }
+      }
+  if (eop_jpg == 0 || eoi_jpg == 0) return false;
+  
+  
+  camera.setPixformat(camera_format);
+  camera.useDMA(true);
+  delay(500);
+  return true;
+}
