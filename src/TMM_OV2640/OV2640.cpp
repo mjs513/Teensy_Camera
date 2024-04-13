@@ -1117,7 +1117,6 @@ int OV2640::setColorbar(int enable) {
 
 void OV2640::autoExposure(int enable) //enable is really exposure level for the 2640
 {
-    int ret=0;
     enable += 3;
     if (enable <= 0 || enable > NUM_AE_LEVELS) {
         debug.println("ERROR: Auto exposure level out of range!!!");
@@ -1430,12 +1429,12 @@ int OV2640::setWBmode(int mode)
 
 
 
-bool OV2640::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
+size_t OV2640::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 {    
   debug.printf("$$readFrameGPIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
   const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
   
-  if ((cb1+cb2) < frame_size_bytes) return false; // not enough to hold image
+  if ((cb1+cb2) < frame_size_bytes) return 0; // not enough to hold image
   digitalWriteFast(0, HIGH);
 
   uint8_t* b = (uint8_t*)buffer;
@@ -1489,10 +1488,10 @@ bool OV2640::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
     interrupts();
   }
   digitalWriteFast(0, LOW);
-  return true;
+  return frame_size_bytes;
 }
 
-bool OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_t cb2)
+size_t OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 {    
 
   uint16_t w = _width;
@@ -1501,7 +1500,7 @@ bool OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_t 
   
   debug.printf("$$readFrameGPIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
   const uint32_t frame_size_bytes = w*h*_bytesPerPixel / 5;
-  if ((cb1+cb2) < frame_size_bytes) return false; // not enough to hold image
+  if ((cb1+cb2) < frame_size_bytes) return 0; // not enough to hold image
 
   uint8_t* b = (uint8_t*)buffer;
   uint32_t cb = (uint32_t)cb1;
@@ -1548,14 +1547,14 @@ bool OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_t 
       while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0)) ; // wait for LOW bail if _href is lost
       if(i_count > (w*h/5)){
         interrupts();
-        return true;
+        return i_count;
       }
  }
 
     while ((*_hrefPort & _hrefMask) != 0) ;  // wait for LOW
     interrupts();
   }
-  return true;
+  return frame_size_bytes;
 }
 
 
@@ -2085,7 +2084,7 @@ static const OV2640_TO_NAME_t OV2640_reg_name_table[] PROGMEM {
 void Debug_printCameraWriteRegister(uint8_t reg, uint8_t data) {
     static uint8_t showing_bank = 0;
     static uint16_t bank_1_starts_at = 0;
-    uint16_t ii;
+    uint16_t ii = CNT_REG_NAME_TABLE;  // initialize to remove warning
 
     debug.printf("cameraWriteRegister(%x, %x)", reg, data);
     if (reg == 0xff) showing_bank = data; // remember which bank we are

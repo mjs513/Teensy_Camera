@@ -411,11 +411,11 @@ void OV767X::endXClk()
 #define FLEXIO_USE_DMA
 
 
-bool OV767X::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
+size_t OV767X::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 {    
   debug.printf("$$readFrameGPIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
   const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
-  if ((cb1+cb2) < frame_size_bytes) return false; // not enough to hold image
+  if ((cb1+cb2) < frame_size_bytes) return 0; // not enough to hold image
 
   uint8_t* b = (uint8_t*)buffer;
   uint32_t cb = (uint32_t)cb1;
@@ -462,7 +462,7 @@ bool OV767X::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
     while ((*_hrefPort & _hrefMask) != 0) ;  // wait for LOW
     interrupts();
   }
-  return true;
+  return frame_size_bytes;
 }
 
 

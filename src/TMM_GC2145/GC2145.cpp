@@ -1835,13 +1835,15 @@ uint8_t GC2145::cameraWriteRegister(uint8_t reg, uint8_t data) {
 #define FLEXIO_USE_DMA
 
 
-bool GC2145::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
+size_t GC2145::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 {    
   debug.printf("$$readFrameGPIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
   uint8_t* b = (uint8_t*)buffer;
   uint32_t cb = (uint32_t)cb1;
 //  bool _grayscale;  // ????  member variable ?????????????
   int bytesPerRow = _width * _bytesPerPixel;
+  uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
+  if ((cb1+cb2) < frame_size_bytes) return 0; // not enough to hold image
 
   // Falling edge indicates start of frame
   //pinMode(PCLK_PIN, INPUT); // make sure back to input pin...
@@ -1885,7 +1887,7 @@ bool GC2145::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
     interrupts();
   }
   //digitalWriteFast(0, LOW); 
-  return true;
+  return frame_size_bytes;
 }
 
 

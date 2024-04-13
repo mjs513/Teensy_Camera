@@ -96,7 +96,7 @@ public:
 
   //-------------------------------------------------------
   //normal Read mode
-  bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
+  size_t readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
   void readFrame4BitGPIO(void *buffer);
 
   //FlexIO is default mode for the camera

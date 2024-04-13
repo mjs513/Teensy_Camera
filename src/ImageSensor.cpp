@@ -46,13 +46,13 @@ void ImageSensor::setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin,
   }
 }
 
-bool ImageSensor::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
+size_t ImageSensor::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
     if(!_use_gpio) {
       return readFrameFlexIO(buffer1, cb1, buffer2, cb2);
     } else {
       if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT) {
           readFrame4BitGPIO(buffer1);
-          return true;
+          return cb1; // not sure what to return here yet...
       }
       return readFrameGPIO(buffer1, cb1, buffer2, cb2);
     }
@@ -73,7 +73,7 @@ void ImageSensor::stopReadContinuous() {
 }
 
 
-bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2)
+size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2)
 {
     if (_debug)debug.printf("$$ImageSensor::readFrameFlexIO(%p, %u, %p, %u, %u, %u)\n", buffer, cb1, buffer2, cb2, _fuse_dma, _hw_config);
     digitalWriteFast(0, HIGH);
@@ -82,7 +82,7 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
     if(_format == 8){
       frame_size_bytes = frame_size_bytes / 5;
     }
-    if ((cb1+cb2) < frame_size_bytes) return false; // not enough to hold image
+    if ((cb1+cb2) < frame_size_bytes) return 0; // not enough to hold image
 
     //flexio_configure(); // one-time hardware setup
     // wait for VSYNC to go high and then low with a sort of glitch filter
@@ -93,19 +93,19 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
     for (;;) {
       if (emWaitSOF > _timeout) {
         if(_debug) debug.println("Timeout waiting for Start of Frame");
-        return false;
+        return 0;
       }
       while ((*_vsyncPort & _vsyncMask) == 0) {
         if (emWaitSOF > _timeout) {
           if(_debug) debug.println("Timeout waiting for rising edge Start of Frame");
-          return false;
+          return 0;
         }
       }
       emGlitch = 0;
       while ((*_vsyncPort & _vsyncMask) != 0) {
         if (emWaitSOF > _timeout) {
           if(_debug) debug.println("Timeout waiting for falling edge Start of Frame");
-          return false;
+          return 0;
         }
       }
       if (emGlitch > 5) break;
@@ -122,7 +122,6 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
     //----------------------------------------------------------------------
     if (!_fuse_dma) {
       if (_debug)debug.println("\tNot DMA");
-    #if 1
       // lets try another version of this to see if cleaner.
       uint32_t *p_end = (uint32_t*)((uint8_t *)p + cb1);
       uint32_t max_time_to_wait = _timeout;
@@ -147,7 +146,7 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
               if ((pu8[i-1] == 0xff) && (pu8[i] == 0xd9)) {
                 if (_debug)Serial.printf("JPEG - found end marker at %u\n", frame_bytes_received + i);
                 digitalWriteFast(0, LOW);
-                return true;
+                return frame_bytes_received + i + 1;
               }
 
             }
@@ -162,42 +161,8 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
           timeout = 0; // reset timeout. 
       }
 
-
-
-    #else  
-      #ifdef USE_DEBUG_PINS
-      digitalWriteFast(2, HIGH);
-      #endif
-      // read FlexIO by polling
-      //uint32_t *p_end = (uint32_t *)buffer + (_width*_height/4)*_bytesPerPixel;
-      uint32_t count_items_left = (_width*_height/4)*_bytesPerPixel;
-      
-      if(_format == 8) count_items_left = count_items_left / 5;
-      
-      uint32_t count_items_left_in_buffer = (uint32_t)cb1 / 4;
-      if(_format == 8) count_items_left_in_buffer = (frame_size_bytes / 5 ) / 4;
-   
-      // Same code should work for 4 bit or 8 bit as the differences are
-      // handled by the FlexIO code on how many bits at a time get shifted
-      // into the shift register. 
-      while (count_items_left) {
-          while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
-              // wait for FlexIO shifter data
-          }
-          // Lets simplify back to single shifter for now
-          *p++ = _pflexio->SHIFTBUF[_fshifter]; // should use DMA...
-          count_items_left--;
-          if (buffer2 && (--count_items_left_in_buffer == 0)) {
-            p = (uint32_t*)buffer2;
-            count_items_left_in_buffer = (uint32_t)cb2 / 4;
-          }
-      }
-      #ifdef USE_DEBUG_PINS
-      digitalWriteFast(2, LOW);
-      #endif
-      #endif
     digitalWriteFast(0, LOW);
-    return true;
+    return frame_bytes_received;
     }
 
     //----------------------------------------------------------------------
@@ -330,7 +295,7 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
 //    dumpDMA_TCD(&_dmasettings[1], " 1: ");
   digitalWriteFast(0, LOW);
 
-    return true;
+    return frame_size_bytes;
 }
 
 void ImageSensor::frameStartInterruptFlexIO()

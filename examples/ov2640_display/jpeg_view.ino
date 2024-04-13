@@ -22,7 +22,7 @@ inline void FillScreen(uint16_t color) {
     Serial.println('\'');
 
     uint8_t eoi = 0;
-    uint16_t eop = 0;
+    uint32_t eop = 0;
     
     
     uint8_t status = readJPG(eoi, eop, true);
