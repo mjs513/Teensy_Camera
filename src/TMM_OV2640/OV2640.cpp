@@ -873,20 +873,20 @@ uint8_t OV2640::setFramesize(int w, int h) {
         //     c.pclk_div = c.pclk_div / 2;
         // }
     } else {
-#if defined(NO_CLK_PIN)
+      if(_use_gpio) {
         c.clk_2x = 0;
-#else
+      } else {
         c.clk_2x = 1;  //ELSE 1
-#endif
+      }
         c.clk_div = 7;
         c.pclk_auto = 1;
         c.pclk_div = 8;
         if(w <= CIF_WIDTH) {
-#if defined(NO_CLK_PIN)
+          if(_use_gpio) {
             c.clk_div = 8;
-#else
+          } else {
             c.clk_div = 3;
-#endif
+          }
         } else if(w <= SVGA_WIDTH) {
             c.pclk_div = 12;
         }
