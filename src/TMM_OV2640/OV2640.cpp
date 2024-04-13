@@ -1497,9 +1497,9 @@ size_t OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_
   uint16_t w = _width;
   uint16_t h = _height;
   uint32_t i_count = 0;
-  
+    
   debug.printf("$$readFrameGPIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
-  const uint32_t frame_size_bytes = w*h*_bytesPerPixel / 5;
+  const uint32_t frame_size_bytes = w * h * _bytesPerPixel /5;
   if ((cb1+cb2) < frame_size_bytes) return 0; // not enough to hold image
 
   uint8_t* b = (uint8_t*)buffer;
@@ -1517,6 +1517,8 @@ size_t OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_
     while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
   } while (emHigh < 1);
 
+  uint8_t *pu8 = (uint8_t *)b;
+
   for (int i = 0; i < h; i++) {
     // rising edge indicates start of line
     while ((*_hrefPort & _hrefMask) == 0); // wait for HIGH
@@ -1526,9 +1528,7 @@ size_t OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_
     for (int j = 0; j < bytesPerRow; j++) {
       // rising edges clock each data byte
       while ((*_pclkPort & _pclkMask) == 0); // wait for HIGH
-
-      i_count = i_count + 1;
-      
+     
       //uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >> 18; // read all bits in parallel
       uint32_t in =  (GPIO7_PSR >> 4); // read all bits in parallel  
 
@@ -1536,7 +1536,7 @@ size_t OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_
       // bugbug what happens to the the data if grayscale?
       if (!(j & 1) || !_grayscale) {
         *b++ = in;
-
+        
         if ( buffer2 && (--cb == 0) ) {
           if(_debug) debug.printf("\t$$ 2nd buffer: %u %u\n", i, j);
           b = (uint8_t *)buffer2;
@@ -1544,12 +1544,17 @@ size_t OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_
           buffer2 = nullptr;
         }
       }
-      while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0)) ; // wait for LOW bail if _href is lost
-      if(i_count > (w*h/5)){
+ 
+       if ((pu8[i_count-1] == 0xff) && (pu8[i_count] == 0xd9)) {
         interrupts();
-        return i_count;
-      }
- }
+        return i_count + 1;
+       }
+       
+       i_count = i_count + 1;
+ 
+      while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0)) ; // wait for LOW bail if _href is lost
+
+    }
 
     while ((*_hrefPort & _hrefMask) != 0) ;  // wait for LOW
     interrupts();
