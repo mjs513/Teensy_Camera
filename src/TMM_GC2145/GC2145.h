@@ -272,7 +272,7 @@ public:
 	
 	//normal Read mode
 	//void readFrameGPIO(void* buffer);
-  size_t readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
+  //size_t readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
  
 	//FlexIO is default mode for the camera
 	//void readFrameFlexIO(void* buffer, bool use_dma=true);
@@ -314,7 +314,6 @@ private:
   int getWindow(uint16_t reg, uint16_t &x, uint16_t &y, uint16_t &w, uint16_t &h);
 
 private:
-    bool _grayscale;
     
     void* _GC2145;
 

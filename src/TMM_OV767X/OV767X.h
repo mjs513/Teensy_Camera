@@ -168,7 +168,7 @@ public:
 /********************************************************************************************/
 	//-------------------------------------------------------
 	//normal Read mode
-	size_t readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
+//	size_t readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
 
 	//FlexIO is default mode for the camera
 
@@ -324,9 +324,6 @@ private:
 private:
   
   int _xclk_freq = 14;
-
-  
-  bool _grayscale;
 
   void* _ov7670;
 

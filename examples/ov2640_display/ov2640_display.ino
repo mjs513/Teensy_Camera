@@ -18,9 +18,9 @@ Camera camera(omni);
 #define MIRROR_FLIP_CAMERA
 
 //set cam configuration - need to remember when saving jpeg
-framesize_t camera_framesize = FRAMESIZE_SVGA;
+framesize_t camera_framesize = FRAMESIZE_QVGA;
 pixformat_t camera_format = RGB565;
-bool useGPIO = false;
+bool useGPIO = true;
 
 #define skipFrames 1
 

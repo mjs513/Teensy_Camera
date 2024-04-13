@@ -72,7 +72,8 @@ public:
   virtual bool useDMA() {return _fuse_dma; }
 
   //normal Read mode
-  virtual size_t readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0) = 0;
+  // We will include default implementation, used by some/all of the current ones.
+  virtual size_t readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
   virtual void readFrame4BitGPIO(void *buffer) = 0;
 
   // Have default implementations that simply call off to flexio or GPIO...
@@ -152,6 +153,7 @@ protected:
   int16_t _frame_width;
   int16_t _frame_height;
   int _bytesPerPixel;
+  bool _grayscale = false;
   int _format;
 
   TwoWire *_wire;

@@ -131,7 +131,7 @@ public:
 /********************************************************************************************/
 	//-------------------------------------------------------
 	//normal Read mode
-	size_t readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
+	//size_t readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
   size_t readFrameGPIO_JPEG(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
 
 	// Lets try a dma version.  Doing one DMA that is synchronous does not gain anything
