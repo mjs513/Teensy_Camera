@@ -117,10 +117,10 @@
 #define CLKRC_DIVIDER_MASK                  0x3F
 
 #define COM10                               0x15
-#define HSTART                              0x17
-#define HSTOP                               0x18
-#define VSTART                              0x19
-#define VSTOP                               0x1A
+#define HREFST                              0x17
+#define HREFEND                               0x18
+#define VSTRT                              0x19
+#define VEND                               0x1A
 #define MIDH                                0x1C
 #define MIDL                                0x1D
 #define AEW                                 0x24

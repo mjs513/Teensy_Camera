@@ -287,10 +287,10 @@ static const uint8_t default_regs[][2] = {
 //    {BANK_SEL,  BANK_SEL_SENSOR},
 //    {COM7,      COM7_RES_CIF},
 //    {COM1,      0x06 | 0x80},
-//    {HSTART,    0x11},
-//    {HSTOP,     0x43},
-//    {VSTART,    0x01}, // 0x01 fixes issue with garbage pixels in the image...
-//    {VSTOP,     0x97},
+//    {HREFST,    0x11},
+//    {HREFEND,     0x43},
+//    {VSTRT,    0x01}, // 0x01 fixes issue with garbage pixels in the image...
+//    {VEND,     0x97},
 //    {REG32,     0x09},
 //    {BANK_SEL,  BANK_SEL_DSP},
 //    {RESET,     RESET_DVP},
@@ -305,10 +305,10 @@ static const uint8_t svga_regs[][2] = {
     {BANK_SEL,  BANK_SEL_SENSOR},
     {COM7,      COM7_RES_SVGA},
     {COM1,      0x0A | 0x80},
-    {HSTART,    0x11},
-    {HSTOP,     0x43},
-    {VSTART,    0x01}, // 0x01 fixes issue with garbage pixels in the image...
-    {VSTOP,     0x97},
+    {HREFST,    0x11},
+    {HREFEND,     0x43},
+    {VSTRT,    0x01}, // 0x01 fixes issue with garbage pixels in the image...
+    {VEND,     0x97},
     {REG32,     0x09},
     {BANK_SEL,  BANK_SEL_DSP},
     {RESET,     RESET_DVP},
@@ -323,10 +323,10 @@ static const uint8_t uxga_regs[][2] = {
     {BANK_SEL,  BANK_SEL_SENSOR},
     {COM7,      COM7_RES_UXGA},
     {COM1,      0x0F | 0x80},
-    {HSTART,    0x11},
-    {HSTOP,     0x75},
-    {VSTART,    0x01},
-    {VSTOP,     0x97},
+    {HREFST,    0x11},
+    {HREFEND,     0x75},
+    {VSTRT,    0x01},
+    {VEND,     0x97},
     {REG32,     0x36},
     {BANK_SEL,  BANK_SEL_DSP},
     {RESET,     RESET_DVP},
@@ -2030,10 +2030,10 @@ static const OV2640_TO_NAME_t OV2640_reg_name_table[] PROGMEM {
   {F(" CLKRC_DOUBLE" ), 1, 0x82 },
   {F(" CLKRC_DIVIDER_MASK" ), 1, 0x3F },
   {F(" COM10" ), 1, 0x15 },
-  {F(" HSTART" ), 1, 0x17 },
-  {F(" HSTOP" ), 1, 0x18 },
-  {F(" VSTART" ), 1, 0x19 },
-  {F(" VSTOP" ), 1, 0x1A },
+  {F(" HREFST" ), 1, 0x17 },
+  {F(" HREFEND" ), 1, 0x18 },
+  {F(" VSTRT" ), 1, 0x19 },
+  {F(" VEND" ), 1, 0x1A },
   {F(" MIDH" ), 1, 0x1C },
   {F(" MIDL" ), 1, 0x1D },
   {F(" AEW" ), 1, 0x24 },
@@ -2131,20 +2131,32 @@ void OV2640::showRegisters(void) {
   }
 
   // Quick and dirty print out WIndows start and end:
-  uint8_t hstart_reg = cameraReadRegister(HSTART);
-  uint8_t hstop_reg = cameraReadRegister(HSTOP);
-  uint8_t reg32_reg = cameraReadRegister(REG32);
-  uint8_t vstart_reg = cameraReadRegister(VSTART);
-  uint8_t vstop_reg = cameraReadRegister(VSTOP);
-  uint8_t com1_reg = cameraReadRegister(COM1);
-  debug.printf("Window: (%u, %u) - (%u, %u)\n", 
-        (hstart_reg << 3) | (reg32_reg & 0x7),
-        (vstart_reg << 2) | (com1_reg & 0x3),
-        (hstop_reg << 3) | ((reg32_reg >> 3) & 0x7),
-        (vstop_reg << 2) | ((com1_reg >> 2) & 0x3)
-        );
+    uint8_t reg32_reg = cameraReadRegister(REG32);
+    uint8_t com1_reg = cameraReadRegister(COM1);
 
+    uint16_t hstart = (cameraReadRegister(HREFST) << 3) | (reg32_reg & 0x7);
+    uint16_t hstop = (cameraReadRegister(HREFEND) << 3)  | ((reg32_reg >> 3) & 0x7);
+    uint16_t vstart = (cameraReadRegister(VSTRT) << 2) | (com1_reg & 0x3);
+    uint16_t vstop = (cameraReadRegister(VEND) << 2) | ((com1_reg >> 2) & 0x3);
 
-   cameraWriteRegister(0xFF, 0x00);  //bank 0
+    debug.printf("Window Hor: (%u - %u) = %u * 2 = %u Vert: (%u - %u) = %u * 2 = %u\n", 
+        hstart, hstop, hstop - hstart, (hstop - hstart) * 2,
+        vstart, vstop, vstop - vstart, (vstop - vstart) * 2 );
+
+    cameraWriteRegister(0xFF, 0x00);  //bank 0
+
+    uint8_t vhyx_reg = cameraReadRegister(VHYX);
+
+    uint8_t hsize = cameraReadRegister(HSIZE) | ((vhyx_reg >> 3) & 1) << 8;
+    uint8_t vsize = cameraReadRegister(VSIZE) | ((vhyx_reg >> 7) & 1) << 8;
+
+    debug.printf("device\tSize H: %u * 4 = %u V: %u * 4 = %u\n",
+        hsize, hsize*4, vsize, vsize*4) ;
+
+    uint16_t xoffl = cameraReadRegister(XOFFL) | ((vhyx_reg >> 0) & 0x7) << 8;
+    uint16_t yoffl = cameraReadRegister(YOFFL) | ((vhyx_reg >> 4) & 0x7) << 8;
+    debug.printf("\t offset H: %u V: %u \n",
+        xoffl , yoffl);
+
 
 }

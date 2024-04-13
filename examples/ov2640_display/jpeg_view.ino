@@ -25,7 +25,7 @@ inline void FillScreen(uint16_t color) {
     uint16_t eop = 0;
     
     
-    uint8_t status = readJPG(eoi, eop);
+    uint8_t status = readJPG(eoi, eop, true);
     if(status == 0) return 0;
     
     uint8_t scale = 1;

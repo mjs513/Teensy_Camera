@@ -114,6 +114,7 @@ public:
   virtual int16_t frameHeight(void) {return _frame_height;}
   virtual int16_t mode(void) = 0;
 
+  // See which of these are used by which cameras. 
   framesize_t framesize;
   pixformat_t pixformat;
   camera_reg_settings_t settings;

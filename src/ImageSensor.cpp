@@ -115,12 +115,56 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
     uint32_t *p = (uint32_t *)buffer;
     digitalWriteFast(0, HIGH);
 
+    elapsedMillis timeout = 0;
 
     //----------------------------------------------------------------------
     // Polling FlexIO version
     //----------------------------------------------------------------------
     if (!_fuse_dma) {
       if (_debug)debug.println("\tNot DMA");
+    #if 1
+      // lets try another version of this to see if cleaner.
+      uint32_t *p_end = (uint32_t*)((uint8_t *)p + cb1);
+      uint32_t max_time_to_wait = _timeout;
+
+      uint32_t frame_bytes_received = 0;
+      while (frame_bytes_received < frame_size_bytes) {
+          while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
+            if (timeout > max_time_to_wait) {              
+              digitalWriteFast(0, LOW);
+
+              if(_debug) debug.printf("Timeout between characters: received: %u bytes\n", frame_bytes_received);
+              // wait for FlexIO shifter data
+              digitalWriteFast(0, HIGH);
+              break;
+            }
+          }
+          // Lets simplify back to single shifter for now
+          uint8_t *pu8 = (uint8_t *)p;
+          *p++ = _pflexio->SHIFTBUF[_fshifter]; 
+          if((_format == 8) && (frame_bytes_received > 0)){
+            for (int i = 0; i < 4; i++) {
+              if ((pu8[i-1] == 0xff) && (pu8[i] == 0xd9)) {
+                if (_debug)Serial.printf("JPEG - found end marker at %u\n", frame_bytes_received + i);
+                digitalWriteFast(0, LOW);
+                return true;
+              }
+
+            }
+          }
+            // jpeg check for 
+          if (p >= p_end) {
+            p = (uint32_t*)buffer2;
+            p_end = (uint32_t*)((uint8_t *)p + cb2);
+          }
+          frame_bytes_received += sizeof(uint32_t);
+          max_time_to_wait = 50; // maybe second setting.
+          timeout = 0; // reset timeout. 
+      }
+
+
+
+    #else  
       #ifdef USE_DEBUG_PINS
       digitalWriteFast(2, HIGH);
       #endif
@@ -150,6 +194,7 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
       }
       #ifdef USE_DEBUG_PINS
       digitalWriteFast(2, LOW);
+      #endif
       #endif
     digitalWriteFast(0, LOW);
     return true;
@@ -241,7 +286,7 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
     if (_debug) debug.printf("Flexio DMA: length: %d\n", frame_size_bytes);
 #endif
     
-    elapsedMillis timeout = 0;
+    timeout = 0;  // reset the timeout
     //while (!_dmachannel.complete()) {
     while (_dma_state == DMA_STATE_ONE_FRAME) {
         // wait - we should not need to actually do anything during the DMA transfer
