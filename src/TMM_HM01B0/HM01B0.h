@@ -121,13 +121,7 @@ public:
 
   //-------------------------------------------------------
   int16_t mode(void) { return _hw_config; }
-  
-  //framesize_t framesize;
-  //pixformat_t pixformat;
-  //camera_reg_settings_t settings;
-  //hw_config_t _hw_config;
-  //hw_carrier_t _hw_carrier;
-  
+    
 private:
   void beginXClk();
   void endXClk();

@@ -124,7 +124,7 @@ uint8_t HM0360::setFramesize(framesize_t new_framesize) {
   //uint16_t h = resolution[framesize][1];
   framesize = new_framesize;
   _bytesPerPixel = 1;
-
+  //Serial.printf("HM0360::setFramesize(%x): %x\n", new_framesize, _hw_config);
   switch (framesize) {
     case FRAMESIZE_QVGA:
       _width = 320;
@@ -570,18 +570,11 @@ size_t HM0360::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2
 void HM0360::readFrame4BitGPIO(void *buffer) {
 
   uint8_t *b = (uint8_t *)buffer;
-  bool _grayscale;
   int bytesPerRow;
   uint8_t in0 = 0;
 
 //Change for Monodchrome only Sparkfun HB01b0
-#if defined(SensorMonochrome)
-  _grayscale = false;
-  bytesPerRow = _width * 2;
-#else
-  _grayscale = (pixformat == PIXFORMAT_GRAYSCALE);
-  bytesPerRow = _width * 2 * 2;
-#endif
+ bytesPerRow = _width * 2 * _bytesPerPixel;
 
   debug.printf("readFrame4BitGPIO Gray:%u bpr: %u\n", _grayscale, bytesPerRow);
   // Falling edge indicates start of frame
