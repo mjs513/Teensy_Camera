@@ -30,4 +30,11 @@ Notes on camera commands:
 3. The unhiglighted commands are those that unique to that camera
 
 
-## 
+## IMAGE CAPTURE COMMANDS
+
+
+## CAMERA SETUP COMMANDS
+
+
+## EXAMPLES
+
