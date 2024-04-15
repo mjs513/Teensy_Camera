@@ -34,7 +34,20 @@ Notes on camera commands:
 
 
 ## CAMERA SETUP COMMANDS
-
+| Command | Description |
+| --- | --- |
+|   void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, uint8_t en_pin, uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4 = 0xff, uint8_t g5 = 0xff, uint8_t g6 = 0xff, uint8_t g7 = 0xff, TwoWire &wire = Wire); | Pin configuration set up |
+| void debug(bool debug_on) | Turn library debug on and off |
+| bool debug()  | Returns whether debug is set |
+| usingGPIO()  | Lib suports GPIO and FLEXIO, this tels the lib to use GPIO to capture image |
+| void useDMA(  | Tells FLEXIO to use DMA to capture image |
+| bool useDMA()   | Returns whether DMA is set |
+| void timeout(uint32_t timeout_ms) | Sets library timeouts to other than default for FLEXIO |
+| uint32_t timeout()   | Returns timeout value |
+| int16_t width   | Returns current camera width settings as modified by setWindow if supported and used |
+| int16_t width   | Returns current camera height settings as modified by setWindow if supported and used |
+| int16_t frameWidth(void)    | Returns framewidth as set by Framesize |
+| int16_t frameHeight(void) | Returns frameheight as set by Framesize |
 
 ## EXAMPLES
 
