@@ -560,6 +560,9 @@ void loop() {
       case 'R':
          change_camera_resolution(ch);
          break;
+      case 'Q':
+         show_change_jpeq_quality(ch);
+         break;
       case 'w':
         changeCameraWindow();
         break;
@@ -1079,6 +1082,8 @@ void showCommandList() {
   Serial.println("Send the 'c' character to debug clock - print vsync timing");
   Serial.println("Send the 'd' character to toggle camera debug on and off");
   Serial.println("Send the 'r' character to show the current camera registers");
+  Serial.println("Send the 'Q' character to print current JPEG Quality value");
+  Serial.println("Send the 'Q<value>' to change the quality 10-63 lower is higher");
   Serial.println("Send the 'R[QVSU]' To set image size QVGA, VGA, SVGA UXGA");
   Serial.println("Send the 'w <row> <col>' to set the start window x, y");
   Serial.println("Send the 'W' to pan through range of windows");
@@ -1421,6 +1426,22 @@ void change_camera_resolution(int ch) {
   }
 }
 
+void show_change_jpeq_quality(int ch) {
+  uint8_t quality = 0;
+  while (ch == ' ') ch = Serial.read();
+  while ((ch >= '0') && (ch <= '9')) {
+    quality = quality * 10 + (ch - '0');
+    ch = Serial.read();
+  }
+
+  if (quality > 0) {
+    Serial.printf("Setting quality to: %u\n", quality);
+    omni.setQuality(quality);
+  } else {
+    Serial.printf("Current JPEQ quality is: %u\n", omni.getQuality());
+  }
+
+}
 
 bool readJPG(uint8_t &eoi_jpg, uint32_t &eop_jpg, bool debug_on) {
   if (camera_format != JPEG) {

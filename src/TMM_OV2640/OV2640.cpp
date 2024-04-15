@@ -1115,6 +1115,16 @@ int OV2640::setQuality(int qs) {
     return ret;
 }
 
+uint8_t OV2640::getQuality() {
+    int ret = 0;
+
+    /* Switch to DSP register bank */
+    cameraWriteRegister(  BANK_SEL, BANK_SEL_DSP);
+
+    /* Write QS register */
+    return cameraReadRegister(QS);
+}
+
 int OV2640::setColorbar(int enable) {
     uint8_t reg;
     int ret = cameraWriteRegister(  BANK_SEL, BANK_SEL_SENSOR);

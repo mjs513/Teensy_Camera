@@ -176,6 +176,7 @@ public:
   void setSaturation( int level);
   int setGainceiling(gainceiling_t gainceiling);
   int setQuality(int qs);
+  uint8_t getQuality();
   int setColorbar(int enable);
   int setAutoGain( int enable, float gain_db, float gain_db_ceiling);
   void setGain(int gain);
