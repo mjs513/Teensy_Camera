@@ -49,6 +49,20 @@ Notes on camera commands:
 | int16_t frameWidth(void)    | Returns framewidth as set by Framesize |
 | int16_t frameHeight(void) | Returns frameheight as set by Framesize |
 
+NOTES ON ```setPins``` command:
+1.  The Arduino HM01B0 only supports 4 pin access to the camera.  The upper 4 bit lines are not connected
+2.  The Sparkfun Micromod ML board will support board 4-bit and 8=bit modes
+3.  4-bit mode is determined by only defining 4-pins in the command.
+
+For the teensy micromod board the following pin assignments are used so Flexio can use dma if using all 8 data pins.
+```
+camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
+```
+on the experimental SDRAM board
+```
+camera.setPins(7, 8, 21, 46, 23, 40, 41, 42, 43, 44, 45, 6, 9);
+```
+
 ### Camera Selection/Constructor
 This follows the method used by the arduino giga camera library:
 ```
