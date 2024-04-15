@@ -29,6 +29,9 @@ The driver is primarily ported from the OpenMV and ESP32_camera Sensor drivers. 
 
 ![image](https://github.com/mjs513/TeensyMM_Camera/assets/5366213/f5080383-8d9d-49d1-9302-b86390d79124)
 
+![image](https://github.com/mjs513/TeensyMM_Camera/assets/5366213/bafb1d0e-55f4-4db4-ba16-7a478bdccea6)
+
+
 ## GalaxyCore GC2145
 
 ![image](https://github.com/mjs513/TeensyMM_Camera/assets/5366213/9aa58744-274a-4e27-a9ce-174408b577d7)
