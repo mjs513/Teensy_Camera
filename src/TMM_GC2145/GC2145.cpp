@@ -1835,62 +1835,6 @@ uint8_t GC2145::cameraWriteRegister(uint8_t reg, uint8_t data) {
 #define FLEXIO_USE_DMA
 
 
-bool GC2145::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
-{    
-  debug.printf("$$readFrameGPIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
-  uint8_t* b = (uint8_t*)buffer;
-  uint32_t cb = (uint32_t)cb1;
-//  bool _grayscale;  // ????  member variable ?????????????
-  int bytesPerRow = _width * _bytesPerPixel;
-
-  // Falling edge indicates start of frame
-  //pinMode(PCLK_PIN, INPUT); // make sure back to input pin...
-  // lets add our own glitch filter.  Say it must be hig for at least 100us
-  elapsedMicros emHigh;
-  do {
-    while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
-    emHigh = 0;
-    while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
-  } while (emHigh < 2);
-
-//  digitalWriteFast(0, HIGH);
-  for (int i = 0; i < _height; i++) {
-    // rising edge indicates start of line
-    while ((*_hrefPort & _hrefMask) == 0); // wait for HIGH
-    while ((*_pclkPort & _pclkMask) != 0); // wait for LOW
-    noInterrupts();
-
-    for (int j = 0; j < bytesPerRow; j++) {
-      // rising edges clock each data byte
-      while ((*_pclkPort & _pclkMask) == 0); // wait for HIGH
-
-      //uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >> 18; // read all bits in parallel
-      uint32_t in =  (GPIO7_PSR >> 4); // read all bits in parallel  
-
-	  //uint32_t in = mmBus;
-      // bugbug what happens to the the data if grayscale?
-      if (!(j & 1) || !_grayscale) {
-        *b++ = in;
-        if ( buffer2 && (--cb == 0) ) {
-          if(_debug) debug.printf("\t$$ 2nd buffer: %u %u\n", i, j);
-          b = (uint8_t *)buffer2;
-          cb = (uint32_t)cb2;
-          buffer2 = nullptr;
-        }
-      }
-      while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0)) ; // wait for LOW bail if _href is lost
-    }
-
-    while ((*_hrefPort & _hrefMask) != 0) ;  // wait for LOW
-    interrupts();
-  }
-  //digitalWriteFast(0, LOW); 
-  return true;
-}
-
-
-
-
 
 //======================================== DMA JUNK
 //================================================================================

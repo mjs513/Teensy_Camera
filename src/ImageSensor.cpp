@@ -15,6 +15,18 @@ ImageSensor *ImageSensor::active_dma_camera = nullptr;
 DMAChannel ImageSensor::_dmachannel;
 DMASetting ImageSensor::_dmasettings[10];
 
+//#define USE_DEBUG_PINS_TIMING
+
+#ifdef USE_DEBUG_PINS_TIMING
+#define DBGdigitalWriteFast digitalWriteFast
+#define DBGdigitalToggleFast digitalToggleFast
+#else
+static inline void DBGdigitalWriteFast(uint8_t pin, uint8_t val) __attribute__((always_inline, unused));
+static inline void DBGdigitalWriteFast(uint8_t pin, uint8_t val) {}
+static inline void DBGdigitalToggleFast(uint8_t pin) __attribute__((always_inline, unused));
+static inline void DBGdigitalToggleFast(uint8_t pin) {}
+#endif
+
 
 void ImageSensor::setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, uint8_t en_pin,
                      uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4, uint8_t g5, uint8_t g6, uint8_t g7, TwoWire &wire)
@@ -46,13 +58,13 @@ void ImageSensor::setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin,
   }
 }
 
-bool ImageSensor::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
+size_t ImageSensor::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
     if(!_use_gpio) {
       return readFrameFlexIO(buffer1, cb1, buffer2, cb2);
     } else {
       if(_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT) {
           readFrame4BitGPIO(buffer1);
-          return true;
+          return cb1; // not sure what to return here yet...
       }
       return readFrameGPIO(buffer1, cb1, buffer2, cb2);
     }
@@ -72,40 +84,43 @@ void ImageSensor::stopReadContinuous() {
 
 }
 
+//=============================================================================
+// FlexIO support
+//=============================================================================
 
-bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2)
+size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2)
 {
     if (_debug)debug.printf("$$ImageSensor::readFrameFlexIO(%p, %u, %p, %u, %u, %u)\n", buffer, cb1, buffer2, cb2, _fuse_dma, _hw_config);
-    digitalWriteFast(0, HIGH);
+    DBGdigitalWriteFast(0, HIGH);
 
     uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
     if(_format == 8){
       frame_size_bytes = frame_size_bytes / 5;
     }
-    if ((cb1+cb2) < frame_size_bytes) return false; // not enough to hold image
+    if ((cb1+cb2) < frame_size_bytes) return 0; // not enough to hold image
 
     //flexio_configure(); // one-time hardware setup
     // wait for VSYNC to go high and then low with a sort of glitch filter
     elapsedMillis emWaitSOF;
     elapsedMicros emGlitch;
-    digitalWriteFast(0, LOW);
+    DBGdigitalWriteFast(0, LOW);
 
     for (;;) {
       if (emWaitSOF > _timeout) {
         if(_debug) debug.println("Timeout waiting for Start of Frame");
-        return false;
+        return 0;
       }
       while ((*_vsyncPort & _vsyncMask) == 0) {
         if (emWaitSOF > _timeout) {
           if(_debug) debug.println("Timeout waiting for rising edge Start of Frame");
-          return false;
+          return 0;
         }
       }
       emGlitch = 0;
       while ((*_vsyncPort & _vsyncMask) != 0) {
         if (emWaitSOF > _timeout) {
           if(_debug) debug.println("Timeout waiting for falling edge Start of Frame");
-          return false;
+          return 0;
         }
       }
       if (emGlitch > 5) break;
@@ -113,46 +128,56 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
     _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
     _pflexio->SHIFTERR = _fshifter_mask;
     uint32_t *p = (uint32_t *)buffer;
-    digitalWriteFast(0, HIGH);
+    DBGdigitalWriteFast(0, HIGH);
 
+    elapsedMillis timeout = 0;
 
     //----------------------------------------------------------------------
     // Polling FlexIO version
     //----------------------------------------------------------------------
     if (!_fuse_dma) {
       if (_debug)debug.println("\tNot DMA");
-      #ifdef USE_DEBUG_PINS
-      digitalWriteFast(2, HIGH);
-      #endif
-      // read FlexIO by polling
-      //uint32_t *p_end = (uint32_t *)buffer + (_width*_height/4)*_bytesPerPixel;
-      uint32_t count_items_left = (_width*_height/4)*_bytesPerPixel;
-      
-      if(_format == 8) count_items_left = count_items_left / 5;
-      
-      uint32_t count_items_left_in_buffer = (uint32_t)cb1 / 4;
-      if(_format == 8) count_items_left_in_buffer = (frame_size_bytes / 5 ) / 4;
-   
-      // Same code should work for 4 bit or 8 bit as the differences are
-      // handled by the FlexIO code on how many bits at a time get shifted
-      // into the shift register. 
-      while (count_items_left) {
+      // lets try another version of this to see if cleaner.
+      uint32_t *p_end = (uint32_t*)((uint8_t *)p + cb1);
+      uint32_t max_time_to_wait = _timeout;
+
+      uint32_t frame_bytes_received = 0;
+      while (frame_bytes_received < frame_size_bytes) {
           while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
+            if (timeout > max_time_to_wait) {              
+              DBGdigitalWriteFast(0, LOW);
+
+              if(_debug) debug.printf("Timeout between characters: received: %u bytes\n", frame_bytes_received);
               // wait for FlexIO shifter data
+              DBGdigitalWriteFast(0, HIGH);
+              break;
+            }
           }
           // Lets simplify back to single shifter for now
-          *p++ = _pflexio->SHIFTBUF[_fshifter]; // should use DMA...
-          count_items_left--;
-          if (buffer2 && (--count_items_left_in_buffer == 0)) {
-            p = (uint32_t*)buffer2;
-            count_items_left_in_buffer = (uint32_t)cb2 / 4;
+          uint8_t *pu8 = (uint8_t *)p;
+          *p++ = _pflexio->SHIFTBUF[_fshifter]; 
+          if((_format == 8) && (frame_bytes_received > 0)){
+            for (int i = 0; i < 4; i++) {
+              if ((pu8[i-1] == 0xff) && (pu8[i] == 0xd9)) {
+                if (_debug)Serial.printf("JPEG - found end marker at %u\n", frame_bytes_received + i);
+                DBGdigitalWriteFast(0, LOW);
+                return frame_bytes_received + i + 1;
+              }
+
+            }
           }
+            // jpeg check for 
+          if (p >= p_end) {
+            p = (uint32_t*)buffer2;
+            p_end = (uint32_t*)((uint8_t *)p + cb2);
+          }
+          frame_bytes_received += sizeof(uint32_t);
+          max_time_to_wait = 50; // maybe second setting.
+          timeout = 0; // reset timeout. 
       }
-      #ifdef USE_DEBUG_PINS
-      digitalWriteFast(2, LOW);
-      #endif
-    digitalWriteFast(0, LOW);
-    return true;
+
+    DBGdigitalWriteFast(0, LOW);
+    return frame_bytes_received;
     }
 
     //----------------------------------------------------------------------
@@ -241,7 +266,7 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
     if (_debug) debug.printf("Flexio DMA: length: %d\n", frame_size_bytes);
 #endif
     
-    elapsedMillis timeout = 0;
+    timeout = 0;  // reset the timeout
     //while (!_dmachannel.complete()) {
     while (_dma_state == DMA_STATE_ONE_FRAME) {
         // wait - we should not need to actually do anything during the DMA transfer
@@ -283,9 +308,9 @@ bool ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_
 #endif
 //    dumpDMA_TCD(&_dmasettings[0], " 0: ");
 //    dumpDMA_TCD(&_dmasettings[1], " 1: ");
-  digitalWriteFast(0, LOW);
+  DBGdigitalWriteFast(0, LOW);
 
-    return true;
+    return frame_size_bytes;
 }
 
 void ImageSensor::frameStartInterruptFlexIO()
@@ -778,5 +803,69 @@ bool ImageSensor::flexio_configure()
 return true;
 }
 
+//=============================================================================
+// Reading using GPIO support
+//=============================================================================
+size_t ImageSensor::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
+{    
+  debug.printf("$$ImageSensor::readFrameGPIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
+  const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
+  
+  if ((cb1+cb2) < frame_size_bytes) return 0; // not enough to hold image
+  DBGdigitalWriteFast(0, HIGH);
+
+  uint8_t* b = (uint8_t*)buffer;
+  uint32_t cb = (uint32_t)cb1;
+//  bool _grayscale;  // ????  member variable ?????????????
+  int bytesPerRow = _width * _bytesPerPixel;
+
+  // Falling edge indicates start of frame
+  //pinMode(PCLK_PIN, INPUT); // make sure back to input pin...
+  // lets add our own glitch filter.  Say it must be hig for at least 100us
+
+  delayMicroseconds(5);  // debug for digitalWrite
+  DBGdigitalWriteFast(0, LOW);
+  elapsedMicros emHigh;
+  do {
+    while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
+    emHigh = 0;
+    while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
+  } while (emHigh < 2);
+  DBGdigitalWriteFast(0, HIGH);
+
+  for (int i = 0; i < _height; i++) {
+    // rising edge indicates start of line
+    while ((*_hrefPort & _hrefMask) == 0); // wait for HIGH
+    while ((*_pclkPort & _pclkMask) != 0); // wait for LOW
+    noInterrupts();
+
+    for (int j = 0; j < bytesPerRow; j++) {
+      // rising edges clock each data byte
+      while ((*_pclkPort & _pclkMask) == 0); // wait for HIGH
+
+      //uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >> 18; // read all bits in parallel
+      uint32_t in =  (GPIO7_PSR >> 4); // read all bits in parallel  
+
+    //uint32_t in = mmBus;
+      // bugbug what happens to the the data if grayscale?
+      if (!(j & 1) || !_grayscale) {
+        *b++ = in;
+
+        if ( buffer2 && (--cb == 0) ) {
+          if(_debug) debug.printf("\t$$ 2nd buffer: %u %u\n", i, j);
+          b = (uint8_t *)buffer2;
+          cb = (uint32_t)cb2;
+          buffer2 = nullptr;
+        }
+      }
+      while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0)) ; // wait for LOW bail if _href is lost
+    }
+
+    while ((*_hrefPort & _hrefMask) != 0) ;  // wait for LOW
+    interrupts();
+  }
+  DBGdigitalWriteFast(0, LOW);
+  return frame_size_bytes;
+}
 
 

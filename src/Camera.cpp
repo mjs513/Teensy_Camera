@@ -135,7 +135,7 @@ uint8_t Camera::calAE(uint8_t CalFrames, uint8_t *Buffer, uint32_t ui32BufferLen
 
 //-------------------------------------------------------
 //Generic Read Frame base on _hw_config
-bool Camera::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
+size_t Camera::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
   return sensor->readFrame(buffer1, cb1, buffer2, cb2);
 }
 
@@ -150,7 +150,7 @@ bool Camera::useDMA() {
 
 
 //normal Read mode
-bool Camera::readFrameGPIO(void* buffer, size_t cb1, void* buffer2, size_t cb2) {
+size_t Camera::readFrameGPIO(void* buffer, size_t cb1, void* buffer2, size_t cb2) {
     return sensor->readFrameGPIO(buffer, cb1, buffer2, cb2);
 }
 
@@ -167,14 +167,8 @@ void Camera::stopReadContinuous() {
 }
 
 //FlexIO is default mode for the camera
-/*
-void Camera::readFrameFlexIO(void* buffer)
-{
-    return sensor->readFrameFlexIO(buffer);
-}
-*/
 
-bool Camera::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2) {
+size_t Camera::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, size_t cb2) {
   return sensor->readFrameFlexIO(buffer, cb1, buffer2, cb2);
 }
 

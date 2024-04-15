@@ -287,10 +287,10 @@ static const uint8_t default_regs[][2] = {
 //    {BANK_SEL,  BANK_SEL_SENSOR},
 //    {COM7,      COM7_RES_CIF},
 //    {COM1,      0x06 | 0x80},
-//    {HSTART,    0x11},
-//    {HSTOP,     0x43},
-//    {VSTART,    0x01}, // 0x01 fixes issue with garbage pixels in the image...
-//    {VSTOP,     0x97},
+//    {HREFST,    0x11},
+//    {HREFEND,     0x43},
+//    {VSTRT,    0x01}, // 0x01 fixes issue with garbage pixels in the image...
+//    {VEND,     0x97},
 //    {REG32,     0x09},
 //    {BANK_SEL,  BANK_SEL_DSP},
 //    {RESET,     RESET_DVP},
@@ -305,10 +305,10 @@ static const uint8_t svga_regs[][2] = {
     {BANK_SEL,  BANK_SEL_SENSOR},
     {COM7,      COM7_RES_SVGA},
     {COM1,      0x0A | 0x80},
-    {HSTART,    0x11},
-    {HSTOP,     0x43},
-    {VSTART,    0x01}, // 0x01 fixes issue with garbage pixels in the image...
-    {VSTOP,     0x97},
+    {HREFST,    0x11},
+    {HREFEND,     0x43},
+    {VSTRT,    0x01}, // 0x01 fixes issue with garbage pixels in the image...
+    {VEND,     0x97},
     {REG32,     0x09},
     {BANK_SEL,  BANK_SEL_DSP},
     {RESET,     RESET_DVP},
@@ -323,10 +323,10 @@ static const uint8_t uxga_regs[][2] = {
     {BANK_SEL,  BANK_SEL_SENSOR},
     {COM7,      COM7_RES_UXGA},
     {COM1,      0x0F | 0x80},
-    {HSTART,    0x11},
-    {HSTOP,     0x75},
-    {VSTART,    0x01},
-    {VSTOP,     0x97},
+    {HREFST,    0x11},
+    {HREFEND,     0x75},
+    {VSTRT,    0x01},
+    {VEND,     0x97},
     {REG32,     0x36},
     {BANK_SEL,  BANK_SEL_DSP},
     {RESET,     RESET_DVP},
@@ -873,20 +873,20 @@ uint8_t OV2640::setFramesize(int w, int h) {
         //     c.pclk_div = c.pclk_div / 2;
         // }
     } else {
-#if defined(NO_CLK_PIN)
+      if(_use_gpio) {
         c.clk_2x = 0;
-#else
+      } else {
         c.clk_2x = 1;  //ELSE 1
-#endif
+      }
         c.clk_div = 7;
         c.pclk_auto = 1;
         c.pclk_div = 8;
         if(w <= CIF_WIDTH) {
-#if defined(NO_CLK_PIN)
+          if(_use_gpio) {
             c.clk_div = 8;
-#else
+          } else {
             c.clk_div = 3;
-#endif
+          }
         } else if(w <= SVGA_WIDTH) {
             c.pclk_div = 12;
         }
@@ -1117,7 +1117,6 @@ int OV2640::setColorbar(int enable) {
 
 void OV2640::autoExposure(int enable) //enable is really exposure level for the 2640
 {
-    int ret=0;
     enable += 3;
     if (enable <= 0 || enable > NUM_AE_LEVELS) {
         debug.println("ERROR: Auto exposure level out of range!!!");
@@ -1430,78 +1429,17 @@ int OV2640::setWBmode(int mode)
 
 
 
-bool OV2640::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
-{    
-  debug.printf("$$readFrameGPIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
-  const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
-  
-  if ((cb1+cb2) < frame_size_bytes) return false; // not enough to hold image
-  digitalWriteFast(0, HIGH);
 
-  uint8_t* b = (uint8_t*)buffer;
-  uint32_t cb = (uint32_t)cb1;
-//  bool _grayscale;  // ????  member variable ?????????????
-  int bytesPerRow = _width * _bytesPerPixel;
-
-  // Falling edge indicates start of frame
-  //pinMode(PCLK_PIN, INPUT); // make sure back to input pin...
-  // lets add our own glitch filter.  Say it must be hig for at least 100us
-
-  delayMicroseconds(5);  // debug for digitalWrite
-  digitalWriteFast(0, LOW);
-  elapsedMicros emHigh;
-  do {
-    while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
-    emHigh = 0;
-    while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
-  } while (emHigh < 2);
-  digitalWriteFast(0, HIGH);
-
-  for (int i = 0; i < _height; i++) {
-    // rising edge indicates start of line
-    while ((*_hrefPort & _hrefMask) == 0); // wait for HIGH
-    while ((*_pclkPort & _pclkMask) != 0); // wait for LOW
-    noInterrupts();
-
-    for (int j = 0; j < bytesPerRow; j++) {
-      // rising edges clock each data byte
-      while ((*_pclkPort & _pclkMask) == 0); // wait for HIGH
-
-      //uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >> 18; // read all bits in parallel
-      uint32_t in =  (GPIO7_PSR >> 4); // read all bits in parallel  
-
-	  //uint32_t in = mmBus;
-      // bugbug what happens to the the data if grayscale?
-      if (!(j & 1) || !_grayscale) {
-        *b++ = in;
-
-        if ( buffer2 && (--cb == 0) ) {
-          if(_debug) debug.printf("\t$$ 2nd buffer: %u %u\n", i, j);
-          b = (uint8_t *)buffer2;
-          cb = (uint32_t)cb2;
-          buffer2 = nullptr;
-        }
-      }
-      while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0)) ; // wait for LOW bail if _href is lost
-    }
-
-    while ((*_hrefPort & _hrefMask) != 0) ;  // wait for LOW
-    interrupts();
-  }
-  digitalWriteFast(0, LOW);
-  return true;
-}
-
-bool OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_t cb2)
+size_t OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 {    
 
   uint16_t w = _width;
   uint16_t h = _height;
   uint32_t i_count = 0;
-  
+    
   debug.printf("$$readFrameGPIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
-  const uint32_t frame_size_bytes = w*h*_bytesPerPixel / 5;
-  if ((cb1+cb2) < frame_size_bytes) return false; // not enough to hold image
+  const uint32_t frame_size_bytes = w * h * _bytesPerPixel /5;
+  if ((cb1+cb2) < frame_size_bytes) return 0; // not enough to hold image
 
   uint8_t* b = (uint8_t*)buffer;
   uint32_t cb = (uint32_t)cb1;
@@ -1518,6 +1456,8 @@ bool OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_t 
     while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
   } while (emHigh < 1);
 
+  uint8_t *pu8 = (uint8_t *)b;
+
   for (int i = 0; i < h; i++) {
     // rising edge indicates start of line
     while ((*_hrefPort & _hrefMask) == 0); // wait for HIGH
@@ -1527,9 +1467,7 @@ bool OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_t 
     for (int j = 0; j < bytesPerRow; j++) {
       // rising edges clock each data byte
       while ((*_pclkPort & _pclkMask) == 0); // wait for HIGH
-
-      i_count = i_count + 1;
-      
+     
       //uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >> 18; // read all bits in parallel
       uint32_t in =  (GPIO7_PSR >> 4); // read all bits in parallel  
 
@@ -1537,7 +1475,7 @@ bool OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_t 
       // bugbug what happens to the the data if grayscale?
       if (!(j & 1) || !_grayscale) {
         *b++ = in;
-
+        
         if ( buffer2 && (--cb == 0) ) {
           if(_debug) debug.printf("\t$$ 2nd buffer: %u %u\n", i, j);
           b = (uint8_t *)buffer2;
@@ -1545,17 +1483,22 @@ bool OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_t 
           buffer2 = nullptr;
         }
       }
-      while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0)) ; // wait for LOW bail if _href is lost
-      if(i_count > (w*h/5)){
+ 
+       if ((pu8[i_count-1] == 0xff) && (pu8[i_count] == 0xd9)) {
         interrupts();
-        return true;
-      }
- }
+        return i_count + 1;
+       }
+       
+       i_count = i_count + 1;
+ 
+      while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0)) ; // wait for LOW bail if _href is lost
+
+    }
 
     while ((*_hrefPort & _hrefMask) != 0) ;  // wait for LOW
     interrupts();
   }
-  return true;
+  return frame_size_bytes;
 }
 
 
@@ -2030,10 +1973,10 @@ static const OV2640_TO_NAME_t OV2640_reg_name_table[] PROGMEM {
   {F(" CLKRC_DOUBLE" ), 1, 0x82 },
   {F(" CLKRC_DIVIDER_MASK" ), 1, 0x3F },
   {F(" COM10" ), 1, 0x15 },
-  {F(" HSTART" ), 1, 0x17 },
-  {F(" HSTOP" ), 1, 0x18 },
-  {F(" VSTART" ), 1, 0x19 },
-  {F(" VSTOP" ), 1, 0x1A },
+  {F(" HREFST" ), 1, 0x17 },
+  {F(" HREFEND" ), 1, 0x18 },
+  {F(" VSTRT" ), 1, 0x19 },
+  {F(" VEND" ), 1, 0x1A },
   {F(" MIDH" ), 1, 0x1C },
   {F(" MIDL" ), 1, 0x1D },
   {F(" AEW" ), 1, 0x24 },
@@ -2085,7 +2028,7 @@ static const OV2640_TO_NAME_t OV2640_reg_name_table[] PROGMEM {
 void Debug_printCameraWriteRegister(uint8_t reg, uint8_t data) {
     static uint8_t showing_bank = 0;
     static uint16_t bank_1_starts_at = 0;
-    uint16_t ii;
+    uint16_t ii = CNT_REG_NAME_TABLE;  // initialize to remove warning
 
     debug.printf("cameraWriteRegister(%x, %x)", reg, data);
     if (reg == 0xff) showing_bank = data; // remember which bank we are
@@ -2131,20 +2074,32 @@ void OV2640::showRegisters(void) {
   }
 
   // Quick and dirty print out WIndows start and end:
-  uint8_t hstart_reg = cameraReadRegister(HSTART);
-  uint8_t hstop_reg = cameraReadRegister(HSTOP);
-  uint8_t reg32_reg = cameraReadRegister(REG32);
-  uint8_t vstart_reg = cameraReadRegister(VSTART);
-  uint8_t vstop_reg = cameraReadRegister(VSTOP);
-  uint8_t com1_reg = cameraReadRegister(COM1);
-  debug.printf("Window: (%u, %u) - (%u, %u)\n", 
-        (hstart_reg << 3) | (reg32_reg & 0x7),
-        (vstart_reg << 2) | (com1_reg & 0x3),
-        (hstop_reg << 3) | ((reg32_reg >> 3) & 0x7),
-        (vstop_reg << 2) | ((com1_reg >> 2) & 0x3)
-        );
+    uint8_t reg32_reg = cameraReadRegister(REG32);
+    uint8_t com1_reg = cameraReadRegister(COM1);
 
+    uint16_t hstart = (cameraReadRegister(HREFST) << 3) | (reg32_reg & 0x7);
+    uint16_t hstop = (cameraReadRegister(HREFEND) << 3)  | ((reg32_reg >> 3) & 0x7);
+    uint16_t vstart = (cameraReadRegister(VSTRT) << 2) | (com1_reg & 0x3);
+    uint16_t vstop = (cameraReadRegister(VEND) << 2) | ((com1_reg >> 2) & 0x3);
 
-   cameraWriteRegister(0xFF, 0x00);  //bank 0
+    debug.printf("Window Hor: (%u - %u) = %u * 2 = %u Vert: (%u - %u) = %u * 2 = %u\n", 
+        hstart, hstop, hstop - hstart, (hstop - hstart) * 2,
+        vstart, vstop, vstop - vstart, (vstop - vstart) * 2 );
+
+    cameraWriteRegister(0xFF, 0x00);  //bank 0
+
+    uint8_t vhyx_reg = cameraReadRegister(VHYX);
+
+    uint8_t hsize = cameraReadRegister(HSIZE) | ((vhyx_reg >> 3) & 1) << 8;
+    uint8_t vsize = cameraReadRegister(VSIZE) | ((vhyx_reg >> 7) & 1) << 8;
+
+    debug.printf("device\tSize H: %u * 4 = %u V: %u * 4 = %u\n",
+        hsize, hsize*4, vsize, vsize*4) ;
+
+    uint16_t xoffl = cameraReadRegister(XOFFL) | ((vhyx_reg >> 0) & 0x7) << 8;
+    uint16_t yoffl = cameraReadRegister(YOFFL) | ((vhyx_reg >> 4) & 0x7) << 8;
+    debug.printf("\t offset H: %u V: %u \n",
+        xoffl , yoffl);
+
 
 }

@@ -124,7 +124,7 @@ uint8_t HM0360::setFramesize(framesize_t new_framesize) {
   //uint16_t h = resolution[framesize][1];
   framesize = new_framesize;
   _bytesPerPixel = 1;
-
+  //Serial.printf("HM0360::setFramesize(%x): %x\n", new_framesize, _hw_config);
   switch (framesize) {
     case FRAMESIZE_QVGA:
       _width = 320;
@@ -558,87 +558,23 @@ void HM0360::endXClk()
 #define FLEXIO_USE_DMA
 
 
-bool HM0360::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
+size_t HM0360::readFrameGPIO(void *buffer, size_t cb1, void *buffer2, size_t cb2)
 {
-  uint8_t *b = (uint8_t *)buffer;
-  uint32_t cb = (uint32_t)cb1;
-  bool _grayscale;
-  int bytesPerRow;
-//Change for Monodchrome only Sparkfun HB01b0
-#if defined(SensorMonochrome)
-  _grayscale = false;
-  bytesPerRow = _width;
-#else
-  _grayscale = (pixformat == PIXFORMAT_GRAYSCALE);
-  bytesPerRow = _width * 2;
-#endif
+  // Do most of the work using the base class implementation
+  size_t ret_val = ImageSensor::readFrameGPIO(buffer, cb1, buffer2, cb2);
 
-  // Falling edge indicates start of frame
-  //pinMode(_pclkPin, INPUT); // make sure back to input pin...
-  // lets add our own glitch filter.  Say it must be hig for at least 100us
-  elapsedMicros emHigh;
-  do {
-    while ((*_vsyncPort & _vsyncMask) == 0)
-      ;  // wait for HIGH
-    emHigh = 0;
-    while ((*_vsyncPort & _vsyncMask) != 0)
-      ;  // wait for LOW
-  } while (emHigh < 2);
-
-  for (int i = 0; i < _height; i++) {
-    // rising edge indicates start of line
-    while ((*_hrefPort & _hrefMask) == 0)
-      ;  // wait for HIGH
-    while ((*_pclkPort & _pclkMask) != 0)
-      ;  // wait for LOW
-    noInterrupts();
-
-    for (int j = 0; j < bytesPerRow; j++) {
-      // rising edges clock each data byte
-      while ((*_pclkPort & _pclkMask) == 0)
-        ;  // wait for HIGH
-
-      //uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >> 18; // read all bits in parallel
-      uint32_t in = (GPIO7_PSR >> 4);  // read all bits in parallel
-                                       //uint32_t in = mmBus;
-
-      if (!(j & 1) || !_grayscale) {
-        *b++ = in;
-        if ( buffer2 && (--cb == 0) ) {
-          debug.printf("\t$$ 2nd buffer: %u %u\n", i, j);
-          b = (uint8_t *)buffer2;
-          cb = (uint32_t)cb2;
-          buffer2 = nullptr;
-        }
-      }
-      while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0))
-        ;  // wait for LOW bail if _href is lost
-    }
-
-    while ((*_hrefPort & _hrefMask) != 0)
-      ;  // wait for LOW
-    interrupts();
-  }
-
-  setMode(HIMAX_MODE_STREAMING, 0);
-  return true;
+  if (ret_val) setMode(HIMAX_MODE_STREAMING, 0);
+  return ret_val;
 }
 
 void HM0360::readFrame4BitGPIO(void *buffer) {
 
   uint8_t *b = (uint8_t *)buffer;
-  bool _grayscale;
   int bytesPerRow;
   uint8_t in0 = 0;
 
 //Change for Monodchrome only Sparkfun HB01b0
-#if defined(SensorMonochrome)
-  _grayscale = false;
-  bytesPerRow = _width * 2;
-#else
-  _grayscale = (pixformat == PIXFORMAT_GRAYSCALE);
-  bytesPerRow = _width * 2 * 2;
-#endif
+ bytesPerRow = _width * 2 * _bytesPerPixel;
 
   debug.printf("readFrame4BitGPIO Gray:%u bpr: %u\n", _grayscale, bytesPerRow);
   // Falling edge indicates start of frame

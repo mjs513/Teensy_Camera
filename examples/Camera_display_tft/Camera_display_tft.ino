@@ -8,8 +8,8 @@
 //#define USE_SDCARD
 
 //#define ARDUCAM_CAMERA_HM01B0
-//#define ARDUCAM_CAMERA_HM0360
-#define ARDUCAM_CAMERA_OV2640
+#define ARDUCAM_CAMERA_HM0360
+//#define ARDUCAM_CAMERA_OV2640
 //#define ARDUCAM_CAMERA_OV7670
 //#define ARDUCAM_CAMERA_OV7675
 //#define ARDUCAM_CAMERA_GC2145
@@ -283,7 +283,7 @@ uint8_t status = 0;
 #else
   //HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
   //HM0360(8pin) 15/30/60/120 works :)
-  status = camera.begin(FRAMESIZE_VGA, 15, false);
+  status = camera.begin(FRAMESIZE_QVGA, 15, false);
 #endif
 
 #ifdef MIRROR_FLIP_CAMERA

@@ -95,7 +95,7 @@ public:
   
   //normal Read mode
   //void readFrameGPIO(void* buffer);
-  bool readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
+  size_t readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void* buffer2=nullptr, size_t cb2=0);
 
   void readFrame4BitGPIO(void* buffer);
 
@@ -121,13 +121,7 @@ public:
 
   //-------------------------------------------------------
   int16_t mode(void) { return _hw_config; }
-  
-  //framesize_t framesize;
-  //pixformat_t pixformat;
-  //camera_reg_settings_t settings;
-  //hw_config_t _hw_config;
-  //hw_carrier_t _hw_carrier;
-  
+    
 private:
   void beginXClk();
   void endXClk();
