@@ -22,6 +22,19 @@
 #define DEBUG_CAMERA_REG
 #define USE_VSYNC_PIN_INT
 
+//#define USE_DEBUG_PINS_TIMING
+
+#ifdef USE_DEBUG_PINS_TIMING
+#define DBGdigitalWriteFast digitalWriteFast
+#define DBGdigitalToggleFast digitalToggleFast
+#else
+static inline void DBGdigitalWriteFast(uint8_t pin, uint8_t val) __attribute__((always_inline, unused));
+static inline void DBGdigitalWriteFast(uint8_t pin, uint8_t val) {}
+static inline void DBGdigitalToggleFast(uint8_t pin) __attribute__((always_inline, unused));
+static inline void DBGdigitalToggleFast(uint8_t pin) {}
+#endif
+
+
 // if not defined in the variant
 #ifndef digitalPinToBitMask
 #define digitalPinToBitMask(P) (1 << (digitalPinToPinName(P) % 64))
@@ -1439,8 +1452,10 @@ size_t OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_
     
   debug.printf("$$readFrameGPIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
   const uint32_t frame_size_bytes = w * h * _bytesPerPixel /5;
-  if ((cb1+cb2) < frame_size_bytes) return 0; // not enough to hold image
-
+  if ((cb1+cb2) < frame_size_bytes) {
+    if (_debug) debug.printf("Warning Buffers may be too small %u < %u\n", cb1+cb2, frame_size_bytes);
+  }
+  DBGdigitalWriteFast(0, HIGH);
   uint8_t* b = (uint8_t*)buffer;
   uint32_t cb = (uint32_t)cb1;
 //  bool _grayscale;  // ????  member variable ?????????????
@@ -1450,14 +1465,17 @@ size_t OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_
   //pinMode(PCLK_PIN, INPUT); // make sure back to input pin...
   // lets add our own glitch filter.  Say it must be hig for at least 100us
   elapsedMicros emHigh;
+  DBGdigitalWriteFast(0, LOW);
   do {
     while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
     emHigh = 0;
     while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
   } while (emHigh < 1);
 
-  uint8_t *pu8 = (uint8_t *)b;
+  //uint8_t *pu8 = (uint8_t *)b;
+  uint8_t prev_char = 0;
 
+  DBGdigitalWriteFast(0, HIGH);
   for (int i = 0; i < h; i++) {
     // rising edge indicates start of line
     while ((*_hrefPort & _hrefMask) == 0); // wait for HIGH
@@ -1475,20 +1493,28 @@ size_t OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_
       // bugbug what happens to the the data if grayscale?
       if (!(j & 1) || !_grayscale) {
         *b++ = in;
-        
-        if ( buffer2 && (--cb == 0) ) {
-          if(_debug) debug.printf("\t$$ 2nd buffer: %u %u\n", i, j);
-          b = (uint8_t *)buffer2;
-          cb = (uint32_t)cb2;
-          buffer2 = nullptr;
+        cb--;        
+        if ( cb == 0) {
+            if (buffer2) {
+                if(_debug) debug.printf("\t$$ 2nd buffer: %u %u\n", i, j);
+                b = (uint8_t *)buffer2;
+                cb = (uint32_t)cb2;
+                buffer2 = nullptr;                
+            } else {
+                if(_debug) debug.printf("Error failed buffers too small\n");
+                interrupts();
+                DBGdigitalWriteFast(0, LOW);
+                return frame_size_bytes;
+            }
         }
       }
  
-       if ((pu8[i_count-1] == 0xff) && (pu8[i_count] == 0xd9)) {
+       if ((prev_char == 0xff) && ((uint8_t)in == 0xd9)) {
         interrupts();
+        DBGdigitalWriteFast(0, LOW);
         return i_count + 1;
        }
-       
+       prev_char = (uint8_t)in;
        i_count = i_count + 1;
  
       while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0)) ; // wait for LOW bail if _href is lost
@@ -1498,6 +1524,8 @@ size_t OV2640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2, size_
     while ((*_hrefPort & _hrefMask) != 0) ;  // wait for LOW
     interrupts();
   }
+  DBGdigitalWriteFast(0, LOW);
+
   return frame_size_bytes;
 }
 

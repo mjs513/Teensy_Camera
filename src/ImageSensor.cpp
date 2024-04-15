@@ -97,7 +97,10 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, siz
     if(_format == 8){
       frame_size_bytes = frame_size_bytes / 5;
     }
-    if ((cb1+cb2) < frame_size_bytes) return 0; // not enough to hold image
+    else if ((cb1+cb2) < frame_size_bytes) {
+      DBGdigitalWriteFast(0, LOW);
+      return 0; // not enough to hold normal images...
+    }
 
     //flexio_configure(); // one-time hardware setup
     // wait for VSYNC to go high and then low with a sort of glitch filter
@@ -157,21 +160,29 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void* buffer2, siz
           uint8_t *pu8 = (uint8_t *)p;
           *p++ = _pflexio->SHIFTBUF[_fshifter]; 
           if((_format == 8) && (frame_bytes_received > 0)){
+            // jpeg check for 
             for (int i = 0; i < 4; i++) {
               if ((pu8[i-1] == 0xff) && (pu8[i] == 0xd9)) {
                 if (_debug)Serial.printf("JPEG - found end marker at %u\n", frame_bytes_received + i);
                 DBGdigitalWriteFast(0, LOW);
                 return frame_bytes_received + i + 1;
               }
-
             }
           }
-            // jpeg check for 
-          if (p >= p_end) {
-            p = (uint32_t*)buffer2;
-            p_end = (uint32_t*)((uint8_t *)p + cb2);
-          }
+
           frame_bytes_received += sizeof(uint32_t);
+          // Check to see if we filled current buffer
+          if (p >= p_end) {
+            // yes, now see if we have another
+            if (buffer2) {
+              p = (uint32_t*)buffer2;
+              p_end = (uint32_t*)((uint8_t *)p + cb2);
+              buffer2 = nullptr;
+            } else {
+              if (_debug && (frame_bytes_received < frame_size_bytes)) Serial.printf("Error: Image size exceeded buffer space\n");
+              break;
+            }
+          }
           max_time_to_wait = 50; // maybe second setting.
           timeout = 0; // reset timeout. 
       }

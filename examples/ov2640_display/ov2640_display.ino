@@ -128,7 +128,7 @@ uint32_t sizeof_framebuffer2 = 0;
 uint32_t sizeof_framebufferSDRAM = 0;
 #else
 #if defined(USE_SDCARD)
-DMAMEM uint16_t frameBuffer[480 * 240] __attribute__((aligned(32)));
+DMAMEM uint16_t frameBuffer[700 * 240] __attribute__((aligned(32)));
 uint16_t frameBuffer2[480 * 240] __attribute__((aligned(32)));
 #else
 DMAMEM uint16_t frameBuffer[640 * 240] __attribute__((aligned(32)));
@@ -196,7 +196,7 @@ void setup() {
 //    uint8_t g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
 uint8_t reset_pin = 31;
 #ifdef USE_MMOD_ATP_ADAPTER
-  pinMode(30, INPUT);
+  pinMode(30, INPUT_PULLDOWN);
   pinMode(31, INPUT_PULLUP);
   pinMode(0, OUTPUT);
   if ((_hmConfig == 0) || (_hmConfig == 2)) {
@@ -241,6 +241,7 @@ uint8_t reset_pin = 31;
   Serial.printf("Begin status: %d\n", status);
   if (!status) {
     Serial.println("Camera failed to start - try reset!!!");
+    Serial.printf("\tPin 30:%u 31:%u\n", digitalReadFast(30), digitalReadFast(31));
     pinMode(reset_pin, OUTPUT);
     digitalWriteFast(reset_pin, LOW);
     delay(500);
@@ -1470,11 +1471,7 @@ bool readJPG(uint8_t &eoi_jpg, uint32_t &eop_jpg, bool debug_on) {
   uint32_t bytes_read = 0;
   camera.useDMA(false);
   if (camera.usingGPIO()) {
-    if (camera_framesize == FRAMESIZE_UXGA) {
       bytes_read = omni.readFrameGPIO_JPEG(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
-    } else {
-      bytes_read = omni.readFrameGPIO_JPEG(frameBuffer, sizeof_framebuffer);
-    }
     //delay(1000);
     //omni.readFrameGPIO_JPEG(frameBuffer, sizeof_framebuffer);
   } else {
