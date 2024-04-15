@@ -113,7 +113,9 @@ Camera camera(galaxycore);
 ```
 
 ## EXTRAS
-Arducam Windows App:
+Arducam Windows App: https://docs.arducam.com/Arduino-SPI-camera/Legacy-SPI-camera/Software/Host-Debug-Tools/
+![image](https://github.com/mjs513/TeensyMM_Camera/assets/5366213/1a47f1f6-d65f-4d1d-9d19-ce5a6f507a92)
+
 Processing App:
 
 ## EXAMPLES
