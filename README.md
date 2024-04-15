@@ -49,5 +49,54 @@ Notes on camera commands:
 | int16_t frameWidth(void)    | Returns framewidth as set by Framesize |
 | int16_t frameHeight(void) | Returns frameheight as set by Framesize |
 
+### Camera Selection/Constructor
+This follows the method used by the arduino giga camera library:
+```
+//#define ARDUCAM_CAMERA_HM01B0
+//#define ARDUCAM_CAMERA_HM0360
+#define ARDUCAM_CAMERA_OV2640
+//#define ARDUCAM_CAMERA_OV7670
+//#define ARDUCAM_CAMERA_OV7675
+//#define ARDUCAM_CAMERA_GC2145
+
+#if defined(ARDUCAM_CAMERA_HM0360)
+#include "TMM_HM0360/HM0360.h"
+HM0360 himax;
+Camera camera(himax);
+#define CameraID 0x0360
+
+#elif defined(ARDUCAM_CAMERA_HM01B0)
+#include "TMM_HM01B0/HM01B0.h"
+HM01B0 himax;
+Camera camera(himax);
+#define CameraID 0x01B0
+
+#elif defined(ARDUCAM_CAMERA_OV2640)
+#include "TMM_OV2640/OV2640.h"
+OV2640 omni;
+Camera camera(omni);
+#define CameraID 0x2642
+
+#elif defined(ARDUCAM_CAMERA_OV7670)
+#include "TMM_OV767X/OV767X.h"
+OV767X omni;
+Camera camera(omni);
+#define CameraID 0x7676
+
+#elif defined(ARDUCAM_CAMERA_OV7675)
+#include "TMM_OV767X/OV767X.h"
+OV767X omni;
+Camera camera(omni);
+#define CameraID 0x7673
+
+#elif defined(ARDUCAM_CAMERA_GC2145)
+#include "TMM_GC2145/GC2145.h"
+GC2145 galaxycore;
+Camera camera(galaxycore);
+#define CameraID 0x2145
+
+#endif
+```
+
 ## EXAMPLES
 
