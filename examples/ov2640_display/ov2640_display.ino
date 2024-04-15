@@ -20,7 +20,7 @@ Camera camera(omni);
 //set cam configuration - need to remember when saving jpeg
 framesize_t camera_framesize = FRAMESIZE_QVGA;
 pixformat_t camera_format = RGB565;
-bool useGPIO = true;
+bool useGPIO = false;
 
 #define skipFrames 1
 
@@ -516,6 +516,8 @@ void loop() {
           bool error = false;
           error = save_jpg_SD();
           if (!error) Serial.println("ERROR reading JPEG.  Try again....");
+#else
+          Serial.println("Error USE_SDCARD - option not enabled...");
 #endif
           break;
         }
@@ -554,6 +556,9 @@ void loop() {
       case 'r':
         camera.showRegisters();
         break;
+      case 'R':
+         change_camera_resolution(ch);
+         break;
       case 'w':
         changeCameraWindow();
         break;
@@ -1073,6 +1078,7 @@ void showCommandList() {
   Serial.println("Send the 'c' character to debug clock - print vsync timing");
   Serial.println("Send the 'd' character to toggle camera debug on and off");
   Serial.println("Send the 'r' character to show the current camera registers");
+  Serial.println("Send the 'R[QVSU]' To set image size QVGA, VGA, SVGA UXGA");
   Serial.println("Send the 'w <row> <col>' to set the start window x, y");
   Serial.println("Send the 'W' to pan through range of windows");
 #ifdef ARDUINO_TEENSY_DEVBRD4
@@ -1378,6 +1384,39 @@ void print_vsync_timings() {
                   (uint32_t)(rising_edge_time - falling_edge_time),
                   1000000.0 / (float)(uint32_t)(new_falling_edge_time - falling_edge_time));
     falling_edge_time = new_falling_edge_time;
+  }
+}
+
+void change_camera_resolution(int ch) {
+  while (ch == ' ') ch = Serial.read();
+  framesize_t fs = FRAMESIZE_INVALID;
+  switch (ch) {
+    case 'q':
+    case 'Q':
+      Serial.println("Switching to QVGA mode");
+      fs = FRAMESIZE_QVGA;
+      break;
+    case 'v':
+    case 'V':
+      Serial.println("Switching to VGA mode");
+      fs = FRAMESIZE_VGA;
+      break;
+    case 's':
+    case 'S':
+      Serial.println("Switching to SVGA mode");
+      fs = FRAMESIZE_SVGA;
+      break;
+    case 'u':
+    case 'U':
+      Serial.println("Switching to UXGA mode");
+      fs = FRAMESIZE_UXGA;
+      break;
+    default: 
+      Serial.println("Unknown size option");
+  }
+  if (fs != FRAMESIZE_INVALID) {
+    camera.setFramesize(fs);
+    camera.setPixformat(camera_format);
   }
 }
 
