@@ -1,10 +1,10 @@
-#include <stdint.h>
 #include <SD.h>
 #include <SPI.h>
+#include <stdint.h>
 
 #include "Camera.h"
 
-//#define ARDUCAM_CAMERA_HM01B0
+// #define ARDUCAM_CAMERA_HM01B0
 #define ARDUCAM_CAMERA_HM0360
 #ifdef ARDUCAM_CAMERA_HM0360
 #include "hm0360.h"
@@ -69,8 +69,8 @@ const char bmp_header[BMPIMAGEOFFSET] PROGMEM = {
     0xF8, 0x00, 0x00, 0xE0, 0x07, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00};
 
 // Set up ILI9341
-#define TFT_DC 0 // "TX1" on left side of Sparkfun ML Carrier
-#define TFT_CS 4 // "CS" on left side of Sparkfun ML Carrier
+#define TFT_DC 0  // "TX1" on left side of Sparkfun ML Carrier
+#define TFT_CS 4  // "CS" on left side of Sparkfun ML Carrier
 #define TFT_RST 1 // "RX1" on left side of Sparkfun ML Carrier
 
 #include "ILI9341_t3n.h" // https://github.com/KurtE/ILI9341_t3n

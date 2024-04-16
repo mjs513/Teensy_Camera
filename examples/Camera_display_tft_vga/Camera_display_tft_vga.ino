@@ -1,18 +1,18 @@
-#include <stdint.h>
 #include <SD.h>
 #include <SPI.h>
+#include <stdint.h>
 
 #include "Camera.h"
 
 #define USE_MMOD_ATP_ADAPTER
 #define USE_SDCARD
 
-//#define ARDUCAM_CAMERA_HM01B0
-//#define ARDUCAM_CAMERA_HM0360
+// #define ARDUCAM_CAMERA_HM01B0
+// #define ARDUCAM_CAMERA_HM0360
 #define ARDUCAM_CAMERA_OV2640
-//#define ARDUCAM_CAMERA_OV7670
-//#define ARDUCAM_CAMERA_OV7675
-//#define ARDUCAM_CAMERA_GC2145
+// #define ARDUCAM_CAMERA_OV7670
+// #define ARDUCAM_CAMERA_OV7675
+// #define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
 #include "TMM_HM0360/HM0360.h"
@@ -137,13 +137,13 @@ static const uint16_t mono_palette[256] PROGMEM = {
 
 #elif defined(USE_MMOD_ATP_ADAPTER)
 #define VSYNC_PIN 33
-#define TFT_DC 4 // 0   // "TX1" on left side of Sparkfun ML Carrier
-#define TFT_CS 5 // 4   // "CS" on left side of Sparkfun ML Carrier
+#define TFT_DC 4  // 0   // "TX1" on left side of Sparkfun ML Carrier
+#define TFT_CS 5  // 4   // "CS" on left side of Sparkfun ML Carrier
 #define TFT_RST 2 // 1  // "RX1" on left side of Sparkfun ML Carrier
 #else
 #define VSYNC_PIN 33
-#define TFT_DC 0 // 20   // "TX1" on left side of Sparkfun ML Carrier
-#define TFT_CS 4 // 5, 4   // "CS" on left side of Sparkfun ML Carrier
+#define TFT_DC 0  // 20   // "TX1" on left side of Sparkfun ML Carrier
+#define TFT_CS 4  // 5, 4   // "CS" on left side of Sparkfun ML Carrier
 #define TFT_RST 1 // 2, 1  // "RX1" on left side of Sparkfun ML Carrier
 #endif
 
@@ -168,14 +168,14 @@ uint16_t *frameBufferSDRAM2 = nullptr;
 DMAMEM uint16_t frameBufferM[640 * 240] __attribute__((aligned(32)));
 uint16_t frameBufferM2[640 * 240] __attribute__((aligned(32)));
 
-//#define SCREEN_ROTATION 3
+// #define SCREEN_ROTATION 3
 #else
 uint8_t *frameBuffer = nullptr;
 uint8_t *frameBuffer2 = nullptr;
 DMAMEM uint8_t frameBufferM[640 * 480] __attribute__((aligned(32)));
 // mono can fit one in each.
 uint8_t frameBufferM2[640 * 480] __attribute__((aligned(32)));
-//#define SCREEN_ROTATION 1
+// #define SCREEN_ROTATION 1
 #define CAMERA_USES_MONO_PALETTE
 #endif
 uint32_t sizeof_framebuffer = 0;
@@ -202,7 +202,7 @@ uint8_t frameBuffer2[640 * 240] __attribute__((aligned(32)));
 #endif
 
 #define CAMERA_USES_MONO_PALETTE
-//#define SCREEN_ROTATION 1
+// #define SCREEN_ROTATION 1
 #endif
 const uint32_t sizeof_framebuffer = sizeof(frameBuffer);
 const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
@@ -248,7 +248,7 @@ void setup() {
 #if defined(USE_SDCARD)
   Serial.println("Using SDCARD - Initializing");
 #ifdef SD_CS
-  //#if MMOD_ML == 1
+  // #if MMOD_ML == 1
   Serial.printf("Start SD pin: %u\n", SD_CS);
   // if (!SD.begin(SD_CS)) {
   if (!SD.sdfs.begin(SdSpiConfig(SD_CS, SHARED_SPI, SD_SCK_MHZ(12)))) {
@@ -401,7 +401,7 @@ void setup() {
 #endif
 
 #ifndef CAMERA_USES_MONO_PALETTE
-//#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
+// #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
 #if defined(ARDUCAM_CAMERA_OV2640)
 // camera.setBrightness(0);          // -2 to +2
 // camera.setContrast(0);            // -2 to +2
@@ -666,8 +666,8 @@ void loop() {
                        sizeof_framebuffer2);
 
 #ifndef CAMERA_USES_MONO_PALETTE
-      //#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||
-      //defined(ARDUCAM_CAMERA_GC2145)
+      // #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||
+      // defined(ARDUCAM_CAMERA_GC2145)
       int numPixels = camera.width() * camera.height();
       // for (int i = 0; i < numPixels; i++) frameBuffer[i] =
       // HTONS(frameBuffer[i]);
@@ -1028,7 +1028,7 @@ void send_image(Stream *imgSerial) {
   delay(50);
 }
 
-//#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
+// #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
 #ifdef CAMERA_USES_MONO_PALETTE
 void send_raw() {
   Serial.println("Send Raw MONO");
@@ -1428,7 +1428,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
   // tft.setOrigin(-2, -2);
   int numPixels = camera.width() * camera.height();
 #ifndef CAMERA_USES_MONO_PALETTE
-//#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+// #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
 
 // int camera_width = Camera.width();
 #if 0 // def ARDUINO_TEENSY_DEVBRD4

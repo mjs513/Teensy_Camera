@@ -1,8 +1,8 @@
 #include <stdint.h>
 
-#include <SPI.h>
 #include <JPEGDEC.h>
 #include <MemoryHexDump.h>
+#include <SPI.h>
 
 #include "Camera.h"
 
@@ -26,9 +26,9 @@ bool useGPIO = false;
 
 /************** Set up MTP Disk *************/
 #if defined(USE_SDCARD)
-#include <SD.h>
-#include <MTP_Teensy.h>
 #include <LittleFS.h>
+#include <MTP_Teensy.h>
+#include <SD.h>
 
 File file;
 
@@ -79,13 +79,13 @@ PROGMEM const char hmConfig[][48] = {"FLEXIO_CUSTOM_LIKE_8_BIT",
 
 #elif defined(USE_MMOD_ATP_ADAPTER)
 #define VSYNC_PIN 33
-#define TFT_DC 4 // 0   // "TX1" on left side of Sparkfun ML Carrier
-#define TFT_CS 5 // 4   // "CS" on left side of Sparkfun ML Carrier
+#define TFT_DC 4  // 0   // "TX1" on left side of Sparkfun ML Carrier
+#define TFT_CS 5  // 4   // "CS" on left side of Sparkfun ML Carrier
 #define TFT_RST 2 // 1  // "RX1" on left side of Sparkfun ML Carrier
 #else
 #define VSYNC_PIN 33
-#define TFT_DC 0 // 20   // "TX1" on left side of Sparkfun ML Carrier
-#define TFT_CS 4 // 5, 4   // "CS" on left side of Sparkfun ML Carrier
+#define TFT_DC 0  // 20   // "TX1" on left side of Sparkfun ML Carrier
+#define TFT_CS 4  // 5, 4   // "CS" on left side of Sparkfun ML Carrier
 #define TFT_RST 1 // 2, 1  // "RX1" on left side of Sparkfun ML Carrier
 #endif
 
@@ -112,8 +112,8 @@ ILI9488_t3 tft = ILI9488_t3(TFT_CS, TFT_DC, TFT_RST);
 // Setup framebuffers
 DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 #ifdef ARDUINO_TEENSY_DEVBRD4
-//#include "SDRAM_t4.h"
-// SDRAM_t4 sdram;
+// #include "SDRAM_t4.h"
+//  SDRAM_t4 sdram;
 uint16_t *frameBuffer = nullptr;
 uint16_t *frameBuffer2 = nullptr;
 uint16_t *frameBufferSDRAM = nullptr;
@@ -131,7 +131,7 @@ uint16_t frameBuffer2[480 * 240] __attribute__((aligned(32)));
 DMAMEM uint16_t frameBuffer[640 * 240] __attribute__((aligned(32)));
 uint16_t frameBuffer2[640 * 240] __attribute__((aligned(32)));
 #endif
-//#define SCREEN_ROTATION 1
+// #define SCREEN_ROTATION 1
 const uint32_t sizeof_framebuffer = sizeof(frameBuffer);
 const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
 #endif
@@ -281,8 +281,8 @@ void setup() {
   // camera.setContrast(0);            // -2 to +2
   // camera.setSaturation(0);          // -2 to +2
   // omni.setSpecialEffect(RETRO);  // NOEFFECT, NEGATIVE, BW, REDDISH, GREEISH,
-  // BLUEISH, RETRO omni.setWBmode(0);                  // AWB ON, 1 - Sunny, 2 -
-  // Cloudy, 3 - Office, 4 - Home
+  // BLUEISH, RETRO omni.setWBmode(0);                  // AWB ON, 1 - Sunny, 2
+  // - Cloudy, 3 - Office, 4 - Home
 
   Serial.println("Camera settings:");
   Serial.print("\twidth = ");
@@ -1229,7 +1229,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
   // tft.setOrigin(-2, -2);
   int numPixels = camera.width() * camera.height();
 #ifndef CAMERA_USES_MONO_PALETTE
-//#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+// #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
 
 // int camera_width = Camera.width();
 #if 0 // def ARDUINO_TEENSY_DEVBRD4

@@ -6,16 +6,16 @@
 
 #define debug Serial
 
-//#define DEBUG_CAMERA
-//#define DEBUG_CAMERA_VERBOSE
-//#define DEBUG_FLEXIO
-//#define USE_DEBUG_PINS
+// #define DEBUG_CAMERA
+// #define DEBUG_CAMERA_VERBOSE
+// #define DEBUG_FLEXIO
+// #define USE_DEBUG_PINS
 
 ImageSensor *ImageSensor::active_dma_camera = nullptr;
 DMAChannel ImageSensor::_dmachannel;
 DMASetting ImageSensor::_dmasettings[10];
 
-//#define USE_DEBUG_PINS_TIMING
+// #define USE_DEBUG_PINS_TIMING
 
 #ifdef USE_DEBUG_PINS_TIMING
 #define DBGdigitalWriteFast digitalWriteFast

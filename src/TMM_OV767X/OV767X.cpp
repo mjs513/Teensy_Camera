@@ -15,10 +15,10 @@
 
 #define debug Serial
 
-//#define DEBUG_CAMERA
-//#define DEBUG_CAMERA_VERBOSE
+// #define DEBUG_CAMERA
+// #define DEBUG_CAMERA_VERBOSE
 #define DEBUG_FLEXIO
-//#define USE_DEBUG_PINS
+// #define USE_DEBUG_PINS
 
 // if not defined in the variant
 #ifndef digitalPinToBitMask
@@ -514,7 +514,7 @@ bool OV767X::startReadFrameDMA(bool (*callback)(void *frame_buffer),
 
   // Need to switch the IO pins back to GPI1 from GPIO6
   //_save_IOMUXC_GPR_GPR27 = IOMUXC_GPR_GPR27;  // save away the configuration
-  //before we change... IOMUXC_GPR_GPR27 &= ~(0x0ff0u);
+  // before we change... IOMUXC_GPR_GPR27 &= ~(0x0ff0u);
 
   // lets also un map the _hrefPin to GPIO1
   // IOMUXC_GPR_GPR27 &= ~_hrefMask; //

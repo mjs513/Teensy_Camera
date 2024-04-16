@@ -24,10 +24,10 @@
 
 #define debug Serial
 
-//#define DEBUG_CAMERA
-//#define DEBUG_CAMERA_VERBOSE
-//#define DEBUG_FLEXIO
-//#define USE_DEBUG_PINS
+// #define DEBUG_CAMERA
+// #define DEBUG_CAMERA_VERBOSE
+// #define DEBUG_FLEXIO
+// #define USE_DEBUG_PINS
 
 #define camAddress 0x3C
 
@@ -163,7 +163,7 @@ static const uint8_t default_regs[][2] = {
             // pipe clock,close dndd clock,close intp clock,DIV_gatedclk_en
     {0x8b,
      0x00}, //[7:6]BFF_gate_mode,[5]BLK switch gain,[4]protect exp,[3:2]pipe
-            //gate mode,[1]not split sram,[0]dark current update
+            // gate mode,[1]not split sram,[0]dark current update
 
     {0xb0, 0x55}, // 60 //global gain
     {0xc3, 0x00}, //[7:4]auto_exp_gamma_th1[11:8],[3:0]auto_exp_gamma_th2[11:8]
@@ -1987,7 +1987,7 @@ bool GC2145::startReadFrameDMA(bool (*callback)(void *frame_buffer),
 
   // Need to switch the IO pins back to GPI1 from GPIO6
   //_save_IOMUXC_GPR_GPR27 = IOMUXC_GPR_GPR27;  // save away the configuration
-  //before we change... IOMUXC_GPR_GPR27 &= ~(0x0ff0u);
+  // before we change... IOMUXC_GPR_GPR27 &= ~(0x0ff0u);
 
   // lets also un map the _hrefPin to GPIO1
   // IOMUXC_GPR_GPR27 &= ~_hrefMask; //

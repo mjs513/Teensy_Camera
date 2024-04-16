@@ -38,14 +38,14 @@ SOFTWARE.
 #ifndef __HM0360_H__
 #define __HM0360_H__
 
-//#include "../common.h"
+// #include "../common.h"
 #include "Camera.h"
 #include <DMAChannel.h>
-#include <Wire.h>
 #include <FlexIO_t4.h>
+#include <Wire.h>
 
-#include "HM0360_regs.h"
 #include "HM0360_reg_vals.h"
+#include "HM0360_regs.h"
 
 // Do not touch this define
 #define SensorMonochrome 1
@@ -88,15 +88,15 @@ public:
                         int camera_name = OV7670, bool use_gpio = false) {
     return 0;
   };
-  void setSaturation(int saturation){}; // 0 - 255
-  void setHue(int hue){};               // -180 - 180
-  void setContrast(int contrast){};     // 0 - 127
-  void setGain(int gain){};             // 0 - 255
-  void autoGain(int enable, float gain_db, float gain_db_ceiling){};
-  void setExposure(int exposure){}; // 0 - 65535
-  void autoExposure(int enable){};
+  void setSaturation(int saturation) {}; // 0 - 255
+  void setHue(int hue) {};               // -180 - 180
+  void setContrast(int contrast) {};     // 0 - 127
+  void setGain(int gain) {};             // 0 - 255
+  void autoGain(int enable, float gain_db, float gain_db_ceiling) {};
+  void setExposure(int exposure) {}; // 0 - 65535
+  void autoExposure(int enable) {};
   // unique to GC2145................................
-  void printRegisters(bool only_ones_set = true){};
+  void printRegisters(bool only_ones_set = true) {};
   int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db,
                       float b_gain_db) {
     return 0;

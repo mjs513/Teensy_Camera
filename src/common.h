@@ -1,3 +1,4 @@
+#include <stdint.h>
 typedef enum {
   PIXFORMAT_INVALID = 0,
   PIXFORMAT_GRAYSCALE, // 1BPP/GRAYSCALE

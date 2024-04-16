@@ -6,19 +6,19 @@
 #include <Arduino.h>
 #if defined(__IMXRT1062__) // Teensy 4.x
 #include <DMAChannel.h>
-#include <Wire.h>
 #include <FlexIO_t4.h>
+#include <Wire.h>
 
-//#define DEBUG_CAMERA
+// #define DEBUG_CAMERA
 #define USE_VSYNC_PIN_INT
 
+#include "Camera.h"
 #include <Arduino.h>
 #include <Wire.h>
-#include "Camera.h"
 
 #include "arm_math.h"
-//#define  DEBUG_FLEXIO
-// if not defined in the variant
+// #define  DEBUG_FLEXIO
+//  if not defined in the variant
 #ifndef digitalPinToBitMask
 #define digitalPinToBitMask(P) (1 << (digitalPinToPinName(P) % 64))
 #endif
@@ -283,7 +283,7 @@ public:
   // quick and dirty attempt to read in images larger than can fit into one
   // region of memory...
   //	void readFrameMultiBuffer(void* buffer1, size_t size1, void* buffer2,
-  //size_t size2);
+  // size_t size2);
 
   // normal Read mode
   // void readFrameGPIO(void* buffer);
@@ -344,8 +344,10 @@ private:
   uint32_t _xclk_freq = 12000000;
 
   // DMA STUFF
-  enum { DMABUFFER_SIZE = 1296 }; // 640x480  so 640*2*2
-                                  //	static DMAChannel _dmachannel;
+  enum {
+    DMABUFFER_SIZE = 1296
+  }; // 640x480  so 640*2*2
+     //	static DMAChannel _dmachannel;
   //	static DMASetting _dmasettings[10];  // maybe handle up to 800x600
   static uint32_t _dmaBuffer1[DMABUFFER_SIZE];
   static uint32_t _dmaBuffer2[DMABUFFER_SIZE];

@@ -40,8 +40,8 @@ SOFTWARE.
 
 #include <Arduino.h>
 #include <DMAChannel.h>
-#include <Wire.h>
 #include <FlexIO_t4.h>
+#include <Wire.h>
 
 #include "Camera.h"
 #include "HM01B0_regs.h"
@@ -86,14 +86,14 @@ public:
                         int camera_name = OV7670, bool use_gpio = false) {
     return 0;
   };
-  void setSaturation(int saturation){}; // 0 - 255
-  void setHue(int hue){};               // -180 - 180
-  void setContrast(int contrast){};     // 0 - 127
-  void setGain(int gain){};             // 0 - 255
-  void autoGain(int enable, float gain_db, float gain_db_ceiling){};
-  void setExposure(int exposure){}; // 0 - 65535
-  void autoExposure(int enable){};
-  void printRegisters(bool only_ones_set = true){};
+  void setSaturation(int saturation) {}; // 0 - 255
+  void setHue(int hue) {};               // -180 - 180
+  void setContrast(int contrast) {};     // 0 - 127
+  void setGain(int gain) {};             // 0 - 255
+  void autoGain(int enable, float gain_db, float gain_db_ceiling) {};
+  void setExposure(int exposure) {}; // 0 - 65535
+  void autoExposure(int enable) {};
+  void printRegisters(bool only_ones_set = true) {};
   int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db,
                       float b_gain_db) {
     return 0;

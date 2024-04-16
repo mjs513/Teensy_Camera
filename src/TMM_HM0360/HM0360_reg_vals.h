@@ -1,4 +1,4 @@
-
+#include "HM0360_regs.h"
 #define HIMAX_BOOT_RETRY (10)
 #define HIMAX_LINE_LEN_PCK_FULL 0x300
 #define HIMAX_FRAME_LENGTH_FULL 0x214

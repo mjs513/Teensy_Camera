@@ -11,7 +11,7 @@
  */
 #ifndef __REG_REGS_H__
 #define __REG_REGS_H__
-
+#include <Arduino.h> // make sure imxrt.h is read before we process this file
 /* DSP register bank FF=0x00*/
 
 #define QS 0x44
@@ -79,7 +79,7 @@
 #define IMAGE_MODE_RGB565 0x09
 #define IMAGE_MODE_HREF_VSYNC 0x02
 #define IMAGE_MODE_LBYTE_FIRST 0x01
-#define IMAGE_MODE_GET_FMT(x) ((x)&0xC)
+#define IMAGE_MODE_GET_FMT(x) ((x) & 0xC)
 
 #define RESET 0xE0
 #define RESET_MICROC 0x40
@@ -180,7 +180,7 @@
 #define COM7_RES_CIF 0x20   /* CIF  */
 #define COM7_ZOOM_EN 0x04   /* Enable Zoom */
 #define COM7_COLOR_BAR 0x02 /* Enable Color Bar Test */
-#define COM7_GET_RES(x) ((x)&0x70)
+#define COM7_GET_RES(x) ((x) & 0x70)
 
 #define COM8 0x13
 #define COM8_DEFAULT 0xC0
@@ -188,7 +188,7 @@
 #define COM8_AGC_EN 0x04  /* AGC Auto/Manual control selection */
 #define COM8_AEC_EN 0x01  /* Auto/Manual Exposure control */
 #define COM8_SET(x) (COM8_DEFAULT | x)
-#define COM8_SET_AEC(r, x) (((r)&0xFE) | ((x)&1))
+#define COM8_SET_AEC(r, x) (((r) & 0xFE) | ((x) & 1))
 
 #define COM9 0x14 /* AGC gain ceiling */
 #define COM9_DEFAULT 0x08

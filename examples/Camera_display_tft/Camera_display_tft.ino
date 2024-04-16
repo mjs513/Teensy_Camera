@@ -1,18 +1,18 @@
-#include <stdint.h>
 #include <SD.h>
 #include <SPI.h>
+#include <stdint.h>
 
 #include "Camera.h"
 
 #define USE_MMOD_ATP_ADAPTER
-//#define USE_SDCARD
+// #define USE_SDCARD
 
-//#define ARDUCAM_CAMERA_HM01B0
+// #define ARDUCAM_CAMERA_HM01B0
 #define ARDUCAM_CAMERA_HM0360
-//#define ARDUCAM_CAMERA_OV2640
-//#define ARDUCAM_CAMERA_OV7670
-//#define ARDUCAM_CAMERA_OV7675
-//#define ARDUCAM_CAMERA_GC2145
+// #define ARDUCAM_CAMERA_OV2640
+// #define ARDUCAM_CAMERA_OV7670
+// #define ARDUCAM_CAMERA_OV7675
+// #define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
 #include "TMM_HM0360/HM0360.h"
@@ -127,12 +127,12 @@ static const uint16_t mono_palette[256] PROGMEM = {
 #define TFT_RST 24
 
 #elif defined(USE_MMOD_ATP_ADAPTER)
-#define TFT_DC 4 // 0   // "TX1" on left side of Sparkfun ML Carrier
-#define TFT_CS 5 // 4   // "CS" on left side of Sparkfun ML Carrier
+#define TFT_DC 4  // 0   // "TX1" on left side of Sparkfun ML Carrier
+#define TFT_CS 5  // 4   // "CS" on left side of Sparkfun ML Carrier
 #define TFT_RST 2 // 1  // "RX1" on left side of Sparkfun ML Carrier
 #else
-#define TFT_DC 0 // 20   // "TX1" on left side of Sparkfun ML Carrier
-#define TFT_CS 4 // 5, 4   // "CS" on left side of Sparkfun ML Carrier
+#define TFT_DC 0  // 20   // "TX1" on left side of Sparkfun ML Carrier
+#define TFT_CS 4  // 5, 4   // "CS" on left side of Sparkfun ML Carrier
 #define TFT_RST 1 // 2, 1  // "RX1" on left side of Sparkfun ML Carrier
 #endif
 
@@ -148,8 +148,8 @@ ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
 // Setup framebuffers
 DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 #ifdef ARDUINO_TEENSY_DEVBRD4
-//#include "SDRAM_t4.h"
-// SDRAM_t4 sdram;
+// #include "SDRAM_t4.h"
+//  SDRAM_t4 sdram;
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
     defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
 uint16_t *frameBuffer = nullptr;
@@ -925,7 +925,7 @@ void send_raw() {
       uint16_t framePixel =
           color565(frameBuffer[frame_idx], frameBuffer[frame_idx],
                    frameBuffer[frame_idx]);
-      SerialUSB1.write((framePixel)&0xFF);
+      SerialUSB1.write((framePixel) & 0xFF);
       SerialUSB1.write((framePixel >> 8) & 0xFF);
       delayMicroseconds(8);
     }

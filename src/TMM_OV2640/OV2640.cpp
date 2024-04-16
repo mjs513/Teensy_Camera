@@ -13,16 +13,16 @@
 #include "OV2640.h"
 
 #define debug Serial
-//#define NO_CLK_PIN
+// #define NO_CLK_PIN
 
 #define DEBUG_CAMERA
-//#define DEBUG_CAMERA_VERBOSE
-//#define DEBUG_FLEXIO
-//#define USE_DEBUG_PINS
+// #define DEBUG_CAMERA_VERBOSE
+// #define DEBUG_FLEXIO
+// #define USE_DEBUG_PINS
 #define DEBUG_CAMERA_REG
 #define USE_VSYNC_PIN_INT
 
-//#define USE_DEBUG_PINS_TIMING
+// #define USE_DEBUG_PINS_TIMING
 
 #ifdef USE_DEBUG_PINS_TIMING
 #define DBGdigitalWriteFast digitalWriteFast
@@ -33,7 +33,7 @@ static inline void DBGdigitalWriteFast(uint8_t pin, uint8_t val)
 static inline void DBGdigitalWriteFast(uint8_t pin, uint8_t val) {}
 static inline void DBGdigitalToggleFast(uint8_t pin)
     __attribute__((always_inline, unused));
-static inline void DBGdigitalToggleFast(uint8_t pin) {}
+static inline void DBGdigitalToggleFast(uint8_t pin){}
 #endif
 
 // if not defined in the variant
@@ -66,19 +66,19 @@ static inline void DBGdigitalToggleFast(uint8_t pin) {}
 #define LN2 0.69314718055994530942
 #endif /*!M_LN2 */
 
-#define LOG2_2(x) (((x)&0x2ULL) ? (2) : 1) // NO ({ ... }) !
+#define LOG2_2(x) (((x) & 0x2ULL) ? (2) : 1) // NO ({ ... }) !
 #define LOG2_4(x)                                                              \
-  (((x)&0xCULL) ? (2 + LOG2_2((x) >> 2)) : LOG2_2(x)) // NO ({ ... }) !
+  (((x) & 0xCULL) ? (2 + LOG2_2((x) >> 2)) : LOG2_2(x)) // NO ({ ... }) !
 #define LOG2_8(x)                                                              \
-  (((x)&0xF0ULL) ? (4 + LOG2_4((x) >> 4)) : LOG2_4(x)) // NO ({ ... }) !
+  (((x) & 0xF0ULL) ? (4 + LOG2_4((x) >> 4)) : LOG2_4(x)) // NO ({ ... }) !
 #define LOG2_16(x)                                                             \
-  (((x)&0xFF00ULL) ? (8 + LOG2_8((x) >> 8)) : LOG2_8(x)) // NO ({ ... }) !
+  (((x) & 0xFF00ULL) ? (8 + LOG2_8((x) >> 8)) : LOG2_8(x)) // NO ({ ... }) !
 #define LOG2_32(x)                                                             \
-  (((x)&0xFFFF0000ULL) ? (16 + LOG2_16((x) >> 16))                             \
-                       : LOG2_16(x)) // NO ({ ... }) !
+  (((x) & 0xFFFF0000ULL) ? (16 + LOG2_16((x) >> 16))                           \
+                         : LOG2_16(x)) // NO ({ ... }) !
 #define LOG2(x)                                                                \
-  (((x)&0xFFFFFFFF00000000ULL) ? (32 + LOG2_32((x) >> 32))                     \
-                               : LOG2_32(x)) // NO ({ ... }) !
+  (((x) & 0xFFFFFFFF00000000ULL) ? (32 + LOG2_32((x) >> 32))                   \
+                                 : LOG2_32(x)) // NO ({ ... }) !
 
 typedef struct {
   union {
@@ -1692,7 +1692,7 @@ bool OV2640::startReadFrameDMA(bool (*callback)(void *frame_buffer),
 
   // Need to switch the IO pins back to GPI1 from GPIO6
   //_save_IOMUXC_GPR_GPR27 = IOMUXC_GPR_GPR27;  // save away the configuration
-  //before we change... IOMUXC_GPR_GPR27 &= ~(0x0ff0u);
+  // before we change... IOMUXC_GPR_GPR27 &= ~(0x0ff0u);
 
   // lets also un map the _hrefPin to GPIO1
   // IOMUXC_GPR_GPR27 &= ~_hrefMask; //

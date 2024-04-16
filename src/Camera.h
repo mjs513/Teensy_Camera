@@ -1,11 +1,11 @@
 #ifndef __CAMERA_H
 #define __CAMERA_H
 
+#include "common.h"
 #include <Arduino.h>
 #include <DMAChannel.h>
-#include <Wire.h>
 #include <FlexIO_t4.h>
-#include "common.h"
+#include <Wire.h>
 
 class ImageSensor {
 public:
@@ -150,7 +150,7 @@ public:
   virtual void processFrameStartInterruptFlexIO();
   virtual void processDMAInterrupt() {}
   virtual bool flexio_configure();
-  virtual void processFrameStartInterrupt(){};
+  virtual void processFrameStartInterrupt() {};
   virtual bool supports4BitMode() { return false; }
 
   void dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title);

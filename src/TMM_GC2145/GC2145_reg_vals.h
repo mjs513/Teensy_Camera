@@ -746,7 +746,7 @@ static const uint8_t ESP_regs[][2] = {
             // pipe clock,close dndd clock,close intp clock,DIV_gatedclk_en
     {0x8b,
      0x00}, //[7:6]BFF_gate_mode,[5]BLK switch gain,[4]protect exp,[3:2]pipe
-            //gate mode,[1]not split sram,[0]dark current update
+            // gate mode,[1]not split sram,[0]dark current update
 
     {0xb0, 0x55}, // 60 //global gain
     {0xc3, 0x00}, //[7:4]auto_exp_gamma_th1[11:8],[3:0]auto_exp_gamma_th2[11:8]

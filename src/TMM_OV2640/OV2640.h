@@ -2,19 +2,19 @@
 #ifndef _OV2640_H_
 #define _OV2640_H_
 
+#include "OV2640_regs.h"
 #include <Arduino.h>
 #include <Camera.h>
-#include "OV2640_regs.h"
 
 #if defined(__IMXRT1062__) // Teensy 4.x
 #include <DMAChannel.h>
-#include <Wire.h>
 #include <FlexIO_t4.h>
+#include <Wire.h>
 
-//#define OV2640_VSYNC 2    // Lets setup for T4.1 CSI pins
-//#define USE_CSI_PINS
+// #define OV2640_VSYNC 2    // Lets setup for T4.1 CSI pins
+// #define USE_CSI_PINS
 
-//#define OV2640_USE_DEBUG_PINS
+// #define OV2640_USE_DEBUG_PINS
 #ifdef OV2640_USE_DEBUG_PINS
 #define OV2640_DEBUG_PIN_1 14
 #define OV2640_DEBUG_PIN_2 15
@@ -231,7 +231,7 @@ public:
     Serial.println("4 Bit mode not supported ..... !!!!!");
   }
   int16_t mode(void) { return 0; }
-  void printRegisters(bool only_ones_set = true){};
+  void printRegisters(bool only_ones_set = true) {};
   void autoGain(int enable, float gain_db, float gain_db_ceiling) {}
 
 private:

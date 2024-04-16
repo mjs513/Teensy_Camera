@@ -11,13 +11,13 @@
 #include <Camera.h>
 #if defined(__IMXRT1062__) // Teensy 4.x
 #include <DMAChannel.h>
-#include <Wire.h>
 #include <FlexIO_t4.h>
+#include <Wire.h>
 
-//#define OV7670_VSYNC 2    // Lets setup for T4.1 CSI pins
-//#define USE_CSI_PINS
+// #define OV7670_VSYNC 2    // Lets setup for T4.1 CSI pins
+// #define USE_CSI_PINS
 
-//#define OV7670_USE_DEBUG_PINS
+// #define OV7670_USE_DEBUG_PINS
 #ifdef OV7670_USE_DEBUG_PINS
 #define OV7670_DEBUG_PIN_1 14
 #define OV7670_DEBUG_PIN_2 15
@@ -170,7 +170,7 @@ public:
   //-------------------------------------------------------
   // normal Read mode
   //	size_t readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void*
-  //buffer2=nullptr, size_t cb2=0);
+  // buffer2=nullptr, size_t cb2=0);
 
   // FlexIO is default mode for the camera
 
@@ -264,7 +264,7 @@ public:
   int setAutoExposure(int enable, int exposure_us) { return 0; };
 
   // unique to GC2145................................
-  void printRegisters(bool only_ones_set = true){};
+  void printRegisters(bool only_ones_set = true) {};
   int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db,
                       float b_gain_db) {
     return 0;
