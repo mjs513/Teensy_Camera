@@ -1156,9 +1156,14 @@ bool HM01B0::begin(framesize_t framesize, int framerate, bool use_gpio) {
 
     reset();
 
-    setFramesize(framesize);
+    if (setFramesize(framesize) != 0) {
+        if (_debug)
+            debug.println("Error: setFramesize failed");
+        return false; // failed to set resolution
+    }
     setFramerate(framerate);
 
+    // should maybe check return...
     setPixformat(
         PIXFORMAT_GRAYSCALE); // Sparkfun camera only supports grayscale
 

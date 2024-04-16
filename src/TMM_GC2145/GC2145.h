@@ -228,7 +228,7 @@ class GC2145 : public ImageSensor {
 
     int reset();
     int sleep(int enable);
-    int setPixelFormat(pixformat_t pixformat);
+    int setPixformat(pixformat_t pixformat);
     uint8_t setFramesize(framesize_t framesize);
     uint8_t setFramesize(int w, int h);
     bool setZoomWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
@@ -263,7 +263,6 @@ class GC2145 : public ImageSensor {
         Serial.println("4 Bit mode not supported ..... !!!!!");
     }
     int16_t mode(void) { return 0; }
-    int setPixformat(pixformat_t pfmt) { return 0; };
     int setFramerate(int framerate) { return 0; };
     uint8_t setMode(uint8_t Mode, uint8_t FrameCnt) { return 0; }
     void setSaturation(int saturation) {}           // 0 - 255

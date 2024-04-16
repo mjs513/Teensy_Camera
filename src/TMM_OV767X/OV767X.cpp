@@ -126,7 +126,7 @@ bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format,
         break;
 
     default:
-        return 0;
+        return false;
     }
 
     _grayscale = false;
@@ -152,14 +152,14 @@ bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format,
         break;
 
     default:
-        return 0;
+        return false;
     }
 
     _ov7670 = ov7670_alloc();
     if (!_ov7670) {
         end();
 
-        return 0;
+        return false;
     }
 
     pinMode(_vsyncPin, INPUT_PULLDOWN);
@@ -207,7 +207,7 @@ bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format,
         end();
         if (_debug)
             debug.println("Camera detect failed");
-        return 0;
+        return false;
     }
 
     if (camera_name == OV7670) {
@@ -234,7 +234,7 @@ bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format,
         end();
         if (_debug)
             debug.println("Camera ov7670_s_power failed");
-        return 0;
+        return false;
     }
 
     struct ov7670_fract tpf;
@@ -254,7 +254,7 @@ bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format,
 
     ov7675_set_framerate(_ov7670, &tpf);
 
-    return 1;
+    return true;
 }
 
 uint16_t OV767X::getModelid() {

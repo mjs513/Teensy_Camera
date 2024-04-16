@@ -961,7 +961,7 @@ bool GC2145::begin_omnivision(framesize_t resolution, pixformat_t format,
         _grayscale = true;
         break;
     default:
-        return 0;
+        return false;
     }
 
     pinMode(_vsyncPin, INPUT_PULLDOWN);
@@ -1004,12 +1004,20 @@ bool GC2145::begin_omnivision(framesize_t resolution, pixformat_t format,
     }
 
     if (getModelid() != 0x2145)
-        return 0;
+        return false;
 
     reset();
 
-    setPixelFormat(format);
-    setFramesize(resolution);
+    if (setPixformat(format) != 0) {
+        if (_debug)
+            debug.println("Error: setPixformat failed");
+        return false;
+    }
+    if (setFramesize(resolution) != 0) {
+        if (_debug)
+            debug.println("Error: setFramesize failed");
+        return false; // failed to set resolution
+    }
     if (_debug)
         printRegisters();
 
@@ -1023,7 +1031,7 @@ bool GC2145::begin_omnivision(framesize_t resolution, pixformat_t format,
         setDMACompleteISRPriority(192);
     }
 
-    return 1;
+    return true;
 }
 
 int GC2145::reset() {
@@ -1063,7 +1071,7 @@ int GC2145::sleep(int enable) {
     return ret;
 }
 
-int GC2145::setPixelFormat(pixformat_t pixformat) {
+int GC2145::setPixformat(pixformat_t pixformat) {
     int ret = 0;
     uint8_t reg;
 
@@ -1154,11 +1162,15 @@ int GC2145::getWindow(uint16_t reg, uint16_t &x, uint16_t &y, uint16_t &w,
 }
 
 uint8_t GC2145::setFramesize(framesize_t framesize) {
+    if (framesize >= (sizeof(resolution) / sizeof(resolution[0])))
+        return 1; // error
     return setFramesize(resolution[framesize][0], resolution[framesize][1]);
 }
 
 uint8_t GC2145::setFramesize(int w, int h) {
     uint8_t ret = 0;
+    if ((w == 0) || (h == 0))
+        return 1; // not valid
     _frame_width = _width = w;
     _frame_height = _height = h;
 

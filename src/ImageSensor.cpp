@@ -789,7 +789,7 @@ bool ImageSensor::flexio_configure() {
             FLEXIO_TIMCTL_TIMOD(3) |
             FLEXIO_TIMCTL_PINSEL(tpclk_pin) // "Pin" is 16 = PCLK
             //| FLEXIO_TIMCTL_TRGSEL(4 * (thsync_pin/2)) // "Trigger" is 12 =
-            //HSYNC
+            // HSYNC
             | FLEXIO_TIMCTL_TRGSEL(FLEXIO_TIMER_TRIGGER_SEL_PININPUT(
                   thsync_pin)) // "Trigger" is 12 = HSYNC
             | FLEXIO_TIMCTL_TRGSRC;

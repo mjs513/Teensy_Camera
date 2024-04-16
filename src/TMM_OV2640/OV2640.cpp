@@ -576,7 +576,7 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format,
         break;
 
     default:
-        return 0;
+        return false;
     }
 
     _grayscale = false;
@@ -605,7 +605,7 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format,
         _format = 8;
         break;
     default:
-        return 0;
+        return false;
     }
 
     pinMode(_vsyncPin, INPUT /*INPUT_PULLDOWN*/);
@@ -667,7 +667,7 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format,
         end();
         if (_debug)
             debug.println("Camera detect failed");
-        return 0;
+        return false;
     }
 
 #ifdef DEBUG_CAMERA
@@ -688,12 +688,20 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format,
     }
 
     reset();
-    setPixformat(format);
-    setFramesize(resolution);
+    if (setPixformat(format) != 0) {
+        if (_debug)
+            debug.println("Error: setPixformat failed");
+        return false;
+    }
+    if (setFramesize(resolution) != 0) {
+        if (_debug)
+            debug.println("Error: setFramesize failed");
+        return false; // failed to set resolution
+    }
 
     // for now frame rate is fixed
 
-    return 1;
+    return true;
 }
 
 int OV2640::reset() {
@@ -775,6 +783,8 @@ int OV2640::setPixformat(pixformat_t pixformat) {
 }
 
 uint8_t OV2640::setFramesize(framesize_t framesize) {
+    if (framesize >= (sizeof(resolution) / sizeof(resolution[0])))
+        return 1; // error
     return setFramesize(resolution[framesize][0], resolution[framesize][1]);
 }
 
@@ -784,6 +794,10 @@ uint8_t OV2640::setFramesize(int w, int h) {
     int ret = 0;
 
     ov2640_clk_t c;
+
+    if ((w == 0) || (h == 0))
+        return 1; // not valid
+
 
     // uint16_t w = resolution[framesize][0];
     // uint16_t h = resolution[framesize][1];
