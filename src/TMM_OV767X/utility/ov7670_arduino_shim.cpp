@@ -14,8 +14,8 @@ extern "C" {
 void msleep(unsigned long ms) { delay(ms); }
 #ifdef OV760_DEBUG
 typedef struct {
-  const char *reg_name;
-  unsigned char reg;
+    const char *reg_name;
+    unsigned char reg;
 } OVREG_TO_NAME_t;
 
 static const OVREG_TO_NAME_t ov_reg_name_table[] = {
@@ -228,84 +228,84 @@ static const OVREG_TO_NAME_t ov_reg_name_table[] = {
 int arduino_i2c_read(unsigned short address, unsigned char reg,
                      unsigned char *value) {
 #ifdef OV760_DEBUG
-  Serial.printf("I2C Read: reg: 0x%02x", reg);
+    Serial.printf("I2C Read: reg: 0x%02x", reg);
 
-  for (uint16_t i = 0;
-       i < (sizeof(ov_reg_name_table) / sizeof(ov_reg_name_table[0])); i++) {
-    if (ov_reg_name_table[i].reg == reg) {
-      Serial.printf("(%s)", ov_reg_name_table[i].reg_name);
-      break;
+    for (uint16_t i = 0;
+         i < (sizeof(ov_reg_name_table) / sizeof(ov_reg_name_table[0])); i++) {
+        if (ov_reg_name_table[i].reg == reg) {
+            Serial.printf("(%s)", ov_reg_name_table[i].reg_name);
+            break;
+        }
     }
-  }
 //    Serial.print("arduino_i2c_read: address = 0x");
 //    Serial.print(address, HEX);
 //    Serial.print(", reg = 0x");
 //    Serial.print(reg, HEX);
 #endif
 
-  Wire.beginTransmission(address);
-  Wire.write(reg);
-  if (Wire.endTransmission() != 0) {
+    Wire.beginTransmission(address);
+    Wire.write(reg);
+    if (Wire.endTransmission() != 0) {
 #ifdef OV760_DEBUG
-    Serial.println();
+        Serial.println();
 #endif
-    return -1;
-  }
+        return -1;
+    }
 
-  if (Wire.requestFrom(address, 1) != 1) {
+    if (Wire.requestFrom(address, 1) != 1) {
 #ifdef OV760_DEBUG
-    Serial.println();
+        Serial.println();
 #endif
-    return -1;
-  }
+        return -1;
+    }
 
-  *value = Wire.read();
+    *value = Wire.read();
 
 #ifdef OV760_DEBUG
-  Serial.print(", value = 0x");
-  Serial.println(*value, HEX);
+    Serial.print(", value = 0x");
+    Serial.println(*value, HEX);
 #endif
 
-  return 0;
+    return 0;
 }
 
 uint32_t ov767x_registers_set[8] = {0xf, 0}; // have a few at front marked...
 
 void arduino_i2c_printRegs(unsigned short address) {
-  Serial.println("\n*** OV767X registers ***");
-  unsigned char value;
-  for (uint16_t i = 0;
-       i < (sizeof(ov_reg_name_table) / sizeof(ov_reg_name_table[0])); i++) {
-    if (ov767x_registers_set[i >> 5] & (1 << (i & 0x1f))) {
-      arduino_i2c_read(address, i, &value);
+    Serial.println("\n*** OV767X registers ***");
+    unsigned char value;
+    for (uint16_t i = 0;
+         i < (sizeof(ov_reg_name_table) / sizeof(ov_reg_name_table[0])); i++) {
+        if (ov767x_registers_set[i >> 5] & (1 << (i & 0x1f))) {
+            arduino_i2c_read(address, i, &value);
+        }
     }
-  }
 }
 
 int arduino_i2c_write(unsigned short address, unsigned char reg,
                       unsigned char value) {
 #ifdef OV760_DEBUG
-  Serial.printf("I2C Write: reg: 0x%02x", reg);
+    Serial.printf("I2C Write: reg: 0x%02x", reg);
 
-  for (uint16_t i = 0;
-       i < (sizeof(ov_reg_name_table) / sizeof(ov_reg_name_table[0])); i++) {
-    if (ov_reg_name_table[i].reg == reg) {
-      Serial.printf("(%s)", ov_reg_name_table[i].reg_name);
-      break;
+    for (uint16_t i = 0;
+         i < (sizeof(ov_reg_name_table) / sizeof(ov_reg_name_table[0])); i++) {
+        if (ov_reg_name_table[i].reg == reg) {
+            Serial.printf("(%s)", ov_reg_name_table[i].reg_name);
+            break;
+        }
     }
-  }
-  Serial.printf(", value = 0x%02x\n", value);
+    Serial.printf(", value = 0x%02x\n", value);
 #endif
-  ov767x_registers_set[reg >> 5] |= 1 << (reg & 0x1f);
+    ov767x_registers_set[reg >> 5] |= 1 << (reg & 0x1f);
 
-  Wire.beginTransmission(address);
-  Wire.write(reg);
-  Wire.write(value);
+    Wire.beginTransmission(address);
+    Wire.write(reg);
+    Wire.write(value);
 
-  if (Wire.endTransmission() != 0) {
-    return -1;
-  }
+    if (Wire.endTransmission() != 0) {
+        return -1;
+    }
 
-  return 0;
+    return 0;
 }
 };

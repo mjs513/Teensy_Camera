@@ -99,54 +99,54 @@ bool g_dma_mode = false;
 ae_cfg_t aecfg;
 
 void setup() {
-  while (!Serial && millis() < 5000) {
-  }
-  Serial.begin(921600);
-  SerialUSB1.begin(921600);
+    while (!Serial && millis() < 5000) {
+    }
+    Serial.begin(921600);
+    SerialUSB1.begin(921600);
 
-  if (CrashReport) {
-    Serial.print(CrashReport);
-    while (1)
-      ;
-  }
+    if (CrashReport) {
+        Serial.print(CrashReport);
+        while (1)
+            ;
+    }
 
-  tft.begin();
+    tft.begin();
 
-  tft.setRotation(3);
-  tft.fillScreen(TFT_RED);
-  delay(500);
-  tft.fillScreen(TFT_GREEN);
-  delay(500);
-  tft.fillScreen(TFT_BLUE);
-  delay(500);
-  tft.fillScreen(TFT_BLACK);
-  delay(500);
+    tft.setRotation(3);
+    tft.fillScreen(TFT_RED);
+    delay(500);
+    tft.fillScreen(TFT_GREEN);
+    delay(500);
+    tft.fillScreen(TFT_BLUE);
+    delay(500);
+    tft.fillScreen(TFT_BLACK);
+    delay(500);
 
-  tft.fillScreen(TFT_BLACK);
-  tft.setTextColor(TFT_YELLOW);
-  tft.setTextSize(2);
-  tft.println("Waiting for Arduino Serial Monitor...");
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_YELLOW);
+    tft.setTextSize(2);
+    tft.println("Waiting for Arduino Serial Monitor...");
 
 #if defined(USE_SDCARD)
-  Serial.println("Using SDCARD - Initializing");
+    Serial.println("Using SDCARD - Initializing");
 #if MMOD_ML == 1
-  if (!SD.begin(10)) {
+    if (!SD.begin(10)) {
 #else
-  if (!SD.begin(BUILTIN_SDCARD)) {
+    if (!SD.begin(BUILTIN_SDCARD)) {
 #endif
-  }
-  Serial.println("initialization failed!");
-  // while (1){
-  //    LEDON; delay(100);
-  //    LEDOFF; delay(100);
-  //  }
+    }
+    Serial.println("initialization failed!");
+    // while (1){
+    //    LEDON; delay(100);
+    //    LEDOFF; delay(100);
+    //  }
 }
 Serial.println("initialization done.");
 delay(100);
 #endif
 
 while (!Serial)
-  ;
+    ;
 Serial.println("hm0360 Camera Test");
 Serial.println(hmConfig[_hmConfig]);
 Serial.println("------------------");
@@ -159,9 +159,9 @@ tft.fillScreen(TFT_BLACK);
 //    hsync_pin, en_pin, uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3, uint8_t
 //    g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
 if (_hmConfig == 0) {
-  camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43, 44, 45, 6, 9);
+    camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43, 44, 45, 6, 9);
 } else if (_hmConfig == 1) {
-  camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
+    camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
 }
 
 camera.begin();
@@ -169,11 +169,11 @@ camera.begin();
 uint16_t ModelID;
 ModelID = camera.getModelid();
 if (ModelID == 0x0360) {
-  Serial.printf("SENSOR DETECTED :-) MODEL HM0%X\n", ModelID);
+    Serial.printf("SENSOR DETECTED :-) MODEL HM0%X\n", ModelID);
 } else {
-  Serial.println("SENSOR NOT DETECTED! :-(");
-  while (1) {
-  }
+    Serial.println("SENSOR NOT DETECTED! :-(");
+    while (1) {
+    }
 }
 
 uint8_t status;
@@ -181,14 +181,14 @@ uint8_t status;
 status = camera.loadSettings(LOAD_DEFAULT_REGS);
 
 if (_hmConfig == 1 || _hmConfig == 3) {
-  status = camera.setFramesize(FRAMESIZE_QVGA4BIT);
+    status = camera.setFramesize(FRAMESIZE_QVGA4BIT);
 } else {
-  status = camera.setFramesize(FRAMESIZE_QVGA);
+    status = camera.setFramesize(FRAMESIZE_QVGA);
 }
 if (status != 0) {
-  Serial.println("Settings failed to load");
-  while (1) {
-  }
+    Serial.println("Settings failed to load");
+    while (1) {
+    }
 }
 
 // camera.showRegisters();

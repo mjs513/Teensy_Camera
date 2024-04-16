@@ -551,411 +551,415 @@ const uint16_t Arducam_hm01b0_324x244[][2] = {
 HM01B0::HM01B0() {}
 
 int HM01B0::reset() {
-  // Reset sensor.
-  if (cameraWriteRegister(SW_RESET, HIMAX_RESET) !=
-      0) { // cambus_writeb2(&sensor->bus, sensor->slv_addr, SW_RESET,
-           // HIMAX_RESET
-    return -1;
-  }
+    // Reset sensor.
+    if (cameraWriteRegister(SW_RESET, HIMAX_RESET) !=
+        0) { // cambus_writeb2(&sensor->bus, sensor->slv_addr, SW_RESET,
+             // HIMAX_RESET
+        return -1;
+    }
 
-  // Delay for 1ms.
-  delay(1);
+    // Delay for 1ms.
+    delay(1);
 
-  // Write default regsiters
-  int ret = 0;
-  for (int i = 0; default_regs[i][0] && ret == 0; i++) {
-    ret |= cameraWriteRegister(default_regs[i][0], default_regs[i][1]);
-  }
+    // Write default regsiters
+    int ret = 0;
+    for (int i = 0; default_regs[i][0] && ret == 0; i++) {
+        ret |= cameraWriteRegister(default_regs[i][0], default_regs[i][1]);
+    }
 
-  // Set mode to streaming
-  // ret |= cameraWriteRegister( MODE_SELECT, HIMAX_MODE_STREAMING);
+    // Set mode to streaming
+    // ret |= cameraWriteRegister( MODE_SELECT, HIMAX_MODE_STREAMING);
 
-  return ret;
+    return ret;
 }
 
 // Read a single uint8_t from address and return it as a uint8_t
 uint8_t HM01B0::cameraReadRegister(uint16_t reg) {
-  _wire->beginTransmission(0x24);
-  _wire->write(reg >> 8);
-  _wire->write(reg);
-  if (_wire->endTransmission(false) != 0) {
-    if (_debug)
-      debug.println("error reading HM01B0, address");
-    return 0;
-  }
-  if (_wire->requestFrom(0x24, 1) < 1) {
-    if (_debug)
-      debug.println("error reading HM01B0, data");
-    return 0;
-  }
-  return _wire->read();
+    _wire->beginTransmission(0x24);
+    _wire->write(reg >> 8);
+    _wire->write(reg);
+    if (_wire->endTransmission(false) != 0) {
+        if (_debug)
+            debug.println("error reading HM01B0, address");
+        return 0;
+    }
+    if (_wire->requestFrom(0x24, 1) < 1) {
+        if (_debug)
+            debug.println("error reading HM01B0, data");
+        return 0;
+    }
+    return _wire->read();
 }
 
 uint8_t HM01B0::cameraWriteRegister(uint16_t reg, uint8_t data) {
-  _wire->beginTransmission(0x24);
-  _wire->write(reg >> 8);
-  _wire->write(reg);
-  _wire->write(data);
-  if (_wire->endTransmission() != 0) {
-    debug.println("error writing to HM01B0");
-  }
-  return 0;
+    _wire->beginTransmission(0x24);
+    _wire->write(reg >> 8);
+    _wire->write(reg);
+    _wire->write(data);
+    if (_wire->endTransmission() != 0) {
+        debug.println("error writing to HM01B0");
+    }
+    return 0;
 }
 
 int HM01B0::setPixformat(pixformat_t pfmt) {
-  int ret = 0;
-  switch (pfmt) {
-  case PIXFORMAT_BAYER:
-    pixformat = PIXFORMAT_BAYER;
-    break;
-  case PIXFORMAT_GRAYSCALE:
-    pixformat = PIXFORMAT_GRAYSCALE;
-    break;
-  default:
-    pixformat = PIXFORMAT_INVALID;
-    return -1;
-  }
+    int ret = 0;
+    switch (pfmt) {
+    case PIXFORMAT_BAYER:
+        pixformat = PIXFORMAT_BAYER;
+        break;
+    case PIXFORMAT_GRAYSCALE:
+        pixformat = PIXFORMAT_GRAYSCALE;
+        break;
+    default:
+        pixformat = PIXFORMAT_INVALID;
+        return -1;
+    }
 
-  return ret;
+    return ret;
 }
 
 uint8_t HM01B0::setFramesize(framesize_t new_framesize) {
-  // Serial.printf("HM01B0::setFramesize(%x) _hw_config:%u\n", new_framesize,
-  // _hw_config);
-  int ret = 0;
-  // uint16_t w = resolution[framesize][0];
-  // uint16_t h = resolution[framesize][1];
-  framesize = new_framesize;
-  _bytesPerPixel = 1;
-  switch (framesize) {
-  case FRAMESIZE_320X320:
-    _width = 320;
-    _height = 320;
-    for (int i = 0; FULL_regs[i][0] && ret == 0; i++) {
-      ret |= cameraWriteRegister(
-          FULL_regs[i][0],
-          FULL_regs[i][1]); // cambus_writeb2(&sensor->bus, sensor->slv_addr,
-                            // FULL_regs[i][0], FULL_regs[i][1]
+    // Serial.printf("HM01B0::setFramesize(%x) _hw_config:%u\n", new_framesize,
+    // _hw_config);
+    int ret = 0;
+    // uint16_t w = resolution[framesize][0];
+    // uint16_t h = resolution[framesize][1];
+    framesize = new_framesize;
+    _bytesPerPixel = 1;
+    switch (framesize) {
+    case FRAMESIZE_320X320:
+        _width = 320;
+        _height = 320;
+        for (int i = 0; FULL_regs[i][0] && ret == 0; i++) {
+            ret |= cameraWriteRegister(
+                FULL_regs[i][0],
+                FULL_regs[i]
+                         [1]); // cambus_writeb2(&sensor->bus, sensor->slv_addr,
+                               // FULL_regs[i][0], FULL_regs[i][1]
+        }
+        if (_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT)
+            ret = cameraWriteRegister(BIT_CONTROL, 0x42);
+        break;
+    case FRAMESIZE_QVGA:
+        _width = 324;
+        _height = 244;
+        for (int i = 0; QVGA_regs[i][0] && ret == 0; i++) {
+            ret |= cameraWriteRegister(QVGA_regs[i][0], QVGA_regs[i][1]);
+        }
+        if (_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT) {
+            ret |= cameraWriteRegister(BIT_CONTROL, 0x42);
+        }
+        break;
+    case FRAMESIZE_QQVGA:
+        _width = 160;
+        _height = 120;
+        for (int i = 0; QQVGA_regs[i][0] && ret == 0; i++) {
+            ret |= cameraWriteRegister(QQVGA_regs[i][0], QQVGA_regs[i][1]);
+        }
+        if (_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT)
+            ret |= cameraWriteRegister(BIT_CONTROL, 0x42);
+        break;
+    case FRAMESIZE_QVGA4BIT:
+        _width = 324;
+        _height = 244;
+        for (int i = 0; QVGA_regs[i][0] && ret == 0; i++) {
+            ret |= cameraWriteRegister(QVGA_regs[i][0], QVGA_regs[i][1]);
+        }
+        ret = cameraWriteRegister(BIT_CONTROL, 0x42);
+        break;
+    case FRAMESIZE_INVALID:
+        for (int i = 0; default_regs[i][0] && ret == 0; i++) {
+            ret |= cameraWriteRegister(default_regs[i][0], default_regs[i][1]);
+        }
+        break;
+    default:
+        ret = -1;
     }
-    if (_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT)
-      ret = cameraWriteRegister(BIT_CONTROL, 0x42);
-    break;
-  case FRAMESIZE_QVGA:
-    _width = 324;
-    _height = 244;
-    for (int i = 0; QVGA_regs[i][0] && ret == 0; i++) {
-      ret |= cameraWriteRegister(QVGA_regs[i][0], QVGA_regs[i][1]);
-    }
-    if (_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT) {
-      ret |= cameraWriteRegister(BIT_CONTROL, 0x42);
-    }
-    break;
-  case FRAMESIZE_QQVGA:
-    _width = 160;
-    _height = 120;
-    for (int i = 0; QQVGA_regs[i][0] && ret == 0; i++) {
-      ret |= cameraWriteRegister(QQVGA_regs[i][0], QQVGA_regs[i][1]);
-    }
-    if (_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT)
-      ret |= cameraWriteRegister(BIT_CONTROL, 0x42);
-    break;
-  case FRAMESIZE_QVGA4BIT:
-    _width = 324;
-    _height = 244;
-    for (int i = 0; QVGA_regs[i][0] && ret == 0; i++) {
-      ret |= cameraWriteRegister(QVGA_regs[i][0], QVGA_regs[i][1]);
-    }
-    ret = cameraWriteRegister(BIT_CONTROL, 0x42);
-    break;
-  case FRAMESIZE_INVALID:
-    for (int i = 0; default_regs[i][0] && ret == 0; i++) {
-      ret |= cameraWriteRegister(default_regs[i][0], default_regs[i][1]);
-    }
-    break;
-  default:
-    ret = -1;
-  }
-  return ret;
+    return ret;
 }
 
 int HM01B0::setFramerate(int framerate) {
-  uint8_t osc_div = 0;
-  bool highres = false;
-  // framesize_t framesize;
+    uint8_t osc_div = 0;
+    bool highres = false;
+    // framesize_t framesize;
 
-  if (framesize == FRAMESIZE_INVALID || framesize == FRAMESIZE_QVGA ||
-      framesize == FRAMESIZE_320X320) {
-    highres = true;
-  }
+    if (framesize == FRAMESIZE_INVALID || framesize == FRAMESIZE_QVGA ||
+        framesize == FRAMESIZE_320X320) {
+        highres = true;
+    }
 
-  switch (framerate) {
-  case 15:
-    osc_div = (highres == true) ? 0x01 : 0x00;
-    break;
-  case 30:
-    osc_div = (highres == true) ? 0x02 : 0x01;
-    break;
-  case 60:
-    osc_div = (highres == true) ? 0x03 : 0x02;
-    break;
-  case 120:
-    // Set to the max possible FPS at this resolution.
-    osc_div = 0x03;
-    break;
-  default:
-    return -1;
-  }
-  osc_div |= 0x28; // try also adding gated PCLK option I think
+    switch (framerate) {
+    case 15:
+        osc_div = (highres == true) ? 0x01 : 0x00;
+        break;
+    case 30:
+        osc_div = (highres == true) ? 0x02 : 0x01;
+        break;
+    case 60:
+        osc_div = (highres == true) ? 0x03 : 0x02;
+        break;
+    case 120:
+        // Set to the max possible FPS at this resolution.
+        osc_div = 0x03;
+        break;
+    default:
+        return -1;
+    }
+    osc_div |= 0x28; // try also adding gated PCLK option I think
 
-  return cameraWriteRegister(OSC_CLK_DIV, osc_div);
+    return cameraWriteRegister(OSC_CLK_DIV, osc_div);
 }
 
 int HM01B0::setBrightness(int level) {
-  uint8_t ae_mean;
-  // Simulate brightness levels by setting AE loop target mean.
-  switch (level) {
-  case 0:
-    ae_mean = 60;
-    break;
-  case 1:
-    ae_mean = 80;
-    break;
-  case 2:
-    ae_mean = 100;
-    break;
-  case 3:
-    ae_mean = 127;
-    break;
-  default:
-    ae_mean = 60;
-  }
-  return cameraWriteRegister(AE_TARGET_MEAN, ae_mean);
+    uint8_t ae_mean;
+    // Simulate brightness levels by setting AE loop target mean.
+    switch (level) {
+    case 0:
+        ae_mean = 60;
+        break;
+    case 1:
+        ae_mean = 80;
+        break;
+    case 2:
+        ae_mean = 100;
+        break;
+    case 3:
+        ae_mean = 127;
+        break;
+    default:
+        ae_mean = 60;
+    }
+    return cameraWriteRegister(AE_TARGET_MEAN, ae_mean);
 }
 
 int HM01B0::setGainceiling(gainceiling_t gainceiling) {
-  int ret = 0;
-  int gain = 0x0;
-  switch (gainceiling) {
-  case GAINCEILING_2X:
-    gain = 0x01;
-    break;
-  case GAINCEILING_4X:
-    gain = 0x02;
-    break;
-  case GAINCEILING_8X:
-    gain = 0x03;
-    break;
-  case GAINCEILING_16X:
-    gain = 0x04;
-    break;
-  default:
-    return -1;
-  }
-  ret |= cameraWriteRegister(MAX_AGAIN_FULL, gain);
-  ret |= cameraWriteRegister(MAX_AGAIN_BIN2, gain);
-  return ret;
+    int ret = 0;
+    int gain = 0x0;
+    switch (gainceiling) {
+    case GAINCEILING_2X:
+        gain = 0x01;
+        break;
+    case GAINCEILING_4X:
+        gain = 0x02;
+        break;
+    case GAINCEILING_8X:
+        gain = 0x03;
+        break;
+    case GAINCEILING_16X:
+        gain = 0x04;
+        break;
+    default:
+        return -1;
+    }
+    ret |= cameraWriteRegister(MAX_AGAIN_FULL, gain);
+    ret |= cameraWriteRegister(MAX_AGAIN_BIN2, gain);
+    return ret;
 }
 
 int HM01B0::setColorbar(int enable) {
-  return cameraWriteRegister(TEST_PATTERN_MODE, enable & 0x1);
+    return cameraWriteRegister(TEST_PATTERN_MODE, enable & 0x1);
 }
 
 int HM01B0::setAutoGain(int enable, float gain_db, float gain_db_ceiling) {
-  int ret = 0;
-  if ((enable == 0) && (!isnanf(gain_db)) && (!isinff(gain_db))) {
-    gain_db = max(min(gain_db, 24.0f), 0.0f);
-    int gain =
-        fast_ceilf(fast_log2(fast_expf((gain_db / 20.0f) * fast_log(10.0f))));
-    ret |= cameraWriteRegister(AE_CTRL, 0); // Must disable AE
-    ret |= cameraWriteRegister(ANALOG_GAIN, ((gain & 0x7) << 4));
-    ret |= cameraWriteRegister(GRP_PARAM_HOLD, 0x01);
-  } else if ((enable != 0) && (!isnanf(gain_db_ceiling)) &&
-             (!isinff(gain_db_ceiling))) {
-    gain_db_ceiling = max(min(gain_db_ceiling, 24.0f), 0.0f);
-    int gain = fast_ceilf(
-        fast_log2(fast_expf((gain_db_ceiling / 20.0f) * fast_log(10.0f))));
-    ret |= cameraWriteRegister(MAX_AGAIN_FULL, (gain & 0x7));
-    ret |= cameraWriteRegister(MAX_AGAIN_BIN2, (gain & 0x7));
-    ret |= cameraWriteRegister(AE_CTRL, 1);
-  }
-  return ret;
+    int ret = 0;
+    if ((enable == 0) && (!isnanf(gain_db)) && (!isinff(gain_db))) {
+        gain_db = max(min(gain_db, 24.0f), 0.0f);
+        int gain = fast_ceilf(
+            fast_log2(fast_expf((gain_db / 20.0f) * fast_log(10.0f))));
+        ret |= cameraWriteRegister(AE_CTRL, 0); // Must disable AE
+        ret |= cameraWriteRegister(ANALOG_GAIN, ((gain & 0x7) << 4));
+        ret |= cameraWriteRegister(GRP_PARAM_HOLD, 0x01);
+    } else if ((enable != 0) && (!isnanf(gain_db_ceiling)) &&
+               (!isinff(gain_db_ceiling))) {
+        gain_db_ceiling = max(min(gain_db_ceiling, 24.0f), 0.0f);
+        int gain = fast_ceilf(
+            fast_log2(fast_expf((gain_db_ceiling / 20.0f) * fast_log(10.0f))));
+        ret |= cameraWriteRegister(MAX_AGAIN_FULL, (gain & 0x7));
+        ret |= cameraWriteRegister(MAX_AGAIN_BIN2, (gain & 0x7));
+        ret |= cameraWriteRegister(AE_CTRL, 1);
+    }
+    return ret;
 }
 
 int HM01B0::get_vt_pix_clk(uint32_t *vt_pix_clk) {
-  uint8_t reg;
-  reg = cameraReadRegister(OSC_CLK_DIV);
+    uint8_t reg;
+    reg = cameraReadRegister(OSC_CLK_DIV);
 
-  // 00 -> MCLK / 8
-  // 01 -> MCLK / 4
-  // 10 -> MCLK / 2
-  // 11 -> MCLK / 1
-  uint32_t vt_sys_div = 8 / (1 << (reg & 0x03));
+    // 00 -> MCLK / 8
+    // 01 -> MCLK / 4
+    // 10 -> MCLK / 2
+    // 11 -> MCLK / 1
+    uint32_t vt_sys_div = 8 / (1 << (reg & 0x03));
 
-  // vt_pix_clk = MCLK / vt_sys_div
-  *vt_pix_clk = OMV_XCLK_FREQUENCY / vt_sys_div;
-  return 0;
+    // vt_pix_clk = MCLK / vt_sys_div
+    *vt_pix_clk = OMV_XCLK_FREQUENCY / vt_sys_div;
+    return 0;
 }
 
 int HM01B0::getGain_db(float *gain_db) {
-  uint8_t gain;
-  gain = cameraReadRegister(ANALOG_GAIN);
-  if (gain != 0) {
-    return -1;
-  }
-  *gain_db = fast_floorf(fast_log(1 << (gain >> 4)) / fast_log(10.0f) * 20.0f);
-  return 0;
+    uint8_t gain;
+    gain = cameraReadRegister(ANALOG_GAIN);
+    if (gain != 0) {
+        return -1;
+    }
+    *gain_db =
+        fast_floorf(fast_log(1 << (gain >> 4)) / fast_log(10.0f) * 20.0f);
+    return 0;
 }
 
 int HM01B0::getCameraClock(uint32_t *vt_pix_clk) {
-  uint8_t reg;
-  reg = cameraReadRegister(OSC_CLK_DIV);
+    uint8_t reg;
+    reg = cameraReadRegister(OSC_CLK_DIV);
 
-  // 00 -> MCLK / 8
-  // 01 -> MCLK / 4
-  // 10 -> MCLK / 2
-  // 11 -> MCLK / 1
-  uint32_t vt_sys_div = 8 / (1 << (reg & 0x03));
+    // 00 -> MCLK / 8
+    // 01 -> MCLK / 4
+    // 10 -> MCLK / 2
+    // 11 -> MCLK / 1
+    uint32_t vt_sys_div = 8 / (1 << (reg & 0x03));
 
-  // vt_pix_clk = MCLK / vt_sys_div
-  *vt_pix_clk = OMV_XCLK_FREQUENCY / vt_sys_div;
-  return 0;
+    // vt_pix_clk = MCLK / vt_sys_div
+    *vt_pix_clk = OMV_XCLK_FREQUENCY / vt_sys_div;
+    return 0;
 }
 
 int HM01B0::setAutoExposure(int enable, int exposure_us) {
-  int ret = 0;
+    int ret = 0;
 
-  if (enable) {
-    ret |= cameraWriteRegister(AE_CTRL, 1);
-  } else {
-    uint32_t line_len;
-    uint32_t frame_len;
-    uint32_t coarse_int;
-    uint32_t vt_pix_clk = 0;
+    if (enable) {
+        ret |= cameraWriteRegister(AE_CTRL, 1);
+    } else {
+        uint32_t line_len;
+        uint32_t frame_len;
+        uint32_t coarse_int;
+        uint32_t vt_pix_clk = 0;
 
-    switch (framesize) {
-    case FRAMESIZE_320X320:
-      line_len = HIMAX_LINE_LEN_PCK_FULL;
-      frame_len = HIMAX_FRAME_LENGTH_FULL;
-      break;
-    case FRAMESIZE_QVGA:
-      line_len = HIMAX_LINE_LEN_PCK_QVGA;
-      frame_len = HIMAX_FRAME_LENGTH_QVGA;
-      break;
-    case FRAMESIZE_QQVGA:
-      line_len = HIMAX_LINE_LEN_PCK_QQVGA;
-      frame_len = HIMAX_FRAME_LENGTH_QQVGA;
-      break;
-    default:
-      return -1;
+        switch (framesize) {
+        case FRAMESIZE_320X320:
+            line_len = HIMAX_LINE_LEN_PCK_FULL;
+            frame_len = HIMAX_FRAME_LENGTH_FULL;
+            break;
+        case FRAMESIZE_QVGA:
+            line_len = HIMAX_LINE_LEN_PCK_QVGA;
+            frame_len = HIMAX_FRAME_LENGTH_QVGA;
+            break;
+        case FRAMESIZE_QQVGA:
+            line_len = HIMAX_LINE_LEN_PCK_QQVGA;
+            frame_len = HIMAX_FRAME_LENGTH_QQVGA;
+            break;
+        default:
+            return -1;
+        }
+
+        ret |= get_vt_pix_clk(&vt_pix_clk);
+        coarse_int =
+            fast_roundf(exposure_us * (vt_pix_clk / 1000000.0f) / line_len);
+
+        if (coarse_int < 2) {
+            coarse_int = 2;
+        } else if (coarse_int > (frame_len - 2)) {
+            coarse_int = frame_len - 2;
+        }
+
+        ret |= cameraWriteRegister(AE_CTRL, 0);
+        ret |= cameraWriteRegister(INTEGRATION_H, coarse_int >> 8);
+        ret |= cameraWriteRegister(INTEGRATION_L, coarse_int & 0xff);
+        ret |= cameraWriteRegister(GRP_PARAM_HOLD, 0x01);
     }
 
-    ret |= get_vt_pix_clk(&vt_pix_clk);
-    coarse_int =
-        fast_roundf(exposure_us * (vt_pix_clk / 1000000.0f) / line_len);
-
-    if (coarse_int < 2) {
-      coarse_int = 2;
-    } else if (coarse_int > (frame_len - 2)) {
-      coarse_int = frame_len - 2;
-    }
-
-    ret |= cameraWriteRegister(AE_CTRL, 0);
-    ret |= cameraWriteRegister(INTEGRATION_H, coarse_int >> 8);
-    ret |= cameraWriteRegister(INTEGRATION_L, coarse_int & 0xff);
-    ret |= cameraWriteRegister(GRP_PARAM_HOLD, 0x01);
-  }
-
-  return ret;
+    return ret;
 }
 
 int HM01B0::getExposure_us(int *exposure_us) {
-  int ret = 0;
-  uint32_t line_len;
-  uint32_t coarse_int = 0;
-  uint32_t vt_pix_clk = 0;
-  if (framesize == FRAMESIZE_QVGA) {
-    line_len = HIMAX_LINE_LEN_PCK_QVGA;
-  } else {
-    line_len = HIMAX_LINE_LEN_PCK_QQVGA;
-  }
-  ret |= get_vt_pix_clk(&vt_pix_clk);
-  ((uint8_t *)&coarse_int)[1] = cameraReadRegister(INTEGRATION_H);
-  ((uint8_t *)&coarse_int)[0] = cameraReadRegister(INTEGRATION_L);
+    int ret = 0;
+    uint32_t line_len;
+    uint32_t coarse_int = 0;
+    uint32_t vt_pix_clk = 0;
+    if (framesize == FRAMESIZE_QVGA) {
+        line_len = HIMAX_LINE_LEN_PCK_QVGA;
+    } else {
+        line_len = HIMAX_LINE_LEN_PCK_QQVGA;
+    }
+    ret |= get_vt_pix_clk(&vt_pix_clk);
+    ((uint8_t *)&coarse_int)[1] = cameraReadRegister(INTEGRATION_H);
+    ((uint8_t *)&coarse_int)[0] = cameraReadRegister(INTEGRATION_L);
 
-  ret |= ((uint8_t *)&coarse_int)[1];
-  ret |= ((uint8_t *)&coarse_int)[0];
+    ret |= ((uint8_t *)&coarse_int)[1];
+    ret |= ((uint8_t *)&coarse_int)[0];
 
-  *exposure_us = fast_roundf(coarse_int * line_len / (vt_pix_clk / 1000000.0f));
-  return ret;
+    *exposure_us =
+        fast_roundf(coarse_int * line_len / (vt_pix_clk / 1000000.0f));
+    return ret;
 }
 
 int HM01B0::setHmirror(int enable) {
-  uint8_t reg;
-  reg = cameraReadRegister(IMG_ORIENTATION);
-  int ret = reg;
-  ret |= cameraWriteRegister(IMG_ORIENTATION, HIMAX_SET_HMIRROR(reg, enable));
-  ret |= cameraWriteRegister(GRP_PARAM_HOLD, 0x01);
-  return ret;
+    uint8_t reg;
+    reg = cameraReadRegister(IMG_ORIENTATION);
+    int ret = reg;
+    ret |= cameraWriteRegister(IMG_ORIENTATION, HIMAX_SET_HMIRROR(reg, enable));
+    ret |= cameraWriteRegister(GRP_PARAM_HOLD, 0x01);
+    return ret;
 }
 
 int HM01B0::setVflip(int enable) {
-  uint8_t reg;
-  reg = cameraReadRegister(IMG_ORIENTATION);
-  int ret = reg;
-  ret |= cameraWriteRegister(IMG_ORIENTATION, HIMAX_SET_VMIRROR(reg, enable));
-  ret |= cameraWriteRegister(GRP_PARAM_HOLD, 0x01);
-  return ret;
+    uint8_t reg;
+    reg = cameraReadRegister(IMG_ORIENTATION);
+    int ret = reg;
+    ret |= cameraWriteRegister(IMG_ORIENTATION, HIMAX_SET_VMIRROR(reg, enable));
+    ret |= cameraWriteRegister(GRP_PARAM_HOLD, 0x01);
+    return ret;
 }
 
 uint8_t HM01B0::setMode(uint8_t Mode, uint8_t FrameCnt) {
-  uint8_t Err = 0;
+    uint8_t Err = 0;
 
-  if (Mode == HIMAX_MODE_STREAMING_NFRAMES) {
-    Err = cameraWriteRegister(PMU_AUTOSLEEP_FRAMECNT, FrameCnt);
-  } else {
-    Err = cameraWriteRegister(MODE_SELECT, Mode);
-  }
+    if (Mode == HIMAX_MODE_STREAMING_NFRAMES) {
+        Err = cameraWriteRegister(PMU_AUTOSLEEP_FRAMECNT, FrameCnt);
+    } else {
+        Err = cameraWriteRegister(MODE_SELECT, Mode);
+    }
 
-  if (Err != 0) {
-    if (_debug)
-      debug.println("Mode Could not be set");
-  }
+    if (Err != 0) {
+        if (_debug)
+            debug.println("Mode Could not be set");
+    }
 
-  return Err;
+    return Err;
 }
 
 uint8_t HM01B0::cmdUpdate() {
-  uint8_t status = 0;
-  status = cameraWriteRegister(GRP_PARAM_HOLD, 0x01);
-  return status;
+    uint8_t status = 0;
+    status = cameraWriteRegister(GRP_PARAM_HOLD, 0x01);
+    return status;
 }
 
 uint8_t HM01B0::loadSettings(camera_reg_settings_t settings) {
-  uint8_t ret = 0;
-  switch (settings) {
-  case LOAD_DEFAULT_REGS:
-    for (int i = 0; default_regs[i][0] && ret == 0; i++) {
-      ret |= cameraWriteRegister(default_regs[i][0], default_regs[i][1]);
+    uint8_t ret = 0;
+    switch (settings) {
+    case LOAD_DEFAULT_REGS:
+        for (int i = 0; default_regs[i][0] && ret == 0; i++) {
+            ret |= cameraWriteRegister(default_regs[i][0], default_regs[i][1]);
+        }
+        break;
+    case LOAD_WALKING1S_REG:
+        for (int i = 0; Walking1s_reg[i][0] && ret == 0; i++) {
+            ret |=
+                cameraWriteRegister(Walking1s_reg[i][0], Walking1s_reg[i][1]);
+        }
+        break;
+    case LOAD_SHM01B0INIT_REGS:
+        _width = 320;
+        _height = 240;
+        framesize = FRAMESIZE_QVGA;
+        for (int i = 0; sHM01B0Init_regs[i][0] && ret == 0; i++) {
+            ret |= cameraWriteRegister(sHM01B0Init_regs[i][0],
+                                       sHM01B0Init_regs[i][1]);
+        }
+        break;
+    default:
+        ret = -1;
     }
-    break;
-  case LOAD_WALKING1S_REG:
-    for (int i = 0; Walking1s_reg[i][0] && ret == 0; i++) {
-      ret |= cameraWriteRegister(Walking1s_reg[i][0], Walking1s_reg[i][1]);
-    }
-    break;
-  case LOAD_SHM01B0INIT_REGS:
-    _width = 320;
-    _height = 240;
-    framesize = FRAMESIZE_QVGA;
-    for (int i = 0; sHM01B0Init_regs[i][0] && ret == 0; i++) {
-      ret |=
-          cameraWriteRegister(sHM01B0Init_regs[i][0], sHM01B0Init_regs[i][1]);
-    }
-    break;
-  default:
-    ret = -1;
-  }
-  return ret;
+    return ret;
 }
 
 //*****************************************************************************
@@ -971,16 +975,16 @@ uint8_t HM01B0::loadSettings(camera_reg_settings_t settings) {
 //
 //*****************************************************************************
 uint16_t HM01B0::getModelid() {
-  uint8_t Data;
-  uint16_t MID = 0x0000;
+    uint8_t Data;
+    uint16_t MID = 0x0000;
 
-  Data = cameraReadRegister(MODEL_ID_H);
-  MID = (Data << 8);
+    Data = cameraReadRegister(MODEL_ID_H);
+    MID = (Data << 8);
 
-  Data = cameraReadRegister(MODEL_ID_L);
-  MID |= Data;
+    Data = cameraReadRegister(MODEL_ID_L);
+    MID |= Data;
 
-  return MID;
+    return MID;
 }
 
 //*****************************************************************************
@@ -1002,32 +1006,33 @@ uint16_t HM01B0::getModelid() {
 //*****************************************************************************
 uint8_t HM01B0::calAE(uint8_t CalFrames, uint8_t *Buffer,
                       uint32_t ui32BufferLen, ae_cfg_t *pAECfg) {
-  uint8_t ui32Err = HIMAX_ERR_OK;
-  if (pAECfg == NULL) {
-    return HIMAX_ERR_PARAMS;
-  }
+    uint8_t ui32Err = HIMAX_ERR_OK;
+    if (pAECfg == NULL) {
+        return HIMAX_ERR_PARAMS;
+    }
 
-  for (uint8_t i = 0; i < CalFrames; i++) {
-    setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
-    readFrame(Buffer, ui32BufferLen);
-    ui32Err = getAE(pAECfg);
+    for (uint8_t i = 0; i < CalFrames; i++) {
+        setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
+        readFrame(Buffer, ui32BufferLen);
+        ui32Err = getAE(pAECfg);
 
-    // // todo: could report out intermediate results here (without using
-    // printing - perhaps a callback function) SERIAL_PORT.printf("AE
-    // Calibration(0x%02X) TargetMean 0x%02X, ConvergeInTh 0x%02X, AEMean
-    // 0x%02X\n",
-    //                                 ui32Err, sAECfg.ui8AETargetMean,
-    //                                 sAECfg.ui8ConvergeInTh,
-    //                                 sAECfg.ui8AEMean);
+        // // todo: could report out intermediate results here (without using
+        // printing - perhaps a callback function) SERIAL_PORT.printf("AE
+        // Calibration(0x%02X) TargetMean 0x%02X, ConvergeInTh 0x%02X, AEMean
+        // 0x%02X\n",
+        //                                 ui32Err, sAECfg.ui8AETargetMean,
+        //                                 sAECfg.ui8ConvergeInTh,
+        //                                 sAECfg.ui8AEMean);
 
-    // if AE calibration is done in ui8CalFrames, just exit to save some time.
-    if (ui32Err == HIMAX_ERR_OK)
-      break;
-  }
+        // if AE calibration is done in ui8CalFrames, just exit to save some
+        // time.
+        if (ui32Err == HIMAX_ERR_OK)
+            break;
+    }
 
-  setMode(HIMAX_MODE_STREAMING, 0);
+    setMode(HIMAX_MODE_STREAMING, 0);
 
-  return ui32Err;
+    return ui32Err;
 }
 
 //*****************************************************************************
@@ -1045,135 +1050,136 @@ uint8_t HM01B0::calAE(uint8_t CalFrames, uint8_t *Buffer,
 //
 //*****************************************************************************
 uint8_t HM01B0::getAE(ae_cfg_t *psAECfg) {
-  uint32_t ui32Err = HIMAX_ERR_OK;
-  uint8_t ui8AETargetMean;
-  uint8_t ui8AEMinMean;
-  uint8_t ui8AEMean;
-  uint8_t ui8ConvergeInTh;
-  uint8_t ui8ConvergeOutTh;
+    uint32_t ui32Err = HIMAX_ERR_OK;
+    uint8_t ui8AETargetMean;
+    uint8_t ui8AEMinMean;
+    uint8_t ui8AEMean;
+    uint8_t ui8ConvergeInTh;
+    uint8_t ui8ConvergeOutTh;
 
-  // Read target mean
-  ui8AETargetMean = cameraReadRegister(AE_TARGET_MEAN);
-  ui8AEMinMean = cameraReadRegister(AE_MIN_MEAN);
-  ui8ConvergeInTh = cameraReadRegister(CONVERGE_IN_TH);
-  ui8ConvergeOutTh = cameraReadRegister(CONVERGE_OUT_TH);
-  if (ui32Err != HIMAX_ERR_OK)
+    // Read target mean
+    ui8AETargetMean = cameraReadRegister(AE_TARGET_MEAN);
+    ui8AEMinMean = cameraReadRegister(AE_MIN_MEAN);
+    ui8ConvergeInTh = cameraReadRegister(CONVERGE_IN_TH);
+    ui8ConvergeOutTh = cameraReadRegister(CONVERGE_OUT_TH);
+    if (ui32Err != HIMAX_ERR_OK)
+        return ui32Err;
+
+    ui8AEMean = cameraReadRegister(0x2020);
+
+    if ((ui8AEMean < (ui8AETargetMean - ui8ConvergeInTh)) ||
+        (ui8AEMean > (ui8AETargetMean + ui8ConvergeInTh)))
+        ui32Err = HIMAX_ERR_AE_NOT_CONVERGED;
+
+    // debug.printf("AE Calibration(0x%02X) TargetMean 0x%02X, ConvergeInTh
+    // 0x%02X, AEMean 0x%02X\n",
+    //                                 ui8AETargetMean, ui8ConvergeInTh,
+    //                                 ui8AEMean);
+    if (psAECfg) {
+        psAECfg->ui8AETargetMean = ui8AETargetMean;
+        psAECfg->ui8AEMinMean = ui8AEMinMean;
+        psAECfg->ui8ConvergeInTh = ui8ConvergeInTh;
+        psAECfg->ui8ConvergeOutTh = ui8ConvergeOutTh;
+        psAECfg->ui8AEMean = ui8AEMean;
+    }
+
     return ui32Err;
-
-  ui8AEMean = cameraReadRegister(0x2020);
-
-  if ((ui8AEMean < (ui8AETargetMean - ui8ConvergeInTh)) ||
-      (ui8AEMean > (ui8AETargetMean + ui8ConvergeInTh)))
-    ui32Err = HIMAX_ERR_AE_NOT_CONVERGED;
-
-  // debug.printf("AE Calibration(0x%02X) TargetMean 0x%02X, ConvergeInTh
-  // 0x%02X, AEMean 0x%02X\n",
-  //                                 ui8AETargetMean, ui8ConvergeInTh,
-  //                                 ui8AEMean);
-  if (psAECfg) {
-    psAECfg->ui8AETargetMean = ui8AETargetMean;
-    psAECfg->ui8AEMinMean = ui8AEMinMean;
-    psAECfg->ui8ConvergeInTh = ui8ConvergeInTh;
-    psAECfg->ui8ConvergeOutTh = ui8ConvergeOutTh;
-    psAECfg->ui8AEMean = ui8AEMean;
-  }
-
-  return ui32Err;
 }
 
 bool HM01B0::begin(framesize_t framesize, int framerate, bool use_gpio) {
-  _use_gpio = use_gpio;
+    _use_gpio = use_gpio;
 
-  _wire->begin();
+    _wire->begin();
 
-  pinMode(_vsyncPin, INPUT_PULLDOWN); // VSYNC Pin
-  pinMode(_pclkPin, INPUT_PULLDOWN);  // PCLK
-  pinMode(_hrefPin, INPUT_PULLDOWN);  // HSYNC
-  // pinMode(_xclkPin, OUTPUT);
+    pinMode(_vsyncPin, INPUT_PULLDOWN); // VSYNC Pin
+    pinMode(_pclkPin, INPUT_PULLDOWN);  // PCLK
+    pinMode(_hrefPin, INPUT_PULLDOWN);  // HSYNC
+    // pinMode(_xclkPin, OUTPUT);
 
-  /*Thanks to @luni for how to read 8bit port \
-   * https://forum.pjrc.com/threads/66771-MicroMod-Beta-Testing?p=275567&viewfull=1#post275567
-   * This interesting too:
-   * https://forum.pjrc.com/threads/57698-Parallel-IO-is-it-possible?p=216501&viewfull=1#post216501
-   */
-  if (_dPins[4] == 0xff) {
-    for (uint8_t pin : {_dPins[0], _dPins[1], _dPins[2], _dPins[3]}) {
-      pinMode(pin, INPUT_PULLUP);
+    /*Thanks to @luni for how to read 8bit port \
+     * https://forum.pjrc.com/threads/66771-MicroMod-Beta-Testing?p=275567&viewfull=1#post275567
+     * This interesting too:
+     * https://forum.pjrc.com/threads/57698-Parallel-IO-is-it-possible?p=216501&viewfull=1#post216501
+     */
+    if (_dPins[4] == 0xff) {
+        for (uint8_t pin : {_dPins[0], _dPins[1], _dPins[2], _dPins[3]}) {
+            pinMode(pin, INPUT_PULLUP);
+        }
+    } else {
+        for (uint8_t pin : {_dPins[0], _dPins[1], _dPins[2], _dPins[3],
+                            _dPins[4], _dPins[5], _dPins[6], _dPins[7]}) {
+            pinMode(pin, INPUT_PULLUP);
+        }
     }
-  } else {
-    for (uint8_t pin : {_dPins[0], _dPins[1], _dPins[2], _dPins[3], _dPins[4],
-                        _dPins[5], _dPins[6], _dPins[7]}) {
-      pinMode(pin, INPUT_PULLUP);
-    }
-  }
 
 #ifdef DEBUG_CAMERA
-  debug.printf("  VS=%d, HR=%d, PC=%d XC=%d\n", _vsyncPin, _hrefPin, _pclkPin,
-               _xclkPin);
-  debug.printf("  _dPins[0] = %d\n", _dPins[0]);
-  debug.printf("  _dPins[1] = %d\n", _dPins[1]);
-  debug.printf("  _dPins[2] = %d\n", _dPins[2]);
-  debug.printf("  _dPins[3] = %d\n", _dPins[3]);
-  if (_dPins[4] != 0xFF) {
-    debug.printf("  _dPins[4] = %d\n", _dPins[4]);
-    debug.printf("  _dPins[5] = %d\n", _dPins[5]);
-    debug.printf("  _dPins[6] = %d\n", _dPins[6]);
-    debug.printf("  _dPins[7] = %d\n", _dPins[7]);
-  }
+    debug.printf("  VS=%d, HR=%d, PC=%d XC=%d\n", _vsyncPin, _hrefPin, _pclkPin,
+                 _xclkPin);
+    debug.printf("  _dPins[0] = %d\n", _dPins[0]);
+    debug.printf("  _dPins[1] = %d\n", _dPins[1]);
+    debug.printf("  _dPins[2] = %d\n", _dPins[2]);
+    debug.printf("  _dPins[3] = %d\n", _dPins[3]);
+    if (_dPins[4] != 0xFF) {
+        debug.printf("  _dPins[4] = %d\n", _dPins[4]);
+        debug.printf("  _dPins[5] = %d\n", _dPins[5]);
+        debug.printf("  _dPins[6] = %d\n", _dPins[6]);
+        debug.printf("  _dPins[7] = %d\n", _dPins[7]);
+    }
 #endif
 
-  _vsyncMask = digitalPinToBitMask(_vsyncPin);
-  _hrefMask = digitalPinToBitMask(_hrefPin);
-  _pclkMask = digitalPinToBitMask(_pclkPin);
+    _vsyncMask = digitalPinToBitMask(_vsyncPin);
+    _hrefMask = digitalPinToBitMask(_hrefPin);
+    _pclkMask = digitalPinToBitMask(_pclkPin);
 
-  _vsyncPort = portInputRegister(digitalPinToPort(_vsyncPin));
-  _hrefPort = portInputRegister(digitalPinToPort(_hrefPin));
-  _pclkPort = portInputRegister(digitalPinToPort(_pclkPin));
+    _vsyncPort = portInputRegister(digitalPinToPort(_vsyncPin));
+    _hrefPort = portInputRegister(digitalPinToPort(_hrefPin));
+    _pclkPort = portInputRegister(digitalPinToPort(_pclkPin));
 
-  // turn on power to camera (1.8V - might be an issue?)
-  if (_rst < 255) {
-    pinMode(_rst, OUTPUT);
-    digitalWrite(_rst, HIGH);
-  }
-  delay(10);
+    // turn on power to camera (1.8V - might be an issue?)
+    if (_rst < 255) {
+        pinMode(_rst, OUTPUT);
+        digitalWrite(_rst, HIGH);
+    }
+    delay(10);
 
-  // turn on MCLK
-  beginXClk();
+    // turn on MCLK
+    beginXClk();
 
-  if (!_use_gpio) {
-    flexio_configure();
-  }
-  setVSyncISRPriority(102);
-  setDMACompleteISRPriority(192);
+    if (!_use_gpio) {
+        flexio_configure();
+    }
+    setVSyncISRPriority(102);
+    setDMACompleteISRPriority(192);
 
-  if (getModelid() != 0x01B0)
-    return 0;
+    if (getModelid() != 0x01B0)
+        return 0;
 
-  reset();
+    reset();
 
-  setFramesize(framesize);
-  setFramerate(framerate);
+    setFramesize(framesize);
+    setFramerate(framerate);
 
-  setPixformat(PIXFORMAT_GRAYSCALE); // Sparkfun camera only supports grayscale
+    setPixformat(
+        PIXFORMAT_GRAYSCALE); // Sparkfun camera only supports grayscale
 
-  // setMode(HIMAX_MODE_STREAMING,0);
+    // setMode(HIMAX_MODE_STREAMING,0);
 
-  return 1;
+    return 1;
 }
 
 void HM01B0::end() {
-  endXClk();
+    endXClk();
 
-  pinMode(_xclkPin, INPUT);
+    pinMode(_xclkPin, INPUT);
 
-  Wire.end();
+    Wire.end();
 }
 
 void HM01B0::beginXClk() {
-  // Generates MCLK clock
-  analogWriteFrequency(_xclkPin, OMV_XCLK_FREQUENCY);
-  analogWrite(_xclkPin, 128);
-  delay(100);
+    // Generates MCLK clock
+    analogWriteFrequency(_xclkPin, OMV_XCLK_FREQUENCY);
+    analogWrite(_xclkPin, 128);
+    delay(100);
 }
 
 void HM01B0::endXClk() { analogWrite(OMV_XCLK_FREQUENCY, 0); }
@@ -1182,73 +1188,74 @@ void HM01B0::endXClk() { analogWrite(OMV_XCLK_FREQUENCY, 0); }
 
 size_t HM01B0::readFrameGPIO(void *buffer, size_t cb1, void *buffer2,
                              size_t cb2) {
-  // Do most of the work using the base class implementation
-  size_t ret_val = ImageSensor::readFrameGPIO(buffer, cb1, buffer2, cb2);
+    // Do most of the work using the base class implementation
+    size_t ret_val = ImageSensor::readFrameGPIO(buffer, cb1, buffer2, cb2);
 
-  if (ret_val)
-    setMode(HIMAX_MODE_STREAMING, 0);
-  return ret_val;
+    if (ret_val)
+        setMode(HIMAX_MODE_STREAMING, 0);
+    return ret_val;
 }
 
 void HM01B0::readFrame4BitGPIO(void *buffer) {
 
-  uint8_t *b = (uint8_t *)buffer;
-  int bytesPerRow;
-  uint8_t in0 = 0;
+    uint8_t *b = (uint8_t *)buffer;
+    int bytesPerRow;
+    uint8_t in0 = 0;
 
-  // Change for Monodchrome only Sparkfun HB01b0
-  bytesPerRow = _width * 2 * _bytesPerPixel;
+    // Change for Monodchrome only Sparkfun HB01b0
+    bytesPerRow = _width * 2 * _bytesPerPixel;
 
-  // Falling edge indicates start of frame
-  // pinMode(_pclkPin, INPUT); // make sure back to input pin...
-  // lets add our own glitch filter.  Say it must be hig for at least 100us
-  elapsedMicros emHigh;
-  do {
-    while ((*_vsyncPort & _vsyncMask) == 0)
-      ; // wait for HIGH
-    emHigh = 0;
-    while ((*_vsyncPort & _vsyncMask) != 0)
-      ; // wait for LOW
-  } while (emHigh < 2);
+    // Falling edge indicates start of frame
+    // pinMode(_pclkPin, INPUT); // make sure back to input pin...
+    // lets add our own glitch filter.  Say it must be hig for at least 100us
+    elapsedMicros emHigh;
+    do {
+        while ((*_vsyncPort & _vsyncMask) == 0)
+            ; // wait for HIGH
+        emHigh = 0;
+        while ((*_vsyncPort & _vsyncMask) != 0)
+            ; // wait for LOW
+    } while (emHigh < 2);
 
-  for (int i = 0; i < _height; i++) {
-    // rising edge indicates start of line
-    while ((*_hrefPort & _hrefMask) == 0)
-      ; // wait for HIGH
-    while ((*_pclkPort & _pclkMask) != 0)
-      ; // wait for LOW
-    noInterrupts();
+    for (int i = 0; i < _height; i++) {
+        // rising edge indicates start of line
+        while ((*_hrefPort & _hrefMask) == 0)
+            ; // wait for HIGH
+        while ((*_pclkPort & _pclkMask) != 0)
+            ; // wait for LOW
+        noInterrupts();
 
-    for (int j = 0; j < bytesPerRow; j++) {
-      // rising edges clock each data byte
-      while ((*_pclkPort & _pclkMask) == 0)
-        ; // wait for HIGH
+        for (int j = 0; j < bytesPerRow; j++) {
+            // rising edges clock each data byte
+            while ((*_pclkPort & _pclkMask) == 0)
+                ; // wait for HIGH
 
-      // uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >> 18; //
-      // read all bits in parallel
-      uint8_t in = (GPIO7_PSR >> 4); // read all bits in parallel
-      // uint32_t in = mmBus;
-      in &= 0x0F;
+            // uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >>
+            // 18; // read all bits in parallel
+            uint8_t in = (GPIO7_PSR >> 4); // read all bits in parallel
+            // uint32_t in = mmBus;
+            in &= 0x0F;
 
-      if ((j + 1) % 2) {
-        in = (in0 << 4) | (in);
-        if (!(j & 1) || !_grayscale) {
-          *b++ = in;
+            if ((j + 1) % 2) {
+                in = (in0 << 4) | (in);
+                if (!(j & 1) || !_grayscale) {
+                    *b++ = in;
+                }
+            } else {
+                in0 = in;
+            }
+
+            while (((*_pclkPort & _pclkMask) != 0) &&
+                   ((*_hrefPort & _hrefMask) != 0))
+                ; // wait for LOW bail if _href is lost
         }
-      } else {
-        in0 = in;
-      }
 
-      while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0))
-        ; // wait for LOW bail if _href is lost
+        while ((*_hrefPort & _hrefMask) != 0)
+            ; // wait for LOW
+        interrupts();
     }
 
-    while ((*_hrefPort & _hrefMask) != 0)
-      ; // wait for LOW
-    interrupts();
-  }
-
-  setMode(HIMAX_MODE_STREAMING, 0);
+    setMode(HIMAX_MODE_STREAMING, 0);
 }
 
 //======================================== DMA JUNK
@@ -1266,142 +1273,144 @@ extern "C" void xbar_connect(unsigned int input,
 //===================================================================
 bool HM01B0::startReadFrameDMA(bool (*callback)(void *frame_buffer),
                                uint8_t *fb1, uint8_t *fb2) {
-  // First see if we need to allocate frame buffers.
-  if (fb1)
-    _frame_buffer_1 = fb1;
-  else if (_frame_buffer_1 == nullptr) {
-    _frame_buffer_1 = (uint8_t *)malloc(_width * _height);
-    if (_frame_buffer_1 == nullptr)
-      return false;
-  }
-  if (fb2)
-    _frame_buffer_2 = fb2;
-  else if (_frame_buffer_2 == nullptr) {
-    _frame_buffer_2 = (uint8_t *)malloc(_width * _height);
-    if (_frame_buffer_2 == nullptr)
-      return false; // BUGBUG should we 32 byte align?
-  }
-  // remember the call back if passed in
-  _callback = callback;
-  active_dma_camera = this;
+    // First see if we need to allocate frame buffers.
+    if (fb1)
+        _frame_buffer_1 = fb1;
+    else if (_frame_buffer_1 == nullptr) {
+        _frame_buffer_1 = (uint8_t *)malloc(_width * _height);
+        if (_frame_buffer_1 == nullptr)
+            return false;
+    }
+    if (fb2)
+        _frame_buffer_2 = fb2;
+    else if (_frame_buffer_2 == nullptr) {
+        _frame_buffer_2 = (uint8_t *)malloc(_width * _height);
+        if (_frame_buffer_2 == nullptr)
+            return false; // BUGBUG should we 32 byte align?
+    }
+    // remember the call back if passed in
+    _callback = callback;
+    active_dma_camera = this;
 
-  if (_debug)
-    debug.printf("startReadFrameDMA called buffers %x %x\n",
-                 (uint32_t)_frame_buffer_1, (uint32_t)_frame_buffer_2);
+    if (_debug)
+        debug.printf("startReadFrameDMA called buffers %x %x\n",
+                     (uint32_t)_frame_buffer_1, (uint32_t)_frame_buffer_2);
 
-  // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
-  // lets figure out how many bytes we will tranfer per setting...
-  //  _dmasettings[0].begin();
-  _frame_row_buffer_pointer = _frame_buffer_pointer =
-      (uint8_t *)_frame_buffer_1;
+    // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
+    // lets figure out how many bytes we will tranfer per setting...
+    //  _dmasettings[0].begin();
+    _frame_row_buffer_pointer = _frame_buffer_pointer =
+        (uint8_t *)_frame_buffer_1;
 
-  // configure DMA channels
-  _dmachannel.begin();
-  _dmasettings[0].source(GPIO2_PSR); // setup source.
-  _dmasettings[0].destinationBuffer(
-      _dmaBuffer1, DMABUFFER_SIZE * 4); // 32 bits per logical byte
-  _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
-  _dmasettings[0]
-      .interruptAtCompletion(); // we will need an interrupt to process this.
-  _dmasettings[0].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
-  // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
+    // configure DMA channels
+    _dmachannel.begin();
+    _dmasettings[0].source(GPIO2_PSR); // setup source.
+    _dmasettings[0].destinationBuffer(
+        _dmaBuffer1, DMABUFFER_SIZE * 4); // 32 bits per logical byte
+    _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
+    _dmasettings[0]
+        .interruptAtCompletion(); // we will need an interrupt to process this.
+    _dmasettings[0].TCD->CSR &=
+        ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
+    // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
-  _dmasettings[1].source(GPIO2_PSR); // setup source.
-  _dmasettings[1].destinationBuffer(
-      _dmaBuffer2, DMABUFFER_SIZE * 4); // 32 bits per logical byte
-  _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
-  _dmasettings[1]
-      .interruptAtCompletion(); // we will need an interrupt to process this.
-  _dmasettings[1].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
-  // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
+    _dmasettings[1].source(GPIO2_PSR); // setup source.
+    _dmasettings[1].destinationBuffer(
+        _dmaBuffer2, DMABUFFER_SIZE * 4); // 32 bits per logical byte
+    _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
+    _dmasettings[1]
+        .interruptAtCompletion(); // we will need an interrupt to process this.
+    _dmasettings[1].TCD->CSR &=
+        ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
+    // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
-  GPIO2_GDIR = 0; // set all as input...
-  GPIO2_DR = 0;   // see if I can clear it out...
+    GPIO2_GDIR = 0; // set all as input...
+    GPIO2_DR = 0;   // see if I can clear it out...
 
-  _dmachannel = _dmasettings[0]; // setup the first on...
-  _dmachannel.attachInterrupt(dmaInterrupt);
-  _dmachannel.triggerAtHardwareEvent(DMAMUX_SOURCE_XBAR1_0);
-  // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
+    _dmachannel = _dmasettings[0]; // setup the first on...
+    _dmachannel.attachInterrupt(dmaInterrupt);
+    _dmachannel.triggerAtHardwareEvent(DMAMUX_SOURCE_XBAR1_0);
+    // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
-  // Lets try to setup the DMA setup...
-  // first see if we can convert the _pclk to be an XBAR Input pin...
-  // OV7670_PLK   4
-  // OV7670_PLK   8    //8       B1_00   FlexIO2:16  XBAR IO14
+    // Lets try to setup the DMA setup...
+    // first see if we can convert the _pclk to be an XBAR Input pin...
+    // OV7670_PLK   4
+    // OV7670_PLK   8    //8       B1_00   FlexIO2:16  XBAR IO14
 
-  _save_pclkPin_portConfigRegister = *(portConfigRegister(_pclkPin));
-  *(portConfigRegister(_pclkPin)) = 1; // set to XBAR mode 14
+    _save_pclkPin_portConfigRegister = *(portConfigRegister(_pclkPin));
+    *(portConfigRegister(_pclkPin)) = 1; // set to XBAR mode 14
 
-  // route the timer outputs through XBAR to edge trigger DMA request
-  CCM_CCGR2 |= CCM_CCGR2_XBAR1(CCM_CCGR_ON);
-  xbar_connect(XBARA1_IN_IOMUX_XBAR_INOUT14, XBARA1_OUT_DMA_CH_MUX_REQ30);
-  // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
+    // route the timer outputs through XBAR to edge trigger DMA request
+    CCM_CCGR2 |= CCM_CCGR2_XBAR1(CCM_CCGR_ON);
+    xbar_connect(XBARA1_IN_IOMUX_XBAR_INOUT14, XBARA1_OUT_DMA_CH_MUX_REQ30);
+    // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
-  // Tell XBAR to dDMA on Rising
-  XBARA1_CTRL0 = XBARA_CTRL_STS0 | XBARA_CTRL_EDGE0(1) |
-                 XBARA_CTRL_DEN0 /* | XBARA_CTRL_IEN0 */;
+    // Tell XBAR to dDMA on Rising
+    XBARA1_CTRL0 = XBARA_CTRL_STS0 | XBARA_CTRL_EDGE0(1) |
+                   XBARA_CTRL_DEN0 /* | XBARA_CTRL_IEN0 */;
 
-  IOMUXC_GPR_GPR6 &=
-      ~(IOMUXC_GPR_GPR6_IOMUXC_XBAR_DIR_SEL_14); // Make sure it is input mode
-  IOMUXC_XBAR1_IN14_SELECT_INPUT =
-      1; // Make sure this signal goes to this pin...
+    IOMUXC_GPR_GPR6 &=
+        ~(IOMUXC_GPR_GPR6_IOMUXC_XBAR_DIR_SEL_14); // Make sure it is input mode
+    IOMUXC_XBAR1_IN14_SELECT_INPUT =
+        1; // Make sure this signal goes to this pin...
 
 #if defined(ARDUINO_TEENSY_MICROMOD)
-  // Need to switch the IO pins back to GPI1 from GPIO6
-  _save_IOMUXC_GPR_GPR27 =
-      IOMUXC_GPR_GPR27; // save away the configuration before we change...
-  IOMUXC_GPR_GPR27 &= ~(0x0ff0u);
+    // Need to switch the IO pins back to GPI1 from GPIO6
+    _save_IOMUXC_GPR_GPR27 =
+        IOMUXC_GPR_GPR27; // save away the configuration before we change...
+    IOMUXC_GPR_GPR27 &= ~(0x0ff0u);
 
-  // lets also un map the _hrefPin to GPIO1
-  IOMUXC_GPR_GPR27 &= ~_hrefMask; //
+    // lets also un map the _hrefPin to GPIO1
+    IOMUXC_GPR_GPR27 &= ~_hrefMask; //
 #else
-  // Need to switch the IO pins back to GPI1 from GPIO6
-  _save_IOMUXC_GPR_GPR26 =
-      IOMUXC_GPR_GPR26; // save away the configuration before we change...
-  IOMUXC_GPR_GPR26 &= ~(0x0ff0u);
+    // Need to switch the IO pins back to GPI1 from GPIO6
+    _save_IOMUXC_GPR_GPR26 =
+        IOMUXC_GPR_GPR26; // save away the configuration before we change...
+    IOMUXC_GPR_GPR26 &= ~(0x0ff0u);
 
-  // lets also un map the _hrefPin to GPIO1
-  IOMUXC_GPR_GPR26 &= ~_hrefMask; //
+    // lets also un map the _hrefPin to GPIO1
+    IOMUXC_GPR_GPR26 &= ~_hrefMask; //
 #endif
 
-  // Need to switch the IO pins back to GPI1 from GPIO6
-  //_save_IOMUXC_GPR_GPR27 = IOMUXC_GPR_GPR27;  // save away the configuration
-  // before we change... IOMUXC_GPR_GPR27 &= ~(0x0ff0u);
+    // Need to switch the IO pins back to GPI1 from GPIO6
+    //_save_IOMUXC_GPR_GPR27 = IOMUXC_GPR_GPR27;  // save away the configuration
+    // before we change... IOMUXC_GPR_GPR27 &= ~(0x0ff0u);
 
-  // lets also un map the _hrefPin to GPIO1
-  // IOMUXC_GPR_GPR27 &= ~_hrefMask; //
+    // lets also un map the _hrefPin to GPIO1
+    // IOMUXC_GPR_GPR27 &= ~_hrefMask; //
 
-  // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
+    // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
-  // Falling edge indicates start of frame
-  //  while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
-  //  while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
-  //  DebugDigitalWrite(OV7670_DEBUG_PIN_2, HIGH);
+    // Falling edge indicates start of frame
+    //  while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
+    //  while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
+    //  DebugDigitalWrite(OV7670_DEBUG_PIN_2, HIGH);
 
-  // Debug stuff for now
+    // Debug stuff for now
 
-  // We have the start of a frame, so lets start the dma.
+    // We have the start of a frame, so lets start the dma.
 #ifdef DEBUG_CAMERA
-  dumpDMA_TCD(&_dmachannel);
-  dumpDMA_TCD(&_dmasettings[0]);
-  dumpDMA_TCD(&_dmasettings[1]);
-  debug.printf("pclk pin: %d config:%lx control:%lx\n", _pclkPin,
-               *(portConfigRegister(_pclkPin)),
-               *(portControlRegister(_pclkPin)));
-  debug.printf("IOMUXC_GPR_GPR26-29:%lx %lx %lx %lx\n", IOMUXC_GPR_GPR26,
-               IOMUXC_GPR_GPR27, IOMUXC_GPR_GPR28, IOMUXC_GPR_GPR29);
-  debug.printf("GPIO1: %lx %lx, GPIO6: %lx %lx\n", GPIO1_DR, GPIO1_PSR,
-               GPIO6_DR, GPIO6_PSR);
-  debug.printf("XBAR CTRL0:%x CTRL1:%x\n\n", XBARA1_CTRL0, XBARA1_CTRL1);
+    dumpDMA_TCD(&_dmachannel);
+    dumpDMA_TCD(&_dmasettings[0]);
+    dumpDMA_TCD(&_dmasettings[1]);
+    debug.printf("pclk pin: %d config:%lx control:%lx\n", _pclkPin,
+                 *(portConfigRegister(_pclkPin)),
+                 *(portControlRegister(_pclkPin)));
+    debug.printf("IOMUXC_GPR_GPR26-29:%lx %lx %lx %lx\n", IOMUXC_GPR_GPR26,
+                 IOMUXC_GPR_GPR27, IOMUXC_GPR_GPR28, IOMUXC_GPR_GPR29);
+    debug.printf("GPIO1: %lx %lx, GPIO6: %lx %lx\n", GPIO1_DR, GPIO1_PSR,
+                 GPIO6_DR, GPIO6_PSR);
+    debug.printf("XBAR CTRL0:%x CTRL1:%x\n\n", XBARA1_CTRL0, XBARA1_CTRL1);
 #endif
-  _dma_state = DMASTATE_RUNNING;
-  _dma_last_completed_frame = nullptr;
-  _dma_frame_count = 0;
+    _dma_state = DMASTATE_RUNNING;
+    _dma_last_completed_frame = nullptr;
+    _dma_frame_count = 0;
 
-  // Now start an interrupt for start of frame.
-  attachInterrupt(_vsyncPin, &frameStartInterrupt, RISING);
+    // Now start an interrupt for start of frame.
+    attachInterrupt(_vsyncPin, &frameStartInterrupt, RISING);
 
-  // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
-  return true;
+    // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
+    return true;
 }
 
 //===================================================================
@@ -1409,284 +1418,288 @@ bool HM01B0::startReadFrameDMA(bool (*callback)(void *frame_buffer),
 //===================================================================
 bool HM01B0::stopReadFrameDMA() {
 
-  // hopefully it start here (fingers crossed)
-  // for now will hang here to see if completes...
-  // DebugDigitalWrite(OV7670_DEBUG_PIN_2, HIGH);
-  elapsedMillis em = 0;
-  // tell the background stuff DMA stuff to exit.
-  // Note: for now let it end on on, later could disable the DMA directly.
-  _dma_state = DMASTATE_STOP_REQUESTED;
+    // hopefully it start here (fingers crossed)
+    // for now will hang here to see if completes...
+    // DebugDigitalWrite(OV7670_DEBUG_PIN_2, HIGH);
+    elapsedMillis em = 0;
+    // tell the background stuff DMA stuff to exit.
+    // Note: for now let it end on on, later could disable the DMA directly.
+    _dma_state = DMASTATE_STOP_REQUESTED;
 
-  while ((em < 1000) && (_dma_state == DMASTATE_STOP_REQUESTED))
-    ; // wait up to a second...
-  if (_dma_state != DMA_STATE_STOPPED) {
-    if (_debug) {
-      debug.println("*** stopReadFrameDMA DMA did not exit correctly...");
-      debug.printf("  Bytes Left: %u frame buffer:%x Row:%u Col:%u\n",
-                   _bytes_left_dma, (uint32_t)_frame_buffer_pointer,
-                   _frame_row_index, _frame_col_index);
+    while ((em < 1000) && (_dma_state == DMASTATE_STOP_REQUESTED))
+        ; // wait up to a second...
+    if (_dma_state != DMA_STATE_STOPPED) {
+        if (_debug) {
+            debug.println("*** stopReadFrameDMA DMA did not exit correctly...");
+            debug.printf("  Bytes Left: %u frame buffer:%x Row:%u Col:%u\n",
+                         _bytes_left_dma, (uint32_t)_frame_buffer_pointer,
+                         _frame_row_index, _frame_col_index);
+        }
     }
-  }
-  // DebugDigitalWrite(OV7670_DEBUG_PIN_2, LOW);
+    // DebugDigitalWrite(OV7670_DEBUG_PIN_2, LOW);
 
 #ifdef DEBUG_CAMERA
-  dumpDMA_TCD(&_dmachannel);
-  dumpDMA_TCD(&_dmasettings[0]);
-  dumpDMA_TCD(&_dmasettings[1]);
-  debug.println();
+    dumpDMA_TCD(&_dmachannel);
+    dumpDMA_TCD(&_dmasettings[0]);
+    dumpDMA_TCD(&_dmasettings[1]);
+    debug.println();
 #endif
-  // Lets restore some hardware pieces back to the way we found them.
+    // Lets restore some hardware pieces back to the way we found them.
 #if defined(ARDUINO_TEENSY_MICROMOD)
-  IOMUXC_GPR_GPR27 =
-      _save_IOMUXC_GPR_GPR27; // Restore... away the configuration before we
-                              // change...
+    IOMUXC_GPR_GPR27 =
+        _save_IOMUXC_GPR_GPR27; // Restore... away the configuration before we
+                                // change...
 #else
-  IOMUXC_GPR_GPR26 =
-      _save_IOMUXC_GPR_GPR26; // Restore... away the configuration before we
-                              // change...
+    IOMUXC_GPR_GPR26 =
+        _save_IOMUXC_GPR_GPR26; // Restore... away the configuration before we
+                                // change...
 #endif
-  *(portConfigRegister(_pclkPin)) = _save_pclkPin_portConfigRegister;
+    *(portConfigRegister(_pclkPin)) = _save_pclkPin_portConfigRegister;
 
-  return (em < 1000); // did we stop...
+    return (em < 1000); // did we stop...
 }
 
 //===================================================================
 // Our Frame Start interrupt.
 //===================================================================
 void HM01B0::frameStartInterrupt() {
-  active_dma_camera
-      ->processFrameStartInterrupt(); // lets get back to the main object...
+    active_dma_camera
+        ->processFrameStartInterrupt(); // lets get back to the main object...
 }
 
 void HM01B0::processFrameStartInterrupt() {
-  _bytes_left_dma = (_width + _frame_ignore_cols) *
-                    _height; // for now assuming color 565 image...
-  _dma_index = 0;
-  _frame_col_index = 0; // which column we are in a row
-  _frame_row_index = 0; // which row
-  _save_lsb = 0xffff;
-  // make sure our DMA is setup properly again.
-  _dmasettings[0].transferCount(DMABUFFER_SIZE);
-  _dmasettings[0].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
-  _dmasettings[1].transferCount(DMABUFFER_SIZE);
-  _dmasettings[1].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
-  _dmachannel = _dmasettings[0];                   // setup the first on...
-  _dmachannel.enable();
+    _bytes_left_dma = (_width + _frame_ignore_cols) *
+                      _height; // for now assuming color 565 image...
+    _dma_index = 0;
+    _frame_col_index = 0; // which column we are in a row
+    _frame_row_index = 0; // which row
+    _save_lsb = 0xffff;
+    // make sure our DMA is setup properly again.
+    _dmasettings[0].transferCount(DMABUFFER_SIZE);
+    _dmasettings[0].TCD->CSR &=
+        ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
+    _dmasettings[1].transferCount(DMABUFFER_SIZE);
+    _dmasettings[1].TCD->CSR &=
+        ~(DMA_TCD_CSR_DREQ);       // Don't disable on this one
+    _dmachannel = _dmasettings[0]; // setup the first on...
+    _dmachannel.enable();
 
-  detachInterrupt(_vsyncPin);
+    detachInterrupt(_vsyncPin);
 }
 
 //===================================================================
 // Our DMA interrupt.
 //===================================================================
 void HM01B0::dmaInterrupt() {
-  active_dma_camera
-      ->processDMAInterrupt(); // lets get back to the main object...
+    active_dma_camera
+        ->processDMAInterrupt(); // lets get back to the main object...
 }
 
 // This version assumes only called when HREF...  as set pixclk to only fire
 // when set.
 void HM01B0::processDMAInterrupt() {
-  _dmachannel.clearInterrupt(); // tell system we processed it.
-  asm("DSB");
-  // DebugDigitalWrite(OV7670_DEBUG_PIN_3, HIGH);
+    _dmachannel.clearInterrupt(); // tell system we processed it.
+    asm("DSB");
+    // DebugDigitalWrite(OV7670_DEBUG_PIN_3, HIGH);
 
-  if (_dma_state == DMA_STATE_STOPPED) {
-    debug.println("HM01B0::dmaInterrupt called when DMA_STATE_STOPPED");
-    return; //
-  }
-
-  // lets guess which buffer completed.
-  uint32_t *buffer;
-  uint16_t buffer_size;
-  _dma_index++;
-  if (_dma_index & 1) {
-    buffer = _dmaBuffer1;
-    buffer_size = _dmasettings[0].TCD->CITER;
-
-  } else {
-    buffer = _dmaBuffer2;
-    buffer_size = _dmasettings[1].TCD->CITER;
-  }
-  // lets try dumping a little data on 1st 2nd and last buffer.
-#ifdef DEBUG_CAMERA_VERBOSE
-  if ((_dma_index < 3) || (buffer_size < DMABUFFER_SIZE)) {
-    debug.printf("D(%d, %d, %lu) %u : ", _dma_index, buffer_size,
-                 _bytes_left_dma, pixformat);
-    for (uint16_t i = 0; i < 8; i++) {
-      uint16_t b = buffer[i] >> 4;
-      debug.printf(" %lx(%02x)", buffer[i], b);
-    }
-    debug.print("...");
-    for (uint16_t i = buffer_size - 8; i < buffer_size; i++) {
-      uint16_t b = buffer[i] >> 4;
-      debug.printf(" %lx(%02x)", buffer[i], b);
-    }
-    debug.println();
-  }
-#endif
-
-  for (uint16_t buffer_index = 0; buffer_index < buffer_size; buffer_index++) {
-    if (!_bytes_left_dma || (_frame_row_index >= _height))
-      break;
-
-    // only process if href high...
-    uint16_t b = *buffer >> 4;
-    *_frame_buffer_pointer++ = b;
-    _frame_col_index++;
-    if (_frame_col_index == _width) {
-      // we just finished a row.
-      _frame_row_index++;
-      _frame_col_index = 0;
-    }
-    _bytes_left_dma--; // for now assuming color 565 image...
-    buffer++;
-  }
-
-  if ((_frame_row_index == _height) ||
-      (_bytes_left_dma == 0)) { // We finished a frame lets bail
-    _dmachannel.disable();      // disable the DMA now...
-                                // DebugDigitalWrite(OV7670_DEBUG_PIN_2, LOW);
-#ifdef DEBUG_CAMERA_VERBOSE
-    debug.println("EOF");
-#endif
-    _frame_row_index = 0;
-    _dma_frame_count++;
-
-    bool swap_buffers = true;
-
-    // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
-    _dma_last_completed_frame = _frame_row_buffer_pointer;
-    if (_callback)
-      swap_buffers = (*_callback)(_dma_last_completed_frame);
-
-    if (swap_buffers) {
-      if (_frame_row_buffer_pointer != _frame_buffer_1)
-        _frame_row_buffer_pointer = _frame_buffer_2;
-      else
-        _frame_row_buffer_pointer = _frame_buffer_2;
+    if (_dma_state == DMA_STATE_STOPPED) {
+        debug.println("HM01B0::dmaInterrupt called when DMA_STATE_STOPPED");
+        return; //
     }
 
-    _frame_buffer_pointer = _frame_row_buffer_pointer;
+    // lets guess which buffer completed.
+    uint32_t *buffer;
+    uint16_t buffer_size;
+    _dma_index++;
+    if (_dma_index & 1) {
+        buffer = _dmaBuffer1;
+        buffer_size = _dmasettings[0].TCD->CITER;
 
-    // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
-
-    if (_dma_state == DMASTATE_STOP_REQUESTED) {
-#ifdef DEBUG_CAMERA
-      debug.println("HM01B0::dmaInterrupt - Stop requested");
-#endif
-      _dma_state = DMA_STATE_STOPPED;
     } else {
-      // We need to start up our ISR for the next frame.
+        buffer = _dmaBuffer2;
+        buffer_size = _dmasettings[1].TCD->CITER;
+    }
+    // lets try dumping a little data on 1st 2nd and last buffer.
+#ifdef DEBUG_CAMERA_VERBOSE
+    if ((_dma_index < 3) || (buffer_size < DMABUFFER_SIZE)) {
+        debug.printf("D(%d, %d, %lu) %u : ", _dma_index, buffer_size,
+                     _bytes_left_dma, pixformat);
+        for (uint16_t i = 0; i < 8; i++) {
+            uint16_t b = buffer[i] >> 4;
+            debug.printf(" %lx(%02x)", buffer[i], b);
+        }
+        debug.print("...");
+        for (uint16_t i = buffer_size - 8; i < buffer_size; i++) {
+            uint16_t b = buffer[i] >> 4;
+            debug.printf(" %lx(%02x)", buffer[i], b);
+        }
+        debug.println();
+    }
+#endif
+
+    for (uint16_t buffer_index = 0; buffer_index < buffer_size;
+         buffer_index++) {
+        if (!_bytes_left_dma || (_frame_row_index >= _height))
+            break;
+
+        // only process if href high...
+        uint16_t b = *buffer >> 4;
+        *_frame_buffer_pointer++ = b;
+        _frame_col_index++;
+        if (_frame_col_index == _width) {
+            // we just finished a row.
+            _frame_row_index++;
+            _frame_col_index = 0;
+        }
+        _bytes_left_dma--; // for now assuming color 565 image...
+        buffer++;
+    }
+
+    if ((_frame_row_index == _height) ||
+        (_bytes_left_dma == 0)) { // We finished a frame lets bail
+        _dmachannel.disable();    // disable the DMA now...
+                                  // DebugDigitalWrite(OV7670_DEBUG_PIN_2, LOW);
+#ifdef DEBUG_CAMERA_VERBOSE
+        debug.println("EOF");
+#endif
+        _frame_row_index = 0;
+        _dma_frame_count++;
+
+        bool swap_buffers = true;
+
+        // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
+        _dma_last_completed_frame = _frame_row_buffer_pointer;
+        if (_callback)
+            swap_buffers = (*_callback)(_dma_last_completed_frame);
+
+        if (swap_buffers) {
+            if (_frame_row_buffer_pointer != _frame_buffer_1)
+                _frame_row_buffer_pointer = _frame_buffer_2;
+            else
+                _frame_row_buffer_pointer = _frame_buffer_2;
+        }
+
+        _frame_buffer_pointer = _frame_row_buffer_pointer;
+
+        // DebugDigitalToggle(OV7670_DEBUG_PIN_1);
+
+        if (_dma_state == DMASTATE_STOP_REQUESTED) {
+#ifdef DEBUG_CAMERA
+            debug.println("HM01B0::dmaInterrupt - Stop requested");
+#endif
+            _dma_state = DMA_STATE_STOPPED;
+        } else {
+            // We need to start up our ISR for the next frame.
 #if 1
-      // bypass interrupt and just restart DMA...
-      _bytes_left_dma = (_width + _frame_ignore_cols) *
-                        _height; // for now assuming color 565 image...
-      _dma_index = 0;
-      _frame_col_index = 0; // which column we are in a row
-      _frame_row_index = 0; // which row
-      _save_lsb = 0xffff;
-      // make sure our DMA is setup properly again.
-      _dmasettings[0].transferCount(DMABUFFER_SIZE);
-      _dmasettings[0].TCD->CSR &=
-          ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
-      _dmasettings[1].transferCount(DMABUFFER_SIZE);
-      _dmasettings[1].TCD->CSR &=
-          ~(DMA_TCD_CSR_DREQ);       // Don't disable on this one
-      _dmachannel = _dmasettings[0]; // setup the first on...
-      _dmachannel.enable();
+            // bypass interrupt and just restart DMA...
+            _bytes_left_dma = (_width + _frame_ignore_cols) *
+                              _height; // for now assuming color 565 image...
+            _dma_index = 0;
+            _frame_col_index = 0; // which column we are in a row
+            _frame_row_index = 0; // which row
+            _save_lsb = 0xffff;
+            // make sure our DMA is setup properly again.
+            _dmasettings[0].transferCount(DMABUFFER_SIZE);
+            _dmasettings[0].TCD->CSR &=
+                ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
+            _dmasettings[1].transferCount(DMABUFFER_SIZE);
+            _dmasettings[1].TCD->CSR &=
+                ~(DMA_TCD_CSR_DREQ);       // Don't disable on this one
+            _dmachannel = _dmasettings[0]; // setup the first on...
+            _dmachannel.enable();
 
 #else
-      attachInterrupt(_vsyncPin, &frameStartInterrupt, RISING);
+            attachInterrupt(_vsyncPin, &frameStartInterrupt, RISING);
 #endif
-    }
-  } else {
+        }
+    } else {
 
-    if (_bytes_left_dma == (2 * DMABUFFER_SIZE)) {
-      if (_dma_index & 1)
-        _dmasettings[0].disableOnCompletion();
-      else
-        _dmasettings[1].disableOnCompletion();
+        if (_bytes_left_dma == (2 * DMABUFFER_SIZE)) {
+            if (_dma_index & 1)
+                _dmasettings[0].disableOnCompletion();
+            else
+                _dmasettings[1].disableOnCompletion();
+        }
     }
-  }
-  // DebugDigitalWrite(OV7670_DEBUG_PIN_3, LOW);
+    // DebugDigitalWrite(OV7670_DEBUG_PIN_3, LOW);
 }
 
 typedef struct {
-  uint32_t frameTimeMicros;
-  uint16_t vsyncStartCycleCount;
-  uint16_t vsyncEndCycleCount;
-  uint16_t hrefCount;
-  uint32_t cycleCount;
-  uint16_t pclkCounts[350]; // room to spare.
-  uint32_t hrefStartTime[350];
-  uint16_t pclkNoHrefCount;
+    uint32_t frameTimeMicros;
+    uint16_t vsyncStartCycleCount;
+    uint16_t vsyncEndCycleCount;
+    uint16_t hrefCount;
+    uint32_t cycleCount;
+    uint16_t pclkCounts[350]; // room to spare.
+    uint32_t hrefStartTime[350];
+    uint16_t pclkNoHrefCount;
 } frameStatics_t;
 
 frameStatics_t fstat;
 
 void HM01B0::captureFrameStatistics() {
-  memset((void *)&fstat, 0, sizeof(fstat));
+    memset((void *)&fstat, 0, sizeof(fstat));
 
-  // lets wait for the vsync to go high;
-  while ((*_vsyncPort & _vsyncMask) != 0)
-    ; // wait for HIGH
-  // now lets wait for it to go low
-  while ((*_vsyncPort & _vsyncMask) == 0)
-    fstat.vsyncStartCycleCount++; // wait for LOW
+    // lets wait for the vsync to go high;
+    while ((*_vsyncPort & _vsyncMask) != 0)
+        ; // wait for HIGH
+    // now lets wait for it to go low
+    while ((*_vsyncPort & _vsyncMask) == 0)
+        fstat.vsyncStartCycleCount++; // wait for LOW
 
-  while ((*_hrefPort & _hrefMask) == 0)
-    ; // wait for HIGH
-  while ((*_pclkPort & _pclkMask) != 0)
-    ; // wait for LOW
+    while ((*_hrefPort & _hrefMask) == 0)
+        ; // wait for HIGH
+    while ((*_pclkPort & _pclkMask) != 0)
+        ; // wait for LOW
 
-  uint32_t microsStart = micros();
-  fstat.hrefStartTime[0] = microsStart;
-  // now loop through until we get the next _vsynd
-  // BUGBUG We know that HSYNC and PCLK on same GPIO VSYNC is not...
-  uint32_t regs_prev = 0;
-  // noInterrupts();
-  while ((*_vsyncPort & _vsyncMask) != 0) {
+    uint32_t microsStart = micros();
+    fstat.hrefStartTime[0] = microsStart;
+    // now loop through until we get the next _vsynd
+    // BUGBUG We know that HSYNC and PCLK on same GPIO VSYNC is not...
+    uint32_t regs_prev = 0;
+    // noInterrupts();
+    while ((*_vsyncPort & _vsyncMask) != 0) {
 
-    fstat.cycleCount++;
-    uint32_t regs = (*_hrefPort & (_hrefMask | _pclkMask));
-    if (regs != regs_prev) {
-      if ((regs & _hrefMask) && ((regs_prev & _hrefMask) == 0)) {
-        fstat.hrefCount++;
-        fstat.hrefStartTime[fstat.hrefCount] = micros();
-      }
-      if ((regs & _pclkMask) && ((regs_prev & _pclkMask) == 0))
-        fstat.pclkCounts[fstat.hrefCount]++;
-      if ((regs & _pclkMask) && ((regs_prev & _hrefMask) == 0))
-        fstat.pclkNoHrefCount++;
-      regs_prev = regs;
+        fstat.cycleCount++;
+        uint32_t regs = (*_hrefPort & (_hrefMask | _pclkMask));
+        if (regs != regs_prev) {
+            if ((regs & _hrefMask) && ((regs_prev & _hrefMask) == 0)) {
+                fstat.hrefCount++;
+                fstat.hrefStartTime[fstat.hrefCount] = micros();
+            }
+            if ((regs & _pclkMask) && ((regs_prev & _pclkMask) == 0))
+                fstat.pclkCounts[fstat.hrefCount]++;
+            if ((regs & _pclkMask) && ((regs_prev & _hrefMask) == 0))
+                fstat.pclkNoHrefCount++;
+            regs_prev = regs;
+        }
     }
-  }
-  while ((*_vsyncPort & _vsyncMask) == 0)
-    fstat.vsyncEndCycleCount++; // wait for LOW
-  // interrupts();
-  fstat.frameTimeMicros = micros() - microsStart;
+    while ((*_vsyncPort & _vsyncMask) == 0)
+        fstat.vsyncEndCycleCount++; // wait for LOW
+    // interrupts();
+    fstat.frameTimeMicros = micros() - microsStart;
 
-  // Maybe return data. print now
-  debug.printf("*** Frame Capture Data: elapsed Micros: %u loops: %u\n",
-               fstat.frameTimeMicros, fstat.cycleCount);
-  debug.printf("   VSync Loops Start: %u end: %u\n", fstat.vsyncStartCycleCount,
-               fstat.vsyncEndCycleCount);
-  debug.printf("   href count: %u pclk ! href count: %u\n    ", fstat.hrefCount,
-               fstat.pclkNoHrefCount);
-  for (uint16_t ii = 0; ii < fstat.hrefCount + 1; ii++) {
-    debug.printf(
-        "%3u(%u) ", fstat.pclkCounts[ii],
-        (ii == 0) ? 0 : fstat.hrefStartTime[ii] - fstat.hrefStartTime[ii - 1]);
-    if (!(ii & 0x0f))
-      debug.print("\n    ");
-  }
-  debug.println();
+    // Maybe return data. print now
+    debug.printf("*** Frame Capture Data: elapsed Micros: %u loops: %u\n",
+                 fstat.frameTimeMicros, fstat.cycleCount);
+    debug.printf("   VSync Loops Start: %u end: %u\n",
+                 fstat.vsyncStartCycleCount, fstat.vsyncEndCycleCount);
+    debug.printf("   href count: %u pclk ! href count: %u\n    ",
+                 fstat.hrefCount, fstat.pclkNoHrefCount);
+    for (uint16_t ii = 0; ii < fstat.hrefCount + 1; ii++) {
+        debug.printf("%3u(%u) ", fstat.pclkCounts[ii],
+                     (ii == 0) ? 0
+                               : fstat.hrefStartTime[ii] -
+                                     fstat.hrefStartTime[ii - 1]);
+        if (!(ii & 0x0f))
+            debug.print("\n    ");
+    }
+    debug.println();
 }
 
 typedef struct {
-  const __FlashStringHelper *reg_name;
-  uint16_t reg;
+    const __FlashStringHelper *reg_name;
+    uint16_t reg;
 } HM01B0_TO_NAME_t;
 
 static const HM01B0_TO_NAME_t hm01b0_reg_name_table[] PROGMEM{
@@ -1775,12 +1788,12 @@ static const HM01B0_TO_NAME_t hm01b0_reg_name_table[] PROGMEM{
     {F("PCLK_POLARITY"), 0x3068}};
 
 void HM01B0::showRegisters(void) {
-  debug.println("\n*** Camera Registers ***");
-  for (uint16_t ii = 0;
-       ii < (sizeof(hm01b0_reg_name_table) / sizeof(hm01b0_reg_name_table[0]));
-       ii++) {
-    uint8_t reg_value = cameraReadRegister(hm01b0_reg_name_table[ii].reg);
-    debug.printf("%s(%x): %u(%x)\n", hm01b0_reg_name_table[ii].reg_name,
-                 hm01b0_reg_name_table[ii].reg, reg_value, reg_value);
-  }
+    debug.println("\n*** Camera Registers ***");
+    for (uint16_t ii = 0; ii < (sizeof(hm01b0_reg_name_table) /
+                                sizeof(hm01b0_reg_name_table[0]));
+         ii++) {
+        uint8_t reg_value = cameraReadRegister(hm01b0_reg_name_table[ii].reg);
+        debug.printf("%s(%x): %u(%x)\n", hm01b0_reg_name_table[ii].reg_name,
+                     hm01b0_reg_name_table[ii].reg, reg_value, reg_value);
+    }
 }
