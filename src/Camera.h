@@ -314,10 +314,10 @@ class Camera {
      *
      * This has no effect on cameras that do now support camera zoom. Currently
      * supported by the GC2145 and OV2640.
-     * INPUT: 
-     * 1. x, y - origin starting point for zooming. 
+     * INPUT:
+     * 1. x, y - origin starting point for zooming.
      *           if these are -1 will center the frame with last w, h
-     * 2. w, h - image width and height to display. 
+     * 2. w, h - image width and height to display.
      *           if these values are -1 use previous width and height
      * all units are in pixels. The defined rectangle must be fully contained
      *           within the bounds of the current frame size.
@@ -352,7 +352,7 @@ class Camera {
     /**
      * Sets Gain Ceiling based on gain enumerator.
      *
-     * This has no effect on cameras that do now support GainCeiling.
+     * This has no effect on cameras that do not support GainCeiling.
      *
      * INPUT: Based on gain ceiling enumerator.
      * Returns: non-zero if fails.
@@ -360,7 +360,7 @@ class Camera {
     int setGainceiling(gainceiling_t gainceiling);
 
     /**
-     * Enables color bar to be displayed
+     * Enables color bar to be displayed.
      *
      * For OV2640 and HIMAX:
      * INPUT: 0 - off, 1 - on.
@@ -384,40 +384,96 @@ class Camera {
      * RETURNS:
      */
     int setColorbar(int enable);
+
+    /**
+     * Sets Automatic Gain based on db's.
+     *
+     * Supported by all cameras except GC2145.
+     * Input:
+     *     1. int enable - enables auto gain(1 enable, 0 disable).
+     *     2. float gain_db = gain in db's.
+     *     3. float gain_ceiling in dbs.
+     * RESULT: Non-zero if it fails to set selected value.
+     */
     int setAutoGain(int enable, float gain_db, float gain_db_ceiling);
+
+    /**
+     * Gets clock settings
+     *
+     * This has no effect on cameras that do not support this.
+     */
     int get_vt_pix_clk(uint32_t *vt_pix_clk);
-    int getGain_db(float *gain_db);
     int getCameraClock(uint32_t *vt_pix_clk);
+
+    /**
+     * Gets current gain in dbs.
+     *
+     * Not supported on OV767X and GC2145 cameras.
+     */
+    int getGain_db(float *gain_db);
+
+    /**
+     * Sets Automatic Exposure in microseconds.
+     *
+     * Not supported on the GC2145.
+     * RESULT: Non-zero if it fails to set selected value.
+     */
     int setAutoExposure(int enable, int exposure_us);
+
+    /**
+     * Returns current Exposure in microseconds.
+     *
+     * Not supported on the GC2145.
+     * RESULT: Current exposure in microseconds.
+     */
     int getExposure_us(int *exposure_us);
 
     /**
-     * Enable or disable Horizontal Mirror of the camera
-     * 
+     * Enable or disable Horizontal Mirror of the camera.
+     *
      * When enabled, pixels go from right to left instead
      * of left to right.  When used with setVflip, it makes
      * as if the camera is rotated 180 degrees
-     * 
-     * Input: true or false
-     * RESULT: Non-zero if it fails to set selected value
-     */    
+     *
+     * Input: true or false.
+     * RESULT: Non-zero if it fails to set selected value.
+     */
     int setHmirror(int enable);
 
     /**
-     * Enable or disable camera Vertical Flip
-     * 
+     * Enable or disable camera Vertical Flip.
+     *
      * When enabled, pixels go from bottom to top instead
      * of top to bottom.  When used with setHmirror, it makes
      * as if the camera is rotated 180 degrees
-     * 
-     * Input: true or false
-     * RESULT: Non-zero if it fails to set selected value
+     *
+     * Input: true or false.
+     * RESULT: Non-zero if it fails to set selected value.
      */
     int setVflip(int enable);
 
+    /**
+     * Sets Framemode for HIMAX Cameras only.
+     *
+     * This has no effect on cameras other than HIMAX.
+     * RESULT: Non-zero if it fails to set selected value.
+     */
     uint8_t setMode(uint8_t Mode, uint8_t FrameCnt);
+
+    /**
+     * Excutes a register update for HIMAX cameras only.
+     *
+     * RESULT: Non-zero if it fails to set selected value.
+     */
     uint8_t cmdUpdate();
+
+    /**
+     * Loads HIMAX Camera configuration settings.
+     *
+     * RESULT: Non-zero if it fails to set selected value.
+     */
     uint8_t loadSettings(camera_reg_settings_t settings);
+
     // HM01B0 only so if you use should return -1)
     uint8_t getAE(ae_cfg_t *psAECfg);
     uint8_t calAE(uint8_t CalFrames, uint8_t *Buffer, uint32_t ui32BufferLen,
@@ -429,13 +485,13 @@ class Camera {
     bool writeRegister(uint8_t reg, uint8_t data);
 
     /**
-     * For Omnivision and GalaxyCore cameras
-     *     1. framesize:    allowable framesize enumerator
+     * For Omnivision and GalaxyCore cameras.
+     *     1. framesize:    allowable framesize enumerator.
      *     2. format:       format enumerator such as RGB565 for the camera.
      *     3. framerate:    supported framerate, or any framerate if not
      * supported
-     *     4. Camera Name:  OV2640, OV7670, OV7675 or GC2145
-     *     5. GPIO boolean: identify whether lib should use GPIO or FLEXIO
+     *     4. Camera Name:  OV2640, OV7670, OV7675 or GC2145.
+     *     5. GPIO boolean: identify whether lib should use GPIO or FLEXIO.
      *
      * Returns 0 if successful, nonzero if fails.
      */
@@ -444,14 +500,66 @@ class Camera {
                int camera_name = OV7670,
                bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
 
+    /**
+     * Sets Saturation levels for Omnivision Cameras Only.
+     *
+     * OV2640 Range: -2 to +2.
+     * OV767X Range: 0 - 255.
+     * No return value.
+     */
     void setSaturation(int saturation); // 0 - 255
-    void setHue(int hue);               // -180 - 180
-    void setContrast(int contrast);     // 0 - 127
-    void setGain(int gain);             // 0 - 255
+
+    /**
+     * Sets the Hue for the OV767X Cameras ONLY.
+     * Range: -180 to +180.
+     * No return value.
+     */
+    void setHue(int hue); // -180 - 180
+
+    /**
+     * Sets Image Contrast.
+     *
+     * OV2640 Range: -2 to +2.
+     * OV767X Range: 0 - 127.
+     * No return value.
+     */
+    void setContrast(int contrast); // 0 - 127
+
+    /**
+     * Sets camera gain for Omnivision cameras Only.
+     *
+     * RANGE: 0 - 255.
+     * No return value.
+     */
+    void setGain(int gain); // 0 - 255
     void autoGain(int enable, float gain_db, float gain_db_ceiling);
+
+    /**
+     * Sets exposure level for OV767x cameras ONLY.
+     *
+     * RANGE: 0 - 65535.
+     */
     void setExposure(int exposure); // 0 - 65535
+
+    /**
+     * Enables Auto Exposure for Omnivision cameras Only.
+     *
+     * Input: 1 to enable, 0 to disable.
+     */
     void autoExposure(int enable);
-    /***********  GC2145 specific ************************/
+
+    /**
+     * Sets Auto Whitebalance based on RGB.
+     *
+     * Only supported by the OV2640 camera.
+     * INPUTS:.
+     *   1. enable, 1 to enable, 0 to disable.
+     *   2. r_gain_db - red gain in dbs.
+     *   3. g_gain_db - red gain in dbs.
+     *   4. b_gain_db - red gain in dbs.
+     *
+     * Returns 0 if successful, nonzero if fails.
+     */
     int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db,
                         float b_gain_db);
 
@@ -465,14 +573,14 @@ class Camera {
      * one whole frame.  For example: OV2640, OV7670, OV7675 or GC2145
      * cameras allow you to read in a VGA size (640 by 480) with 2 bytes
      * per pixel this requires a buffer size of at least: 614400 bytes
-     * which is larger than either memory region. 
-     * 
-     * Inputs: 
+     * which is larger than either memory region.
+     *
+     * Inputs:
      *     buffer1 - pointer to first buffer
      *     cb1 - size of buffer 1 in bytes
      *     buffer2 - pointer to optional second buffer
      *     cb2 - size of second optional buffer
-     * 
+     *
      * Returns: count of bytes returned from the camera, 0 if error
      */
     size_t readFrame(void *buffer1, size_t cb1, void *buffer2 = nullptr,
@@ -520,11 +628,11 @@ class Camera {
     /**
      * Return the width of the frame date that is returned by calls like
      * readFrame.  In most cases this is the width of the resolution that
-     * passed into the begin methods or to setFrameSize.  However some of 
+     * passed into the begin methods or to setFrameSize.  However some of
      * the cameras cush as the OV2640 allow you to set a zoom window into
      * the resolution, and the width will return the width of the actual
      * data that is to be returned.
-     * 
+     *
      * Returns: width in pixels
      */
     int16_t width(void);
@@ -532,33 +640,33 @@ class Camera {
     /**
      * Return the height of the frame date that is returned by calls like
      * readFrame.  In most cases this is the height of the resolution that
-     * passed into the begin methods or to setFrameSize.  However some of 
+     * passed into the begin methods or to setFrameSize.  However some of
      * the cameras cush as the OV2640 allow you to set a zoom window into
      * the resolution, and the width will return the height of the actual
      * data that is to be returned.
-     * 
+     *
      * Returns: height in pixels
      */
     int16_t height(void);
 
     /**
-     * Return the width of the current frame resolution 
+     * Return the width of the current frame resolution
      * In most cases this is the same value as the width() method.
      * However if if a zoom Window is active.  This call will continue
-     * to return the width of the frame size, from the last call to 
+     * to return the width of the frame size, from the last call to
      * setFramesize.
-     * 
+     *
      * Returns: frame width in pixels
      */
     int16_t frameWidth(void);
 
     /**
-     * Return the height of the current frame resolution 
+     * Return the height of the current frame resolution
      * In most cases this is the same value as the height() method.
      * However if if a zoom Window is active.  This call will continue
-     * to return the height of the frame size, from the last call to 
+     * to return the height of the frame size, from the last call to
      * setFramesize.
-     * 
+     *
      * Returns: frame height in pixels
      */
     int16_t frameHeight(void);
