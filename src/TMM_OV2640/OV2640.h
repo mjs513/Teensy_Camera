@@ -198,7 +198,34 @@ class OV2640 : public ImageSensor {
     int getRGB_Gain_db(float *r_gain_db, float *g_gain_db, float *b_gain_db);
     int setHmirror(int enable);
     int setVflip(int enable);
+
+    /**
+     * Sets OV2640 Image Special Effects.
+     *
+     * Input: Enumerated
+     * 1. NOEFFECT.
+     * 2. NEGATIVE.
+     * 3. BW.
+     * 4. REDDISH.
+     * 5. GREENISH.
+     * 6. BLUEISH.
+     * 7. RETRO.
+     * RETURNS:  Non-zero if it fails.
+     */
     int setSpecialEffect(sde_t sde);
+
+    /**
+     * Sets Whitebalance mode for OV2640 camera Only.
+     *
+     * INPUT: integer.
+     *   0 - Auto white balance.
+     *   1 - Sunny.
+     *   2 - Cloudy.
+     *   3 - Office.
+     *   4 - Home.
+     *
+     * RETURNS:   Non-zero if it fails.
+     */
     int setWBmode(int mode);
 
     void showRegisters();

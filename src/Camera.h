@@ -528,7 +528,8 @@ class Camera {
     /**
      * Sets camera gain for Omnivision cameras Only.
      *
-     * RANGE: 0 - 255.
+     * RANGE: 0 - 255 for OV767X.
+     * RANGE: 0 -  30 for OV2640.
      * No return value.
      */
     void setGain(int gain); // 0 - 255
@@ -544,7 +545,9 @@ class Camera {
     /**
      * Enables Auto Exposure for Omnivision cameras Only.
      *
-     * Input: 1 to enable, 0 to disable.
+     * Input: 1 to enable, 0 to disable for OV767x camera
+     * Input for OV2640: 0 - 4 AE levels.
+     * RESULT: no return value
      */
     void autoExposure(int enable);
 
@@ -591,8 +594,26 @@ class Camera {
     bool useDMA();
 
     // normal Read mode
-    size_t readFrameGPIO(void *buffer, size_t cb1 = (uint32_t)-1,
-                         void *buffer2 = nullptr, size_t cb2 = 0);
+    /**
+     * Read one Frame using GPIO from the camera using the current settings
+     * This method allows you to pass in two buffers and size of
+     * buffers. This can be important when it is very possible that
+     * you do not have enough room in either DTCM or DMAMEM to hold
+     * one whole frame.  For example: OV2640, OV7670, OV7675 or GC2145
+     * cameras allow you to read in a VGA size (640 by 480) with 2 bytes
+     * per pixel this requires a buffer size of at least: 614400 bytes
+     * which is larger than either memory region.
+     *
+     * Inputs:
+     *     buffer1 - pointer to first buffer
+     *     cb1 - size of buffer 1 in bytes
+     *     buffer2 - pointer to optional second buffer
+     *     cb2 - size of second optional buffer
+     *
+     * Returns: count of bytes returned from the camera, 0 if error    size_t
+     * readFrameGPIO(void *buffer, size_t cb1 = (uint32_t)-1, void *buffer2 =
+     * nullptr, size_t cb2 = 0);
+     */
     void readFrame4BitGPIO(void *buffer);
 
     bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1,
@@ -600,6 +621,26 @@ class Camera {
     void stopReadContinuous();
 
     // FlexIO is default mode for the camera
+    /**
+     * Read one Frame using FLEXIO from the camera using the current settings
+     * This method allows you to pass in two buffers and size of
+     * buffers. This can be important when it is very possible that
+     * you do not have enough room in either DTCM or DMAMEM to hold
+     * one whole frame.  For example: OV2640, OV7670, OV7675 or GC2145
+     * cameras allow you to read in a VGA size (640 by 480) with 2 bytes
+     * per pixel this requires a buffer size of at least: 614400 bytes
+     * which is larger than either memory region.
+     *
+     * Inputs:
+     *     buffer1 - pointer to first buffer
+     *     cb1 - size of buffer 1 in bytes
+     *     buffer2 - pointer to optional second buffer
+     *     cb2 - size of second optional buffer
+     *
+     * Returns: count of bytes returned from the camera, 0 if error    size_t
+     * readFrameGPIO(void *buffer, size_t cb1 = (uint32_t)-1, void *buffer2 =
+     * nullptr, size_t cb2 = 0);
+     */
     size_t readFrameFlexIO(void *buffer, size_t cb1 = (uint32_t)-1,
                            void *buffer2 = nullptr, size_t cb2 = 0);
 
