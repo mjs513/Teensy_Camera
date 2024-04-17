@@ -589,8 +589,19 @@ class Camera {
     size_t readFrame(void *buffer1, size_t cb1, void *buffer2 = nullptr,
                      size_t cb2 = 0);
 
-    // enable/disable DMA
+    /**
+     * Tells some readFrameFlexIO implementions if they should use DMA
+     * or not.
+     * Input: bool - yes or no
+     * Returns: none
+     */ 
     void useDMA(bool f);
+
+    /**
+     * Returns the current state of if FlexIO implementations should
+     * use DMA or not.
+     * Returns: true (default) if they are configured to use DMA
+     */
     bool useDMA();
 
     // normal Read mode
@@ -627,8 +638,28 @@ class Camera {
      */
     void readFrame4BitGPIO(void *buffer);
 
+    /**
+     * Start a continuous read operation on the camera.
+     * Currently this is only supported with the FLEXIO DMA implementation
+     * Both fb1 and fb2 need to large enough to hold a complete frame.
+     * Your callback function will be called as each frame is completed, with
+     * a pointer to the buffer that was just filled.
+     * Inputs:
+     *    callback - pointer to callback function that is called from DMA 
+     *               completion interrupt.
+     *    fb1 - pointer to first frame buffer
+     *    cb1 - size of that buffer
+     *    fb2 - pointer to second buffer
+     *    cb2 - size of the second buffer
+     *  Returns: true if the continuous read was started.    
+     */ 
     bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1,
                         size_t cb1, void *fb2, size_t cb2);
+
+    /**
+     * Stops a continuous read operation started by the readContinuous
+     * call.  There are no inputs or return values.
+     */
     void stopReadContinuous();
 
     // FlexIO is default mode for the camera
