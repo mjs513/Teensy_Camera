@@ -596,6 +596,7 @@ class Camera {
     // normal Read mode
     /**
      * Read one Frame using GPIO from the camera using the current settings
+     * in 4 bit mode.
      * This method allows you to pass in two buffers and size of
      * buffers. This can be important when it is very possible that
      * you do not have enough room in either DTCM or DMAMEM to hold
@@ -661,7 +662,20 @@ class Camera {
 
     void captureFrameStatistics();
 
+    /**
+     * Sets the VSYNCH priority for HIMAX Cameras ONLY.
+     *
+     * RANGE: 0 - 255, lower is higher priority for interrupt.
+     * RETURN: no return
+     */
     void setVSyncISRPriority(uint8_t priority);
+
+    /**
+     * Sets the DMA Complete Priority for HIMAX Cameras Only.
+     *
+     * RANGE: 0 - 255, lower is higher priority for interrupt.
+     * RETURN: no return
+     */
     void setDMACompleteISRPriority(uint8_t priority);
 
     uint32_t frameCount(); //{return _dma_frame_count;}
