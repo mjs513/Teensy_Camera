@@ -594,9 +594,9 @@ class Camera {
     bool useDMA();
 
     // normal Read mode
+
     /**
-     * Read one Frame using GPIO from the camera using the current settings
-     * in 4 bit mode.
+     * Read one Frame using GPIO from the camera using the current settings.
      * This method allows you to pass in two buffers and size of
      * buffers. This can be important when it is very possible that
      * you do not have enough room in either DTCM or DMAMEM to hold
@@ -611,9 +611,19 @@ class Camera {
      *     buffer2 - pointer to optional second buffer
      *     cb2 - size of second optional buffer
      *
-     * Returns: count of bytes returned from the camera, 0 if error    size_t
-     * readFrameGPIO(void *buffer, size_t cb1 = (uint32_t)-1, void *buffer2 =
-     * nullptr, size_t cb2 = 0);
+     * Returns: count of bytes returned from the camera, 0 if error
+     */
+    size_t readFrameGPIO(void *buffer, size_t cb1 = (uint32_t)-1,
+                         void *buffer2 = nullptr, size_t cb2 = 0);
+
+    /**
+     * Read one Frame using GPIO from the camera using the current settings
+     * in 4bit mode.  ONLY APPLIES TO HIMAX CAMERAS.
+     *
+     * Inputs:
+     *     buffer1 - pointer to first buffer
+     *
+     * Returns: count of bytes returned from the camera, 0 if error
      */
     void readFrame4BitGPIO(void *buffer);
 
