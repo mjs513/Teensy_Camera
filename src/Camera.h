@@ -312,11 +312,15 @@ class Camera {
     /**
      * Sets window zoom for those cameras that support camera zoom function
      *
-     * This has no effect on cameras that do now support camera zoom.
-     * INPUT:
-     * 1. x, y - origin starting point for zooming.
-     * 2. w, h - image width and height to display.
-     * all units are in pixels.
+     * This has no effect on cameras that do now support camera zoom. Currently
+     * supported by the GC2145 and OV2640.
+     * INPUT: 
+     * 1. x, y - origin starting point for zooming. 
+     *           if these are -1 will center the frame with last w, h
+     * 2. w, h - image width and height to display. 
+     *           if these values are -1 use previous width and height
+     * all units are in pixels. The defined rectangle must be fully contained
+     *           within the bounds of the current frame size.
      * Returns: true if success or false if not.
      */
     bool setZoomWindow(uint16_t x = -1, uint16_t y = -1, uint16_t w = -1,
@@ -351,7 +355,7 @@ class Camera {
      * This has no effect on cameras that do now support GainCeiling.
      *
      * INPUT: Based on gain ceiling enumerator.
-     * RESULT: Non-zero if it fails to set selected value
+     * Returns: non-zero if fails.
      */
     int setGainceiling(gainceiling_t gainceiling);
 
@@ -386,8 +390,31 @@ class Camera {
     int getCameraClock(uint32_t *vt_pix_clk);
     int setAutoExposure(int enable, int exposure_us);
     int getExposure_us(int *exposure_us);
+
+    /**
+     * Enable or disable Horizontal Mirror of the camera
+     * 
+     * When enabled, pixels go from right to left instead
+     * of left to right.  When used with setVflip, it makes
+     * as if the camera is rotated 180 degrees
+     * 
+     * Input: true or false
+     * RESULT: Non-zero if it fails to set selected value
+     */    
     int setHmirror(int enable);
+
+    /**
+     * Enable or disable camera Vertical Flip
+     * 
+     * When enabled, pixels go from bottom to top instead
+     * of top to bottom.  When used with setHmirror, it makes
+     * as if the camera is rotated 180 degrees
+     * 
+     * Input: true or false
+     * RESULT: Non-zero if it fails to set selected value
+     */
     int setVflip(int enable);
+
     uint8_t setMode(uint8_t Mode, uint8_t FrameCnt);
     uint8_t cmdUpdate();
     uint8_t loadSettings(camera_reg_settings_t settings);
@@ -429,8 +456,25 @@ class Camera {
                         float b_gain_db);
 
     // grab Frame functions
-    //-------------------------------------------------------
-    // Generic Read Frame base on _hw_config
+
+    /**
+     * Read one Frame from the camera using the current settings
+     * This method allows you to pass in two buffers and size of
+     * buffers. This can be important when it is very possible that
+     * you do not have enough room in either DTCM or DMAMEM to hold
+     * one whole frame.  For example: OV2640, OV7670, OV7675 or GC2145
+     * cameras allow you to read in a VGA size (640 by 480) with 2 bytes
+     * per pixel this requires a buffer size of at least: 614400 bytes
+     * which is larger than either memory region. 
+     * 
+     * Inputs: 
+     *     buffer1 - pointer to first buffer
+     *     cb1 - size of buffer 1 in bytes
+     *     buffer2 - pointer to optional second buffer
+     *     cb2 - size of second optional buffer
+     * 
+     * Returns: count of bytes returned from the camera, 0 if error
+     */
     size_t readFrame(void *buffer1, size_t cb1, void *buffer2 = nullptr,
                      size_t cb2 = 0);
 
@@ -473,10 +517,52 @@ class Camera {
 
     uint32_t frameCount(); //{return _dma_frame_count;}
 
+    /**
+     * Return the width of the frame date that is returned by calls like
+     * readFrame.  In most cases this is the width of the resolution that
+     * passed into the begin methods or to setFrameSize.  However some of 
+     * the cameras cush as the OV2640 allow you to set a zoom window into
+     * the resolution, and the width will return the width of the actual
+     * data that is to be returned.
+     * 
+     * Returns: width in pixels
+     */
     int16_t width(void);
+
+    /**
+     * Return the height of the frame date that is returned by calls like
+     * readFrame.  In most cases this is the height of the resolution that
+     * passed into the begin methods or to setFrameSize.  However some of 
+     * the cameras cush as the OV2640 allow you to set a zoom window into
+     * the resolution, and the width will return the height of the actual
+     * data that is to be returned.
+     * 
+     * Returns: height in pixels
+     */
     int16_t height(void);
+
+    /**
+     * Return the width of the current frame resolution 
+     * In most cases this is the same value as the width() method.
+     * However if if a zoom Window is active.  This call will continue
+     * to return the width of the frame size, from the last call to 
+     * setFramesize.
+     * 
+     * Returns: frame width in pixels
+     */
     int16_t frameWidth(void);
+
+    /**
+     * Return the height of the current frame resolution 
+     * In most cases this is the same value as the height() method.
+     * However if if a zoom Window is active.  This call will continue
+     * to return the height of the frame size, from the last call to 
+     * setFramesize.
+     * 
+     * Returns: frame height in pixels
+     */
     int16_t frameHeight(void);
+
     int16_t mode(void);
 
     // set and retrieve read timeout
