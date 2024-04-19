@@ -1562,8 +1562,8 @@ void change_camera_resolution(int ch) {
         Serial.println("Unknown size option");
     }
     if (fs != FRAMESIZE_INVALID) {
-        camera.setFramesize(fs);
         camera.setPixformat(camera_format);
+        camera.setFramesize(fs);
     }
 }
 
