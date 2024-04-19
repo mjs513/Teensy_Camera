@@ -304,23 +304,6 @@ void setup() {
     // camera.setVSyncISRPriority(102); // higher priority than default
     camera.setDMACompleteISRPriority(192); // lower than default
 
-    /******************************************************************
-     * setup to view jpg stream                                       *
-     ******************************************************************/
-    g_tft_width = tft.width();
-    g_tft_height = tft.height();
-    //-----------------------------------------------------------------------------
-    // Initialize options and then read optional config file
-    //-----------------------------------------------------------------------------
-    g_jpg_scale_x_above[0] = (g_tft_width * 3) / 2;
-    g_jpg_scale_x_above[1] = g_tft_width * 3;
-    g_jpg_scale_x_above[2] = g_tft_width * 6;
-    g_jpg_scale_x_above[3] = g_tft_width * 12;
-
-    g_jpg_scale_y_above[0] = (g_tft_height * 3) / 2;
-    g_jpg_scale_y_above[1] = g_tft_height * 3;
-    g_jpg_scale_y_above[2] = g_tft_height * 6;
-    g_jpg_scale_y_above[3] = g_tft_height * 12;
 #if defined(USE_SDCARD)
     File optionsFile = SD.open(options_file_name);
 

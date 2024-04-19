@@ -13,6 +13,23 @@ inline void Color565ToRGB(uint16_t color, uint8_t &r, uint8_t &g, uint8_t &b) {
 inline void FillScreen(uint16_t color) { tft.fillScreen(color); }
 
 bool processJPGFile(bool fErase) {
+    /******************************************************************
+     * setup to view jpg stream                                       *
+     ******************************************************************/
+    g_tft_width = tft.width();
+    g_tft_height = tft.height();
+    //-----------------------------------------------------------------------------
+    // Initialize options and then read optional config file
+    //-----------------------------------------------------------------------------
+    g_jpg_scale_x_above[0] = (g_tft_width * 3) / 2;
+    g_jpg_scale_x_above[1] = g_tft_width * 3;
+    g_jpg_scale_x_above[2] = g_tft_width * 6;
+    g_jpg_scale_x_above[3] = g_tft_width * 12;
+
+    g_jpg_scale_y_above[0] = (g_tft_height * 3) / 2;
+    g_jpg_scale_y_above[1] = g_tft_height * 3;
+    g_jpg_scale_y_above[2] = g_tft_height * 6;
+    g_jpg_scale_y_above[3] = g_tft_height * 12;
 
     Serial.println();
 
