@@ -1,5 +1,5 @@
 // Options file information
-static const PROGMEM char options_file_name[] = "PictureViewOptions.ini";
+    static const PROGMEM char options_file_name[] = "PictureViewOptions.ini";
 int g_debug_output = 0;
 int g_stepMode = 0;
 int g_BMPScale = -1;

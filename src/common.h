@@ -23,6 +23,25 @@ typedef enum {
     FRAMESIZE_CIF,
     FRAMESIZE_SVGA, // 800, 600
     FRAMESIZE_UXGA, // 1500, 1200
+
+    FRAMESIZE_96X96,   // 96x96
+    FRAMESIZE_HQVGA,   // 240x176
+    FRAMESIZE_240X240, // 240x240
+    FRAMESIZE_HVGA,    // 480x320
+    FRAMESIZE_XGA,     // 1024x768
+    FRAMESIZE_HD,      // 1280x720
+    FRAMESIZE_SXGA,    // 1280x1024
+    // 3MP Sensors
+    FRAMESIZE_FHD,   // 1920x1080
+    FRAMESIZE_P_HD,  //  720x1280
+    FRAMESIZE_P_3MP, //  864x1536
+    FRAMESIZE_QXGA,  // 2048x1536
+    // 5MP Sensors
+    FRAMESIZE_QHD,   // 2560x1440
+    FRAMESIZE_WQXGA, // 2560x1600
+    FRAMESIZE_P_FHD, // 1080x1920
+    FRAMESIZE_QSXGA, // 2560x1920
+
     FRAMESIZE_INVALID,
 } framesize_t;
 
@@ -76,7 +95,7 @@ typedef enum {
     HIMAX_NUM_ERR
 } status_e;
 
-enum { OV7670 = 0, OV7675 = 1, GC2145a = 2, OV2640a = 3 };
+enum { OV7670 = 0, OV7675 = 1, GC2145a = 2, OV2640a = 3, OV5640a = 4 };
 
 // for 0V2640 only
 typedef enum {
@@ -86,5 +105,7 @@ typedef enum {
     REDDISH,
     GREENISH,
     BLUEISH,
-    RETRO
+    RETRO,
+    Overexposure,
+    Solarize
 } sde_t;
