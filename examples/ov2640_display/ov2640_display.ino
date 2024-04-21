@@ -30,9 +30,9 @@ Camera camera(omni);
 #endif
 
 //set cam configuration - need to remember when saving jpeg
-framesize_t camera_framesize = FRAMESIZE_QVGA;
+framesize_t camera_framesize = FRAMESIZE_VGA;
 pixformat_t camera_format = RGB565;
-bool useGPIO = true;
+bool useGPIO = false;
 
 #define skipFrames 1
 
@@ -302,23 +302,7 @@ uint8_t reset_pin = 31;
   //camera.setVSyncISRPriority(102); // higher priority than default
   camera.setDMACompleteISRPriority(192);  // lower than default
 
-  /******************************************************************
-   * setup to view jpg stream                                       *
-   ******************************************************************/
-  g_tft_width = tft.width();
-  g_tft_height = tft.height();
-  //-----------------------------------------------------------------------------
-  // Initialize options and then read optional config file
-  //-----------------------------------------------------------------------------
-  g_jpg_scale_x_above[0] = (g_tft_width * 3) / 2;
-  g_jpg_scale_x_above[1] = g_tft_width * 3;
-  g_jpg_scale_x_above[2] = g_tft_width * 6;
-  g_jpg_scale_x_above[3] = g_tft_width * 12;
 
-  g_jpg_scale_y_above[0] = (g_tft_height * 3) / 2;
-  g_jpg_scale_y_above[1] = g_tft_height * 3;
-  g_jpg_scale_y_above[2] = g_tft_height * 6;
-  g_jpg_scale_y_above[3] = g_tft_height * 12;
 #if defined(USE_SDCARD)
   File optionsFile = SD.open(options_file_name);
 
@@ -330,7 +314,7 @@ uint8_t reset_pin = 31;
 
   ShowAllOptionValues();
   /**********************************************************/
-
+  camera.showRegisters();
   showCommandList();
 }
 
@@ -345,7 +329,7 @@ bool hm0360_flexio_callback(void *pfb) {
 #define UPDATE_ON_CAMERA_FRAMES
 
 inline uint16_t HTONS(uint16_t x) {
-#if defined(ARDUCAM_CAMERA_OV2640)
+#if defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640)
   return x;
 #else  //byte reverse
   return ((x >> 8) & 0x00FF) | ((x << 8) & 0xFF00);
@@ -1434,8 +1418,9 @@ void change_camera_resolution(int ch) {
       Serial.println("Unknown size option");
   }
   if (fs != FRAMESIZE_INVALID) {
-    camera.setPixformat(camera_format);
     camera.setFramesize(fs);
+    camera.setPixformat(camera_format);
+
   }
 }
 

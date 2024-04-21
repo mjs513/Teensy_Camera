@@ -230,7 +230,7 @@ class OV5640 : public ImageSensor {
     int setAutoBlc(int enable, int *regs);
     int getBlcRegs(int *regs);
 
-    void showRegisters() {};
+    void showRegisters();
 
     uint8_t readRegister(uint8_t reg) { return (uint8_t)-1; }
     bool writeRegister(uint8_t reg, uint8_t data) { return false; }
@@ -266,7 +266,7 @@ class OV5640 : public ImageSensor {
   private:
     void beginXClk();
     void endXClk();
-    uint8_t cameraReadRegister(uint16_t reg_addr, uint8_t *reg_data);
+    uint8_t cameraReadRegister(uint16_t reg_addr, uint8_t &reg_data);
     uint8_t cameraWriteRegister(uint16_t reg, uint8_t data);
     int calculate_vts(uint16_t readout_height);
     int calculate_hts(uint16_t width);
@@ -275,7 +275,7 @@ class OV5640 : public ImageSensor {
                        uint8_t sys_root_div);
 
   private:
-    int _xclk_freq = 12;
+    int _xclk_freq = 10;
 
     bool _grayscale;
     int _framesize = FRAMESIZE_QVGA;

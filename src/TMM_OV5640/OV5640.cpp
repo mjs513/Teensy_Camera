@@ -95,7 +95,7 @@ const int resolution[][2] = {
 #define DUMMY_LINES 6
 
 #define BLANK_COLUMNS 0
-#define DUMMY_COLUMNS 16
+#define DUMMY_COLUMNS 8
 
 #define SENSOR_WIDTH 2624
 #define SENSOR_HEIGHT 1964
@@ -825,8 +825,8 @@ OV5640::OV5640()
 }
 
 // Read a single uint8_t from address and return it as a uint8_t
-uint8_t OV5640::cameraReadRegister(uint16_t reg_addr, uint8_t *reg_data) {
-    _wire->beginTransmission(0x78);
+uint8_t OV5640::cameraReadRegister(uint16_t reg_addr, uint8_t &reg_data) {
+    _wire->beginTransmission(0x3C);
     _wire->write(reg_addr >> 8);
     _wire->write(reg_addr);
     if (_wire->endTransmission(false) != 0) {
@@ -834,22 +834,23 @@ uint8_t OV5640::cameraReadRegister(uint16_t reg_addr, uint8_t *reg_data) {
             debug.println("error reading OV5640, address");
         return 0;
     }
-    if (_wire->requestFrom(0x78, 1) < 1) {
+    if (_wire->requestFrom(0x3C, 1) < 1) {
         Serial.println("error reading OV5640, data");
         return 0;
     }
     int ret = _wire->read();
+    delay(1);
     if (ret < 0) {
         return 1;
     } else {
-        uint8_t ret_data = (uint8_t)ret;
-        reg_data = &ret_data;
+        uint8_t ret_data = ret;
+        reg_data = ret_data;
     }
     return 0;
 }
 
 uint8_t OV5640::cameraWriteRegister(uint16_t reg, uint8_t data) {
-    _wire->beginTransmission(0x78);
+    _wire->beginTransmission(0x3C);
     _wire->write(reg >> 8);
     _wire->write(reg);
     _wire->write(data);
@@ -904,12 +905,11 @@ uint16_t OV5640::getModelid() {
     uint8_t Data = 0;
     uint16_t MID = 0x0000;
 
-    cameraReadRegister(0x300A, &Data);
+    cameraReadRegister(0x300A, Data);
     MID = (Data << 8);
 
-    cameraReadRegister(0x300B, &Data);
+    cameraReadRegister(0x300B, Data);
     MID |= Data;
-
     return MID;
 }
 
@@ -1019,8 +1019,8 @@ bool OV5640::begin_omnivision(framesize_t framesize, pixformat_t format,
 
     _wire->begin();
 
-    delay(1000);
-
+    delay(500);
+    Serial.println(getModelid(), HEX);
     if (getModelid() != 0x5640) {
         end();
         if (_debug)
@@ -1029,7 +1029,7 @@ bool OV5640::begin_omnivision(framesize_t framesize, pixformat_t format,
     }
 
 #ifdef DEBUG_CAMERA
-    debug.printf("Calling ov7670_configure\n");
+    debug.printf("Calling ov5640_configure\n");
     debug.printf("Cam Name: %d, Format: %d, Resolution: %d, Clock: %d\n",
                  camera_name, _format, _framesize, _xclk_freq);
     debug.printf("Frame rate: %d\n", fps);
@@ -1145,6 +1145,15 @@ void OV5640::end() {
 int OV5640::setPixformat(pixformat_t pixformat) {
     // const uint8_t(*regs)[2];
     int ret = 0;
+    uint8_t reg = 0;
+
+    // Not a multiple of 8. The JPEG encoder on the OV5640 can't handle this.
+    if ((_format == JPEG) &&
+        ((resolution[_framesize][0] % 8) || (resolution[_framesize][1] % 8))) {
+        if (_debug)
+            debug.println("JPEG Framesize not divisible by 8........");
+        return 1;
+    }
 
     switch (pixformat) {
     case GRAYSCALE:
@@ -1173,6 +1182,27 @@ int OV5640::setPixformat(pixformat_t pixformat) {
         return 1;
     }
 
+    Serial.printf("Format: %d, Framesize: %d\n", pixformat, _framesize);
+
+    ret |= cameraReadRegister(TIMING_TC_REG_21, reg);
+    ret |= cameraWriteRegister(
+        TIMING_TC_REG_21, (reg & 0xDF) | ((pixformat == JPEG) ? 0x20 : 0x00));
+
+    ret |= cameraReadRegister(SYSTEM_RESET_02, reg);
+    ret |= cameraWriteRegister(
+        SYSTEM_RESET_02, (reg & 0xE3) | ((pixformat == JPEG) ? 0x00 : 0x1C));
+
+    ret |= cameraReadRegister(CLOCK_ENABLE_02, reg);
+    ret |= cameraWriteRegister(
+        CLOCK_ENABLE_02, (reg & 0xD7) | ((pixformat == JPEG) ? 0x28 : 0x00));
+
+    if (hts_target) {
+        uint16_t sensor_hts = calculate_hts(resolution[_framesize][0]);
+
+        ret |= cameraWriteRegister(TIMING_HTS_H, sensor_hts >> 8);
+        ret |= cameraWriteRegister(TIMING_HTS_L, sensor_hts);
+    }
+
     _format = int(pixformat);
     return ret;
 }
@@ -1181,7 +1211,7 @@ uint8_t OV5640::setFramesize(framesize_t framesize) {
     if (framesize >= (sizeof(resolution) / sizeof(resolution[0])))
         return 1; // error
 
-    _framesize = (uint8_t)framesize;
+    _framesize = framesize;
 
     return setFramesize(resolution[framesize][0], resolution[framesize][1]);
 }
@@ -1196,6 +1226,9 @@ uint8_t OV5640::setFramesize(int w, int h) {
     _width = w;
     _height = h;
 
+    if (_debug)
+        debug.printf("W/H: %d/%d\n", w, h);
+
     uint8_t reg = 0;
     int ret = 0;
     // uint16_t w = resolution[framesize][0];
@@ -1203,6 +1236,8 @@ uint8_t OV5640::setFramesize(int w, int h) {
 
     // Not a multiple of 8. The JPEG encoder on the OV5640 can't handle this.
     if ((_format == JPEG) && ((w % 8) || (h % 8))) {
+        if (_debug)
+            debug.print("JPEG not multiple of 8: failed to set.......");
         return 1;
     }
 
@@ -1216,9 +1251,10 @@ uint8_t OV5640::setFramesize(int w, int h) {
     // the line transfer. If it were possible to slow the line readout speed of
     // the OV5640 this would enable these resolutions below. However, there's
     // nothing in the datasheet that when modified does this.
-    if (((_format == GRAYSCALE) || (_format == BAYER) || (_format == JPEG))) {
-        return 1;
-    }
+    // if (((_format == GRAYSCALE) || (_format == BAYER) || (_format == JPEG)))
+    // {
+    //    return 1;
+    //}
 
     // Invalid resolution.
     if ((w > ACTIVE_SENSOR_WIDTH) || (h > ACTIVE_SENSOR_HEIGHT)) {
@@ -1305,7 +1341,7 @@ uint8_t OV5640::setFramesize(int w, int h) {
             sensor_w, sensor_h, sensor_ws, sensor_we);
         debug.printf("  sensor_hs: %d, sensor_hs: %d\n", sensor_hs, sensor_he);
         debug.printf("  Step 3:");
-        debug.printf("  ratio: %d, w_mul: %d, h_mul: %d\n", ratio, w_mul,
+        debug.printf("  ratio: %f, w_mul: %d, h_mul: %d\n", ratio, w_mul,
                      h_mul);
         debug.printf("  x_off: %d, y_off: %d\n", x_off, y_off);
         debug.printf("  Step 4:");
@@ -1350,11 +1386,11 @@ uint8_t OV5640::setFramesize(int w, int h) {
     ret |= cameraWriteRegister(TIMING_X_INC, sensor_x_inc);
     ret |= cameraWriteRegister(TIMING_Y_INC, sensor_y_inc);
 
-    ret |= cameraReadRegister(TIMING_TC_REG_20, &reg);
+    ret |= cameraReadRegister(TIMING_TC_REG_20, reg);
     ret |=
         cameraWriteRegister(TIMING_TC_REG_20, (reg & 0xFE) | (sensor_div > 1));
 
-    ret |= cameraReadRegister(TIMING_TC_REG_21, &reg);
+    ret |= cameraReadRegister(TIMING_TC_REG_21, reg);
     ret |=
         cameraWriteRegister(TIMING_TC_REG_21, (reg & 0xFE) | (sensor_div > 1));
 
@@ -1389,12 +1425,12 @@ int OV5640::setBrightness(int level) {
 
     int new_level = level + (NUM_BRIGHTNESS_LEVELS / 2);
     if (new_level < 0 || new_level >= NUM_BRIGHTNESS_LEVELS) {
-        level = 2;
+        new_level = 3;
     }
 
     ret |= cameraWriteRegister(0x3212, 0x03); // start group 3
-    ret |= cameraWriteRegister(0x5587, abs(level) << 4);
-    ret |= cameraWriteRegister(0x5588, (level < 0) ? 0x09 : 0x01);
+    ret |= cameraWriteRegister(0x5587, abs(new_level) << 4);
+    ret |= cameraWriteRegister(0x5588, (new_level < 0) ? 0x09 : 0x01);
     ret |= cameraWriteRegister(0x3212, 0x13); // end group 3
     ret |= cameraWriteRegister(0x3212, 0xa3); // launch group 3
 
@@ -1406,7 +1442,7 @@ void OV5640::setSaturation(int level) {
 
     int new_level = level + (NUM_SATURATION_LEVELS / 2);
     if (new_level < 0 || new_level >= NUM_SATURATION_LEVELS) {
-        level = 2;
+        new_level = 3;
     }
 
     ret |= cameraWriteRegister(0x3212, 0x03); // start group 3
@@ -1436,7 +1472,7 @@ int OV5640::setGainceiling(gainceiling_t gainceiling) {
         return 1;
     }
 
-    ret |= cameraReadRegister(AEC_GAIN_CEILING_H, &reg);
+    ret |= cameraReadRegister(AEC_GAIN_CEILING_H, reg);
     ret |= cameraWriteRegister(AEC_GAIN_CEILING_H,
                                (reg & 0xFC) | (new_gainceiling >> 8));
     ret |= cameraWriteRegister(AEC_GAIN_CEILING_L, new_gainceiling);
@@ -1446,7 +1482,7 @@ int OV5640::setGainceiling(gainceiling_t gainceiling) {
 
 int OV5640::setQuality(int qs) {
     uint8_t reg = 0;
-    int ret = cameraReadRegister(JPEG_CTRL07, &reg);
+    int ret = cameraReadRegister(JPEG_CTRL07, reg);
     ret |= cameraWriteRegister(JPEG_CTRL07, (reg & 0xC0) | (qs >> 2));
 
     return ret;
@@ -1457,13 +1493,13 @@ uint8_t OV5640::getQuality() {
     uint8_t reg = 0;
 
     /* Write QS register */
-    cameraReadRegister(JPEG_CTRL07, &reg);
+    cameraReadRegister(JPEG_CTRL07, reg);
     return reg;
 }
 
 int OV5640::setColorbar(int enable) {
     uint8_t reg = 0;
-    int ret = cameraReadRegister(PRE_ISP_TEST, &reg);
+    int ret = cameraReadRegister(PRE_ISP_TEST, reg);
     return cameraWriteRegister(PRE_ISP_TEST,
                                (reg & 0x7F) | (enable ? 0x80 : 0x00)) |
            ret;
@@ -1533,22 +1569,22 @@ int OV5640::setAutoExposure(int enable, int exposure_us) {
     uint8_t vts_h = 0;
     uint8_t vts_l;
 
-    int ret = cameraReadRegister(AEC_PK_MANUAL, &reg);
+    int ret = cameraReadRegister(AEC_PK_MANUAL, reg);
     ret |=
         cameraWriteRegister(AEC_PK_MANUAL, (reg & 0xFE) | ((enable == 0) << 0));
 
     if ((enable == 0) && (exposure_us >= 0)) {
-        ret |= cameraReadRegister(SC_PLL_CONTRL0, &spc0);
-        ret |= cameraReadRegister(SC_PLL_CONTRL1, &spc1);
-        ret |= cameraReadRegister(SC_PLL_CONTRL2, &spc2);
-        ret |= cameraReadRegister(SC_PLL_CONTRL3, &spc3);
-        ret |= cameraReadRegister(SYSTEM_ROOT_DIVIDER, &sysrootdiv);
+        ret |= cameraReadRegister(SC_PLL_CONTRL0, spc0);
+        ret |= cameraReadRegister(SC_PLL_CONTRL1, spc1);
+        ret |= cameraReadRegister(SC_PLL_CONTRL2, spc2);
+        ret |= cameraReadRegister(SC_PLL_CONTRL3, spc3);
+        ret |= cameraReadRegister(SYSTEM_ROOT_DIVIDER, sysrootdiv);
 
-        ret |= cameraReadRegister(TIMING_HTS_H, &hts_h);
-        ret |= cameraReadRegister(TIMING_HTS_L, &hts_l);
+        ret |= cameraReadRegister(TIMING_HTS_H, hts_h);
+        ret |= cameraReadRegister(TIMING_HTS_L, hts_l);
 
-        ret |= cameraReadRegister(TIMING_VTS_H, &vts_h);
-        ret |= cameraReadRegister(TIMING_VTS_L, &vts_l);
+        ret |= cameraReadRegister(TIMING_VTS_H, vts_h);
+        ret |= cameraReadRegister(TIMING_VTS_L, vts_l);
 
         uint16_t hts = (hts_h << 8) | hts_l;
         uint16_t vts = (vts_h << 8) | vts_l;
@@ -1586,21 +1622,21 @@ int OV5640::getExposure_us(int *exposure_us) {
     uint8_t aec_2 = 0;
     int ret = 0;
 
-    ret |= cameraReadRegister(SC_PLL_CONTRL0, &spc0);
-    ret |= cameraReadRegister(SC_PLL_CONTRL1, &spc1);
-    ret |= cameraReadRegister(SC_PLL_CONTRL2, &spc2);
-    ret |= cameraReadRegister(SC_PLL_CONTRL3, &spc3);
-    ret |= cameraReadRegister(SYSTEM_ROOT_DIVIDER, &sysrootdiv);
+    ret |= cameraReadRegister(SC_PLL_CONTRL0, spc0);
+    ret |= cameraReadRegister(SC_PLL_CONTRL1, spc1);
+    ret |= cameraReadRegister(SC_PLL_CONTRL2, spc2);
+    ret |= cameraReadRegister(SC_PLL_CONTRL3, spc3);
+    ret |= cameraReadRegister(SYSTEM_ROOT_DIVIDER, sysrootdiv);
 
-    ret |= cameraReadRegister(AEC_PK_EXPOSURE_0, &aec_0);
-    ret |= cameraReadRegister(AEC_PK_EXPOSURE_1, &aec_1);
-    ret |= cameraReadRegister(AEC_PK_EXPOSURE_2, &aec_2);
+    ret |= cameraReadRegister(AEC_PK_EXPOSURE_0, aec_0);
+    ret |= cameraReadRegister(AEC_PK_EXPOSURE_1, aec_1);
+    ret |= cameraReadRegister(AEC_PK_EXPOSURE_2, aec_2);
 
-    ret |= cameraReadRegister(TIMING_HTS_H, &hts_h);
-    ret |= cameraReadRegister(TIMING_HTS_L, &hts_l);
+    ret |= cameraReadRegister(TIMING_HTS_H, hts_h);
+    ret |= cameraReadRegister(TIMING_HTS_L, hts_l);
 
-    ret |= cameraReadRegister(TIMING_VTS_H, &vts_h);
-    ret |= cameraReadRegister(TIMING_VTS_L, &vts_l);
+    ret |= cameraReadRegister(TIMING_VTS_H, vts_h);
+    ret |= cameraReadRegister(TIMING_VTS_L, vts_l);
 
     uint32_t aec = ((aec_0 << 16) | (aec_1 << 8) | aec_2) >> 4;
     uint16_t hts = (hts_h << 8) | hts_l;
@@ -1617,7 +1653,7 @@ int OV5640::getExposure_us(int *exposure_us) {
 
 int OV5640::setAutoGain(int enable, float gain_db, float gain_db_ceiling) {
     uint8_t reg = 0;
-    int ret = cameraReadRegister(AEC_PK_MANUAL, &reg);
+    int ret = cameraReadRegister(AEC_PK_MANUAL, reg);
     ret |=
         cameraWriteRegister(AEC_PK_MANUAL, (reg & 0xFD) | ((enable == 0) << 1));
 
@@ -1626,7 +1662,7 @@ int OV5640::setAutoGain(int enable, float gain_db, float gain_db_ceiling) {
             min(fast_roundf(expf((gain_db / 20.0f) * M_LN10) * 16.0f), 1023),
             0);
 
-        ret |= cameraReadRegister(AEC_PK_REAL_GAIN_H, &reg);
+        ret |= cameraReadRegister(AEC_PK_REAL_GAIN_H, reg);
         ret |=
             cameraWriteRegister(AEC_PK_REAL_GAIN_H, (reg & 0xFC) | (gain >> 8));
         ret |= cameraWriteRegister(AEC_PK_REAL_GAIN_L, gain);
@@ -1637,7 +1673,7 @@ int OV5640::setAutoGain(int enable, float gain_db, float gain_db_ceiling) {
                 1023),
             0);
 
-        ret |= cameraReadRegister(AEC_GAIN_CEILING_H, &reg);
+        ret |= cameraReadRegister(AEC_GAIN_CEILING_H, reg);
         ret |= cameraWriteRegister(AEC_GAIN_CEILING_H,
                                    (reg & 0xFC) | (gain_ceiling >> 8));
         ret |= cameraWriteRegister(AEC_GAIN_CEILING_L, gain_ceiling);
@@ -1650,8 +1686,8 @@ int OV5640::getGain_db(float *gain_db) {
     uint8_t gainh = 0;
     uint8_t gainl = 0;
 
-    int ret = cameraReadRegister(AEC_PK_REAL_GAIN_H, &gainh);
-    ret |= cameraReadRegister(AEC_PK_REAL_GAIN_L, &gainl);
+    int ret = cameraReadRegister(AEC_PK_REAL_GAIN_H, gainh);
+    ret |= cameraReadRegister(AEC_PK_REAL_GAIN_L, gainl);
 
     *gain_db = 20.0f * log10f((((gainh & 0x3) << 8) | gainl) / 16.0f);
 
@@ -1661,7 +1697,7 @@ int OV5640::getGain_db(float *gain_db) {
 int OV5640::setAutoWhitebal(int enable, float r_gain_db, float g_gain_db,
                             float b_gain_db) {
     uint8_t reg = 0;
-    int ret = cameraReadRegister(AWB_MANUAL_CONTROL, &reg);
+    int ret = cameraReadRegister(AWB_MANUAL_CONTROL, reg);
     ret |=
         cameraWriteRegister(AWB_MANUAL_CONTROL, (reg & 0xFE) | (enable == 0));
 
@@ -1696,12 +1732,12 @@ int OV5640::getRGB_Gain_db(float *r_gain_db, float *g_gain_db,
     uint8_t blueh = 0;
     uint8_t bluel = 0;
 
-    int ret = cameraReadRegister(AWB_R_GAIN_H, &redh);
-    ret |= cameraReadRegister(AWB_R_GAIN_L, &redl);
-    ret |= cameraReadRegister(AWB_G_GAIN_H, &greenh);
-    ret |= cameraReadRegister(AWB_G_GAIN_L, &greenl);
-    ret |= cameraReadRegister(AWB_B_GAIN_H, &blueh);
-    ret |= cameraReadRegister(AWB_B_GAIN_L, &bluel);
+    int ret = cameraReadRegister(AWB_R_GAIN_H, redh);
+    ret |= cameraReadRegister(AWB_R_GAIN_L, redl);
+    ret |= cameraReadRegister(AWB_G_GAIN_H, greenh);
+    ret |= cameraReadRegister(AWB_G_GAIN_L, greenl);
+    ret |= cameraReadRegister(AWB_B_GAIN_H, blueh);
+    ret |= cameraReadRegister(AWB_B_GAIN_L, bluel);
 
     *r_gain_db = 20.0f * log10f(((redh & 0xF) << 8) | redl);
     *g_gain_db = 20.0f * log10f(((greenh & 0xF) << 8) | greenl);
@@ -1712,7 +1748,7 @@ int OV5640::getRGB_Gain_db(float *r_gain_db, float *g_gain_db,
 
 int OV5640::setHmirror(int enable) {
     uint8_t reg = 0;
-    int ret = cameraReadRegister(TIMING_TC_REG_21, &reg);
+    int ret = cameraReadRegister(TIMING_TC_REG_21, reg);
     if (enable) {
         ret |= cameraWriteRegister(TIMING_TC_REG_21, reg | 0x06);
     } else {
@@ -1723,7 +1759,7 @@ int OV5640::setHmirror(int enable) {
 
 int OV5640::setVflip(int enable) {
     uint8_t reg = 0;
-    int ret = cameraReadRegister(TIMING_TC_REG_20, &reg);
+    int ret = cameraReadRegister(TIMING_TC_REG_20, reg);
     if (!enable) {
         ret |= cameraWriteRegister(TIMING_TC_REG_20, reg | 0x06);
     } else {
@@ -1767,8 +1803,7 @@ int OV5640::setSpecialEffect(sde_t sde) {
     int effect = 0;
 
     effect = sde;
-    effect++;
-    if (effect <= 0 || effect > NUM_SPECIAL_EFFECTS) {
+    if (effect < 0 || effect > NUM_SPECIAL_EFFECTS) {
         return 1;
     }
 
@@ -1787,7 +1822,7 @@ int OV5640::setSpecialEffect(sde_t sde) {
 
 int OV5640::setAutoBlc(int enable, int *regs) {
     uint8_t reg = 0;
-    int ret = cameraReadRegister(BLC_CTRL_00, &reg);
+    int ret = cameraReadRegister(BLC_CTRL_00, reg);
     ret |= cameraWriteRegister(BLC_CTRL_00, (reg & 0xFE) | (enable != 0));
 
     if ((enable == 0) && (regs != NULL)) {
@@ -1804,7 +1839,7 @@ int OV5640::getBlcRegs(int *regs) {
 
     for (uint32_t i = 0; i < 8; i++) {
         uint8_t reg = 0;
-        ret |= cameraReadRegister(BLACK_LEVEL_00_H + i, &reg);
+        ret |= cameraReadRegister(BLACK_LEVEL_00_H + i, reg);
         regs[i] = reg;
     }
 
@@ -2375,199 +2410,89 @@ void OV5640::captureFrameStatistics() {
 
 typedef struct {
     const __FlashStringHelper *reg_name;
-    uint8_t bank;
     uint16_t reg;
 } OV5640_TO_NAME_t;
-/*
+
 static const OV5640_TO_NAME_t OV5640_reg_name_table[] PROGMEM{
-    {F(" QS"), 0, 0x44},
-    {F(" HSIZE"), 0, 0x51},
-    {F(" VSIZE"), 0, 0x52},
-    {F(" XOFFL"), 0, 0x53},
-    {F(" YOFFL"), 0, 0x54},
-    {F(" VHYX"), 0, 0x55},
-    {F(" DPRP"), 0, 0x56},
-    {F(" TEST"), 0, 0x57},
-    {F(" ZMOW"), 0, 0x5A},
-    {F(" ZMOH"), 0, 0x5B},
-    {F(" ZMHH"), 0, 0x5C},
-    {F(" BPADDR"), 0, 0x7C},
-    {F(" BPDATA"), 0, 0x7D},
-    {F(" SIZEL"), 0, 0x8C},
-    {F(" HSIZE8"), 0, 0xC0},
-    {F(" VSIZE8"), 0, 0xC1},
-    {F(" CTRL1"), 0, 0xC3},
-    {F(" MS_SP"), 0, 0xF0},
-    {F(" SS_ID"), 0, 0xF7},
-    {F(" SS_CTRL"), 0, 0xF7},
-    {F(" MC_AL"), 0, 0xFA},
-    {F(" MC_AH"), 0, 0xFB},
-    {F(" MC_D"), 0, 0xFC},
-    {F(" P_CMD"), 0, 0xFD},
-    {F(" P_STATUS"), 0, 0xFE},
-    {F(" CTRLI"), 0, 0x50},
-    {F(" CTRLI_LP_DP"), 0, 0x80},
-    {F(" CTRLI_ROUND"), 0, 0x40},
-    {F(" CTRL0"), 0, 0xC2},
-    {F(" CTRL2"), 0, 0x86},
-    {F(" CTRL3"), 0, 0x87},
-    {F(" R_DVP_SP"), 0, 0xD3},
-    {F(" R_DVP_SP_AUTO_MODE"), 0, 0x80},
-    {F(" R_BYPASS"), 0, 0x05},
-    {F(" R_BYPASS_DSP_EN"), 0, 0x00},
-    {F(" R_BYPASS_DSP_BYPAS"), 0, 0x01},
-    {F(" IMAGE_MODE"), 0, 0xDA},
-    {F(" RESET"), 0, 0xE0},
-    {F(" MC_BIST"), 0, 0xF9},
-    {F(" BANK_SEL"), 0, 0xFF},
-    {F(" BANK_SEL_DSP"), 0, 0x00},
-    {F(" BANK_SEL_SENSOR"), 0, 0x01},
-    {F(" GAIN"), 1, 0x00},
-    {F(" COM1"), 1, 0x03},
-    {F(" REG_PID"), 1, 0x0A},
-    {F(" REG_VER"), 1, 0x0B},
-    {F(" COM4"), 1, 0x0D},
-    {F(" AEC"), 1, 0x10},
-    {F(" CLKRC"), 1, 0x11},
-    {F(" CLKRC_DOUBLE"), 1, 0x82},
-    {F(" CLKRC_DIVIDER_MASK"), 1, 0x3F},
-    {F(" COM10"), 1, 0x15},
-    {F(" HREFST"), 1, 0x17},
-    {F(" HREFEND"), 1, 0x18},
-    {F(" VSTRT"), 1, 0x19},
-    {F(" VEND"), 1, 0x1A},
-    {F(" MIDH"), 1, 0x1C},
-    {F(" MIDL"), 1, 0x1D},
-    {F(" AEW"), 1, 0x24},
-    {F(" AEB"), 1, 0x25},
-    {F(" REG2A"), 1, 0x2A},
-    {F(" FRARL"), 1, 0x2B},
-    {F(" ADDVSL"), 1, 0x2D},
-    {F(" ADDVSH"), 1, 0x2E},
-    {F(" YAVG"), 1, 0x2F},
-    {F(" HSDY"), 1, 0x30},
-    {F(" HEDY"), 1, 0x31},
-    {F(" REG32"), 1, 0x32},
-    {F(" ARCOM2"), 1, 0x34},
-    {F(" REG45"), 1, 0x45},
-    {F(" FLL"), 1, 0x46},
-    {F(" FLH"), 1, 0x47},
-    {F(" COM19"), 1, 0x48},
-    {F(" ZOOMS"), 1, 0x49},
-    {F(" COM22"), 1, 0x4B},
-    {F(" COM25"), 1, 0x4E},
-    {F(" BD50"), 1, 0x4F},
-    {F(" BD60"), 1, 0x50},
-    {F(" REG5D"), 1, 0x5D},
-    {F(" REG5E"), 1, 0x5E},
-    {F(" REG5F"), 1, 0x5F},
-    {F(" REG60"), 1, 0x60},
-    {F(" HISTO_LOW"), 1, 0x61},
-    {F(" HISTO_HIGH"), 1, 0x62},
-    {F(" REG04"), 1, 0x04},
-    {F(" REG08"), 1, 0x08},
-    {F(" COM2"), 1, 0x09},
-    {F(" COM2_STDBY"), 1, 0x10},
-    {F(" COM3"), 1, 0x0C},
-    {F(" COM7"), 1, 0x12},
-    {F(" COM8"), 1, 0x13},
-    {F(" COM8_DEFAULT"), 1, 0xC0},
-    {F(" COM8_BNDF_EN"), 1, 0x20},
-    {F(" COM8_AGC_EN"), 1, 0x04},
-    {F(" COM8_AEC_EN"), 1, 0x01},
-    {F(" COM9"), 1, 0x14},
-    {F(" CTRL1_AWB"), 1, 0x08},
-    {F(" VV"), 1, 0x26},
-    {F(" REG32"), 1, 0x32},
+    {F("SYSTEM_CTROL0"), 0x3008},
+    {F("DRIVE_CAPABILITY"), 0x302c},
+    {F("SC_PLLS_CTRL0"), 0x303a},
+    {F("SC_PLLS_CTRL1"), 0x303b},
+    {F("SC_PLLS_CTRL2"), 0x303c},
+    {F("SC_PLLS_CTRL3"), 0x303d},
+    {F("AEC_PK_MANUAL"), 0x3503},
+    {F("X_ADDR_ST_H"), 0x3800},
+    {F("X_ADDR_ST_L"), 0x3801},
+    {F("Y_ADDR_ST_H"), 0x3802},
+    {F("Y_ADDR_ST_L"), 0x3803},
+    {F("X_ADDR_END_H"), 0x3804},
+    {F("X_ADDR_END_L"), 0x3805},
+    {F("Y_ADDR_END_H"), 0x3806},
+    {F("Y_ADDR_END_L"), 0x3807},
+    {F("X_OUTPUT_SIZE_H"), 0x3808},
+    {F("X_OUTPUT_SIZE_L"), 0x3809},
+    {F("Y_OUTPUT_SIZE_H"), 0x380a},
+    {F("Y_OUTPUT_SIZE_L"), 0x380b},
+    {F("X_TOTAL_SIZE_H"), 0x380c},
+    {F("X_TOTAL_SIZE_L"), 0x380d},
+    {F("Y_TOTAL_SIZE_H"), 0x380e},
+    {F("Y_TOTAL_SIZE_L"), 0x380f},
+    {F("X_OFFSET_H"), 0x3810},
+    {F("X_OFFSET_L"), 0x3811},
+    {F("Y_OFFSET_H"), 0x3812},
+    {F("Y_OFFSET_L"), 0x3813},
+    {F("X_INCREMENT"), 0x3814},
+    {F("Y_INCREMENT"), 0x3815},
+    {F("TIMING_TC_REG20"), 0x3820},
+    {F("TIMING_TC_REG21"), 0x3821},
+    {F("PCLK_RATIO"), 0x3824},
+    {F("FRAME_CTRL01"), 0x4201},
+    {F("FRAME_CTRL02"), 0x4202},
+    {F("FORMAT_CTRL00"), 0x4300},
+    {F("CLOCK_POL_CONTROL"), 0x4740},
+    {F("ISP_CONTROL_01"), 0x5001},
+    {F("FORMAT_CTRL"), 0x501F},
+    {F("PRE_ISP_TEST_SETTING_1"), 0x503D},
+    {F("SCALE_CTRL_1"), 0x5601},
+    {F("SCALE_CTRL_2"), 0x5602},
+    {F("SCALE_CTRL_3"), 0x5603},
+    {F("SCALE_CTRL_4"), 0x5604},
+    {F("SCALE_CTRL_5"), 0x5605},
+    {F("SCALE_CTRL_6"), 0x5606},
+    {F("VFIFO_CTRL0C"), 0x460C},
+    {F("VFIFO_X_SIZE_H"), 0x4602},
+    {F("VFIFO_X_SIZE_L"), 0x4603},
+    {F("VFIFO_Y_SIZE_H"), 0x4604},
+    {F("VFIFO_Y_SIZE_L"), 0x4605},
+    {F("COMPRESSION_CTRL00"), 0x4400},
+    {F("COMPRESSION_CTRL01"), 0x4401},
+    {F("COMPRESSION_CTRL02"), 0x4402},
+    {F("COMPRESSION_CTRL03"), 0x4403},
+    {F("COMPRESSION_CTRL04"), 0x4404},
+    {F("COMPRESSION_CTRL05"), 0x4405},
+    {F("COMPRESSION_CTRL06"), 0x4406},
+    {F("COMPRESSION_CTRL07"), 0x4407},
+    {F("COMPRESSION_ISI_CTRL"), 0x4408},
+    {F("COMPRESSION_CTRL09"), 0x4409},
+    {F("COMPRESSION_CTRL0a"), 0x440a},
+    {F("COMPRESSION_CTRL0b"), 0x440b},
+    {F("COMPRESSION_CTRL0c"), 0x440c},
+    {F("COMPRESSION_CTRL0d"), 0x440d},
+    {F("COMPRESSION_CTRL0E"), 0x440e},
 };
 
 #define CNT_REG_NAME_TABLE                                                     \
-    (sizeof(OV2640_reg_name_table) / sizeof(OV2640_reg_name_table[0]))
-
-#ifdef DEBUG_CAMERA_REG
-void Debug_printCameraWriteRegister(uint8_t reg, uint8_t data) {
-    static uint8_t showing_bank = 0;
-    static uint16_t bank_1_starts_at = 0;
-    uint16_t ii = CNT_REG_NAME_TABLE; // initialize to remove warning
-
-    debug.printf("cameraWriteRegister(%x, %x)", reg, data);
-    if (reg == 0xff)
-        showing_bank = data; // remember which bank we are
-    else {
-        if (showing_bank == 0) {
-            for (ii = 0; ii < CNT_REG_NAME_TABLE; ii++) {
-                if (OV2640_reg_name_table[ii].bank != 0)
-                    break;
-                if (reg == OV2640_reg_name_table[ii].reg)
-                    break;
-            }
-        } else {
-            if (bank_1_starts_at == 0) {
-                for (ii = bank_1_starts_at; ii < CNT_REG_NAME_TABLE; ii++) {
-                    if (OV2640_reg_name_table[ii].bank != 0) {
-                        bank_1_starts_at = ii;
-                        break;
-                    }
-                }
-            }
-            for (ii = bank_1_starts_at; ii < CNT_REG_NAME_TABLE; ii++) {
-                if (reg == OV2640_reg_name_table[ii].reg)
-                    break;
-            }
-        }
-    }
-    if ((ii < CNT_REG_NAME_TABLE) && (reg == OV2640_reg_name_table[ii].reg))
-        debug.printf(" - %s\n", OV2640_reg_name_table[ii].reg_name);
-    else
-        debug.println();
-}
-
-#endif
+    (sizeof(OV5640_reg_name_table) / sizeof(OV5640_reg_name_table[0]))
 
 void OV5640::showRegisters(void) {
+    uint8_t reg_value = 0;
     debug.println("\n*** Camera Registers ***");
-    cameraWriteRegister(0xFF, 0x00); // bank 0
-    bool showing_bank_0 = true;
-    for (uint16_t ii = 0; ii < (sizeof(OV2640_reg_name_table) /
-                                sizeof(OV2640_reg_name_table[0]));
+    for (uint16_t ii = 0; ii < (sizeof(OV5640_reg_name_table) /
+                                sizeof(OV5640_reg_name_table[0]));
          ii++) {
-        if ((OV2640_reg_name_table[ii].bank != 0) && showing_bank_0) {
-            cameraWriteRegister(0xff, 0x01);
-            showing_bank_0 = false;
-        }
-        uint8_t reg_value = cameraReadRegister(OV2640_reg_name_table[ii].reg);
-        debug.printf("(%d) %s(%x): %u(%x)\n", OV2640_reg_name_table[ii].bank,
-                     OV2640_reg_name_table[ii].reg_name,
-                     OV2640_reg_name_table[ii].reg, reg_value, reg_value);
+        cameraReadRegister(OV5640_reg_name_table[ii].reg, reg_value);
+        debug.printf("%s(%x): %u(%x)\n", OV5640_reg_name_table[ii].reg_name,
+                     OV5640_reg_name_table[ii].reg, reg_value, reg_value);
     }
-
-    // Quick and dirty print out WIndows start and end:
-    uint8_t reg32_reg = cameraReadRegister(REG32);
-    uint8_t com1_reg = cameraReadRegister(COM1);
-
-    uint16_t hstart = (cameraReadRegister(HREFST) << 3) | (reg32_reg & 0x7);
-    uint16_t hstop =
-        (cameraReadRegister(HREFEND) << 3) | ((reg32_reg >> 3) & 0x7);
-    uint16_t vstart = (cameraReadRegister(VSTRT) << 2) | (com1_reg & 0x3);
-    uint16_t vstop = (cameraReadRegister(VEND) << 2) | ((com1_reg >> 2) & 0x3);
-
-    debug.printf(
-        "Window Hor: (%u - %u) = %u * 2 = %u Vert: (%u - %u) = %u * 2 = %u\n",
-        hstart, hstop, hstop - hstart, (hstop - hstart) * 2, vstart, vstop,
-        vstop - vstart, (vstop - vstart) * 2);
-
-    cameraWriteRegister(0xFF, 0x00); // bank 0
-
-    uint8_t vhyx_reg = cameraReadRegister(VHYX);
-
-    uint8_t hsize = cameraReadRegister(HSIZE) | ((vhyx_reg >> 3) & 1) << 8;
-    uint8_t vsize = cameraReadRegister(VSIZE) | ((vhyx_reg >> 7) & 1) << 8;
-
-    debug.printf("device\tSize H: %u * 4 = %u V: %u * 4 = %u\n", hsize,
-                 hsize * 4, vsize, vsize * 4);
-
-    uint16_t xoffl = cameraReadRegister(XOFFL) | ((vhyx_reg >> 0) & 0x7) << 8;
-    uint16_t yoffl = cameraReadRegister(YOFFL) | ((vhyx_reg >> 4) & 0x7) << 8;
-    debug.printf("\t offset H: %u V: %u \n", xoffl, yoffl);
+    debug.println();
 }
-*/
