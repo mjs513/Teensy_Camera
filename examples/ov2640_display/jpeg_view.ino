@@ -104,7 +104,7 @@ inline void FillScreen(uint16_t color) {
       jpeg.decode(0, 0, decode_options);
       jpeg.close();
     } else {
-      Serial.println("Was not a valid jpeg file");
+      Serial.println("Failed to open JPEG Framebuffer......");
       return 0;
     }
     return 1;

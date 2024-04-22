@@ -30,7 +30,7 @@ Camera camera(omni);
 #endif
 
 //set cam configuration - need to remember when saving jpeg
-framesize_t camera_framesize = FRAMESIZE_VGA;
+framesize_t camera_framesize = FRAMESIZE_QVGA;
 pixformat_t camera_format = RGB565;
 bool useGPIO = false;
 
@@ -509,7 +509,7 @@ void loop() {
         }
       case 'j':
         {
-#if (defined(USE_SDCARD) && defined(ARDUCAM_CAMERA_OV2640))
+#if (defined(USE_SDCARD) && (defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640)))
           bool error = false;
           error = save_jpg_SD();
           if (!error) Serial.println("ERROR reading JPEG.  Try again....");
@@ -1444,7 +1444,7 @@ void show_change_jpeq_quality(int ch) {
 bool readJPG(uint8_t &eoi_jpg, uint32_t &eop_jpg, bool debug_on) {
   if (camera_format != JPEG) {
     camera.setPixformat(JPEG);
-    delay(500);
+    delay(1000);
   }
   //omni.setQuality(12);
 

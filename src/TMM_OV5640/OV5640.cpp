@@ -1174,10 +1174,19 @@ int OV5640::setPixformat(pixformat_t pixformat) {
         ret |= cameraWriteRegister(FORMAT_CONTROL, 0x00);
         ret |= cameraWriteRegister(FORMAT_CONTROL_MUX, 0x01);
         break;
-    case JPEG:
+    case JPEG: {
         ret |= cameraWriteRegister(FORMAT_CONTROL, 0x30);
         ret |= cameraWriteRegister(FORMAT_CONTROL_MUX, 0x00);
-        break;
+        ret |= cameraReadRegister(JPEG_MODE_SEL, reg);
+        reg &= ~(0x07);
+        uint8_t val = 0x03;
+        val &= (0x07);
+        val |= reg;
+        ret |= cameraWriteRegister(JPEG_MODE_SEL, val);
+        cameraWriteRegister(TIMING_TC_REG_20, 0x40);
+        cameraWriteRegister(SC_PLL_CONTRL2, 0x69);
+        cameraWriteRegister(SC_PLL_CONTRL1, 0x31);
+    } break;
     default:
         return 1;
     }
@@ -1186,7 +1195,7 @@ int OV5640::setPixformat(pixformat_t pixformat) {
 
     ret |= cameraReadRegister(TIMING_TC_REG_21, reg);
     ret |= cameraWriteRegister(
-        TIMING_TC_REG_21, (reg & 0xDF) | ((pixformat == JPEG) ? 0x20 : 0x00));
+        TIMING_TC_REG_21, (reg & 0xDF) | ((pixformat == JPEG) ? 0x26 : 0x00));
 
     ret |= cameraReadRegister(SYSTEM_RESET_02, reg);
     ret |= cameraWriteRegister(
@@ -2459,6 +2468,14 @@ static const OV5640_TO_NAME_t OV5640_reg_name_table[] PROGMEM{
     {F("SCALE_CTRL_4"), 0x5604},
     {F("SCALE_CTRL_5"), 0x5605},
     {F("SCALE_CTRL_6"), 0x5606},
+    {F("X_START_H"), 0x5680},
+    {F("X_START_L"), 0x5681},
+    {F("Y_START_H"), 0x5682},
+    {F("Y_START_L"), 0x5683},
+    {F("X_WINDOW_H"), 0x5684},
+    {F("X_WINDOW_L"), 0x5685},
+    {F("Y_WINDOW_H"), 0x5686},
+    {F("Y_WINDOW_L"), 0x5687},
     {F("VFIFO_CTRL0C"), 0x460C},
     {F("VFIFO_X_SIZE_H"), 0x4602},
     {F("VFIFO_X_SIZE_L"), 0x4603},
