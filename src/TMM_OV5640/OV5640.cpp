@@ -1855,6 +1855,30 @@ int OV5640::getBlcRegs(int *regs) {
     return ret;
 }
 
+int OV5640::setLensCorrection(int enable) {
+    uint8_t reg;
+    int ret = cameraReadRegister(ISP_CONTROL_00, reg);
+    return cameraWriteRegister(ISP_CONTROL_00,
+                               (reg & 0x7F) | (enable ? 0x80 : 0x00)) |
+           ret;
+}
+
+int OV5640::setNightMode(int enable) {
+    /* read HTS from register settings */
+    uint8_t reg = 0;
+    int ret = 0;
+    if (enable) {
+        ret = cameraReadRegister(AEC_CTRL_00, reg);
+        if (ret)
+            return ret;
+        reg &= 0xfb;
+        return cameraWriteRegister(AEC_CTRL_00, reg);
+    } else {
+        return cameraWriteRegister(AEC_CTRL_00, aecCtrl00_old);
+    }
+    return 0;
+}
+
 /*******************************************************************/
 
 #define FLEXIO_USE_DMA

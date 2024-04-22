@@ -229,6 +229,8 @@ class OV5640 : public ImageSensor {
     int setWBmode(int mode);
     int setAutoBlc(int enable, int *regs);
     int getBlcRegs(int *regs);
+    int setLensCorrection(int enable);
+    int setNightMode(int enable);
 
     void showRegisters();
 
@@ -279,6 +281,7 @@ class OV5640 : public ImageSensor {
 
     bool _grayscale;
     int _framesize = FRAMESIZE_QVGA;
+    uint8_t aecCtrl00_old = 0x78;
 
     void *_OV5640;
 
