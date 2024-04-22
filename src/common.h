@@ -46,6 +46,14 @@ typedef enum {
 } framesize_t;
 
 typedef enum {
+    CAMERA_INPUT_DEFAULT = 0,
+    CAMERA_INPUT_FLEXIO,
+    CAMERA_INPUT_CSI,
+    CAMERA_INPUT_GPIO,
+    CAMERA_INPUT_CPIO4
+} camera_input_t;
+
+typedef enum {
     GAINCEILING_2X,
     GAINCEILING_4X,
     GAINCEILING_8X,

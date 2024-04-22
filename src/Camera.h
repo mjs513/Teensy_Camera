@@ -105,6 +105,16 @@ class ImageSensor {
                                  void *fb1, size_t cb1, void *fb2, size_t cb2);
     virtual bool stopReadFlexIO();
 
+
+    // start off 
+    virtual size_t readFrameCSI(void *buffer, size_t cb1 = (uint32_t)-1,
+                           void *buffer2 = nullptr, size_t cb2 = 0);
+
+    virtual bool startReadCSI(bool (*callback)(void *frame_buffer), void *fb1,
+                         size_t cb1, void *fb2, size_t cb2);
+    virtual bool stopReadCSI();
+
+
     // Lets try a dma version.  Doing one DMA that is synchronous does not gain
     // anything So lets have a start, stop... Have it allocate 2 frame buffers
     // and it's own DMA buffers, with the option of setting your own buffers if
@@ -150,7 +160,14 @@ class ImageSensor {
     static void frameStartInterruptFlexIO();
     virtual void processFrameStartInterruptFlexIO();
     virtual void processDMAInterrupt() {}
+
+    // default for Micromod
     virtual bool flexio_configure();
+    virtual void processCSIInterrupt();
+    static void CSIInterrupt();
+
+    // default for Teensy 4.1
+    virtual bool csi_configure();
     virtual void processFrameStartInterrupt() {};
     virtual bool supports4BitMode() { return false; }
 
@@ -161,6 +178,7 @@ class ImageSensor {
     bool _fuse_dma =
         true; // in some cameras should we use DMA or do the Io directly
     bool _use_gpio = false;   // set in the begin of some cameras
+    camera_input_t _cameraInput = CAMERA_INPUT_DEFAULT;
     uint32_t _timeout = 2000; // timeout in ms for a read
 
     int _vsyncPin;
@@ -689,6 +707,35 @@ class Camera {
     bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1,
                          size_t cb1, void *fb2, size_t cb2);
     bool stopReadFlexIO();
+
+    // CSI may be default on some cameras
+    /**
+     * Read one Frame using CSI from the camera using the current settings
+     * This method allows you to pass in two buffers and size of
+     * buffers. This can be important when it is very possible that
+     * you do not have enough room in either DTCM or DMAMEM to hold
+     * one whole frame.  For example: OV2640, OV7670, OV7675 or GC2145
+     * cameras allow you to read in a VGA size (640 by 480) with 2 bytes
+     * per pixel this requires a buffer size of at least: 614400 bytes
+     * which is larger than either memory region.
+     *
+     * Inputs:
+     *     buffer1 - pointer to first buffer
+     *     cb1 - size of buffer 1 in bytes
+     *     buffer2 - pointer to optional second buffer
+     *     cb2 - size of second optional buffer
+     *
+     * Returns: count of bytes returned from the camera, 0 if error    size_t
+     * readFrameGPIO(void *buffer, size_t cb1 = (uint32_t)-1, void *buffer2 =
+     * nullptr, size_t cb2 = 0);
+     */
+    size_t readFrameCSI(void *buffer, size_t cb1 = (uint32_t)-1,
+                           void *buffer2 = nullptr, size_t cb2 = 0);
+
+    bool startReadCSI(bool (*callback)(void *frame_buffer), void *fb1,
+                         size_t cb1, void *fb2, size_t cb2);
+    bool stopReadCSI();
+
 
     // Lets try a dma version.  Doing one DMA that is synchronous does not gain
     // anything So lets have a start, stop... Have it allocate 2 frame buffers

@@ -30,7 +30,7 @@ Camera camera(omni);
 #endif
 
 //set cam configuration - need to remember when saving jpeg
-framesize_t camera_framesize = FRAMESIZE_QVGA;
+framesize_t camera_framesize = FRAMESIZE_VGA;
 pixformat_t camera_format = RGB565;
 bool useGPIO = false;
 

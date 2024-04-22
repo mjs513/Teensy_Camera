@@ -79,6 +79,8 @@ SDA             18      AD_B1_1 I2C
 #define OV5640_D5 20 // AD_B1_10 CSI_D7
 #define OV5640_D6 23 // AD_B1_09 CSI_D8
 #define OV5640_D7 22 // AD_B1_08 CSI_D9
+#define OV5640_RST 0xff   // reset pin
+
 #elif 1
 #define OV5640_PLK 4    // 40 // AD_B1_04 CSI_PIXCLK
 #define OV5640_XCLK 5   // 41 // AD_B1_05 CSI_MCLK
@@ -93,6 +95,7 @@ SDA             18      AD_B1_1 I2C
 #define OV5640_D5 23 // AD_B1_09 1.25
 #define OV5640_D6 20 // AD_B1_10 1.26
 #define OV5640_D7 21 // AD_B1_11 1.27
+#define OV5640_RST 0xff   // reset pin
 
 #else
 // For T4.1 can choose same or could choose a contiguous set of pins only one

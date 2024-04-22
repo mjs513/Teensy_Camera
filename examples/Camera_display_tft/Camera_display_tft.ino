@@ -4,14 +4,16 @@
 
 #include "Camera.h"
 
+#ifndef ARDUINO_TEENSY41
 #define USE_MMOD_ATP_ADAPTER
+#endif
 // #define USE_SDCARD
 
 // #define ARDUCAM_CAMERA_HM01B0
-#define ARDUCAM_CAMERA_HM0360
+//#define ARDUCAM_CAMERA_HM0360
 // #define ARDUCAM_CAMERA_OV2640
 // #define ARDUCAM_CAMERA_OV7670
-// #define ARDUCAM_CAMERA_OV7675
+ #define ARDUCAM_CAMERA_OV7675
 // #define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
@@ -261,6 +263,8 @@ void setup() {
         camera.setPins(7, 8, 21, 46, 31, 40, 41, 42, 43);
     }
 
+#elif defined(ARDUINO_TEENSY41)
+  pinMode(0, OUTPUT);
 #else
     if (_hmConfig == 0) {
         // camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
@@ -299,7 +303,7 @@ void setup() {
     uint8_t status = 0;
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||       \
      defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145))
-    status = camera.begin(FRAMESIZE_QVGA, RGB565, 15, CameraID, false);
+    status = camera.begin(FRAMESIZE_QVGA, RGB565, 12, CameraID, false);
 #else
     // HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
     // HM0360(8pin) 15/30/60/120 works :)
@@ -616,7 +620,7 @@ void loop() {
                           &frameBuffer[camera.width() * camera.height()]);
             memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
             for (uint8_t i = 0; i < skipFrames; i++) {
-                camera.readFrame(frameBuffer, sizeof(frameBuffer));
+                camera.readFrame(frameBuffer, sizeof(frameBuffer), frameBuffer2, sizeof(frameBuffer2));
             }
 
             Serial.println("Finished reading frame");

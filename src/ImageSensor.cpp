@@ -3,10 +3,11 @@
 //=============================================================================
 
 #include "camera.h"
+#include "teensy_csi_support.h"
 
 #define debug Serial
 
-// #define DEBUG_CAMERA
+#define DEBUG_CAMERA
 // #define DEBUG_CAMERA_VERBOSE
 // #define DEBUG_FLEXIO
 // #define USE_DEBUG_PINS
@@ -15,7 +16,7 @@ ImageSensor *ImageSensor::active_dma_camera = nullptr;
 DMAChannel ImageSensor::_dmachannel;
 DMASetting ImageSensor::_dmasettings[10];
 
-// #define USE_DEBUG_PINS_TIMING
+#define USE_DEBUG_PINS_TIMING
 
 #ifdef USE_DEBUG_PINS_TIMING
 #define DBGdigitalWriteFast digitalWriteFast
@@ -65,7 +66,10 @@ void ImageSensor::setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin,
 size_t ImageSensor::readFrame(void *buffer1, size_t cb1, void *buffer2,
                               size_t cb2) {
     if (!_use_gpio) {
-        return readFrameFlexIO(buffer1, cb1, buffer2, cb2);
+        if (_cameraInput == CAMERA_INPUT_CSI)
+            return readFrameCSI(buffer1, cb1, buffer2, cb2);
+        else
+            return readFrameFlexIO(buffer1, cb1, buffer2, cb2);
     } else {
         if (_hw_config == TEENSY_MICROMOD_FLEXIO_4BIT) {
             readFrame4BitGPIO(buffer1);
@@ -888,7 +892,225 @@ bool ImageSensor::flexio_configure() {
     debug.printf("     TIMCFG = %08X\n", _pflexio->TIMCFG[_ftimer]);
     debug.printf("     TIMCTL = %08X\n", _pflexio->TIMCTL[_ftimer]);
 #endif
+    _cameraInput = CAMERA_INPUT_FLEXIO;
     return true;
+}
+
+//=============================================================================
+// Reading using CSI support
+//=============================================================================
+bool ImageSensor::csi_configure() {
+    // lets first verify that all of the CSI pins are valid for CSI
+
+    bool pins_valid;
+    pins_valid = verifyCSIPin(_vsyncPin, CSI_VS);
+    pins_valid &= verifyCSIPin(_hrefPin, CSI_HS);
+    pins_valid &= verifyCSIPin(_pclkPin, CSI_PCLK);
+    pins_valid &= verifyCSIPin(_xclkPin, CSI_MCLK);
+
+    // note we are wanting 4 or 8 data pins but they start at 2 in this case
+    for (uint8_t i = 0; i < 4; i++)
+        pins_valid &= verifyCSIPin(_dPins[i], i + 2);
+    if (_dPins[4] != 0xff) {
+        for (uint8_t i = 4; i < 8; i++)
+            pins_valid &= verifyCSIPin(_dPins[i], i + 2);
+    } else {
+        _hw_config = TEENSY_MICROMOD_FLEXIO_4BIT;
+    }
+
+    CCM_CCGR2 |= CCM_CCGR2_CSI(CCM_CCGR_ON); // turn on CSI clocks
+
+    if (!pins_valid)
+        return false;
+
+    // Lets configure all of the IO pins to CSI
+    // Need to see what we do with XCLK
+
+    configureCSIPin(_vsyncPin);
+    configureCSIPin(_hrefPin);
+    configureCSIPin(_pclkPin);
+
+    for (uint8_t i = 0; i < 4; i++)
+        configureCSIPin(_dPins[i]);
+    if (_dPins[4] != 0xff) {
+        for (uint8_t i = 4; i < 8; i++)
+            configureCSIPin(_dPins[i]);
+    }
+
+    // Update the XCLK
+
+    configureCSIPin(_xclkPin);
+
+    // lets initialize the CSI
+    NVIC_DISABLE_IRQ(IRQ_CSI);
+    // set initial values in CSICR1
+    CSI_CSICR1 |=
+        (CSI_CSICR1_SOF_POL |   // 1 for  VSYNC rising edge
+         CSI_CSICR1_FCC |       // FCC_MASK
+         CSI_CSICR1_HSYNC_POL | // HSYNC_POL 1 for active high
+         CSI_CSICR1_GCLK_MODE | // 1= GCLK_MODE PCLK only valid when HSYNC high
+         CSI_CSICR1_REDGE);     // Use pixel clock rising edge
+
+    // Set Image Parameters--width in bytes and height
+    CSI_CSIIMAG_PARA = CSI_CSIIMAG_PARA_IMAGE_WIDTH(2 * _width) |
+                       CSI_CSIIMAG_PARA_IMAGE_HEIGHT(_height);
+
+    CSI_CSICR3 = CSI_CSICR3_FRMCNT_RST |    // clear the frame counter
+                 CSI_CSICR3_DMA_REQ_EN_RFF; //  Enable RxFIFO DMA request
+    CSI_CSICR2 |= CSI_CSICR2_DMA_BURST_TYPE_RFF(3); // RxFIFO inc by 16
+
+    // Start off only write to memory if CSI is enabled. Option 0
+    CSI_CSICR18 = (CSI_CSICR18 & ~((CSI_CSICR18_MASK_OPTION(3)) |
+                                   CSI_CSICR18_MASK_OPTION(3)));
+
+    attachInterruptVector(IRQ_CSI, &CSIInterrupt);
+    NVIC_ENABLE_IRQ(IRQ_CSI);
+    _cameraInput = CAMERA_INPUT_CSI;
+    return true;
+}
+
+#define PV(N) debug.print(#N); debug.print(":\t"); debug.println(N, HEX);
+void print_csi_registers() {
+
+    PV(CSI_CSICR1)
+    PV(CSI_CSICR2)
+    PV(CSI_CSICR3)
+    PV(CSI_CSISTATFIFO)
+    PV(CSI_CSIRFIFO)
+    PV(CSI_CSIRXCNT)
+    PV(CSI_CSISR)
+    PV(CSI_CSIDMASA_STATFIFO)
+    PV(CSI_CSIDMATS_STATFIFO)
+    PV(CSI_CSIDMASA_FB1)
+    PV(CSI_CSIDMASA_FB2)
+    PV(CSI_CSIFBUF_PARA)
+    PV(CSI_CSIIMAG_PARA)
+    PV(CSI_CSICR18)
+    PV(CSI_CSICR19)
+    PV(CSI_CSIRFIFO)
+}
+
+
+
+size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2,
+                                 size_t cb2) {
+
+    if (_debug)
+        debug.printf("$$ImageSensor::readFrameCSI(%p, %u, %p, %u)\n",
+                     buffer, cb1, buffer2, cb2);
+    DBGdigitalWriteFast(0, HIGH);
+    // Setup our buffer pointers.  Not sure if there is some place to store the
+    // sizes?
+    uint32_t frame_size_bytes = _width * _height * _bytesPerPixel;
+
+    CSI_CSIDMASA_FB1 = (uint32_t)buffer;
+    CSI_CSIDMASA_FB2 = (uint32_t)buffer2;
+
+    // setup interrupts on DMA done on either buffer and maybe Start of frame.
+    CSI_CSICR1 |= CSI_CSICR1_FB1_DMA_DONE_INTEN |
+                  CSI_CSICR1_FB2_DMA_DONE_INTEN | CSI_CSICR1_SOF_INTEN;
+
+    // lets clear out anything that is cached.
+    uint32_t csicr1 = CSI_CSICR1;                   
+    uint32_t csicr1_minus_fcc = csicr1 & ~CSI_CSICR1_FCC;
+    CSI_CSICR1 = csicr1_minus_fcc; // we can not clear the FIFOs with this bit set.
+    CSI_CSICR1 = csicr1_minus_fcc | (CSI_CSICR1_CLR_STATFIFO | CSI_CSICR1_CLR_RXFIFO);
+
+    // wait until the clear is done.
+    while (CSI_CSICR1 & (CSI_CSICR1_CLR_STATFIFO | CSI_CSICR1_CLR_RXFIFO)) {
+    };
+
+    // turn back on FCC
+    CSI_CSICR1 = CSI_CSICR1;
+
+    // And now lets start or restart the DMA
+    CSI_CSICR3 |= CSI_CSICR3_DMA_REFLASH_RFF;
+
+    // wait for this to complete.
+    while (CSI_CSICR3 & CSI_CSICR3_DMA_REFLASH_RFF) {
+    }
+
+    // first clear, then set the RxFIFO full level to 16 double words or 64
+    // bytes I think this level is chosen to match the FIFO size of the FlexSPI
+    // used for the external PSRAM.
+    CSI_CSICR3 = ((CSI_CSICR3 & ~CSI_CSICR3_RxFF_LEVEL(7)) |
+                  CSI_CSICR3_RxFF_LEVEL(2)); // RxFF_LEVEL 2 is 16 double words
+
+    // clear out any interrupt states.
+    uint32_t csisr = CSI_CSISR;
+    CSI_CSISR = csisr;
+
+    // Set our logical state
+    _dma_state = DMA_STATE_ONE_FRAME;
+
+    // Lets tell CSI to start the capture.
+    CSI_CSICR18 |= (CSI_CSICR18_CSI_ENABLE
+                  | CSI_CSICR18_BASEADDR_SWITCH_EN    // CSI switches base addresses at frame start
+                  | CSI_CSICR18_BASEADDR_CHANGE_ERROR_IE); //  Enables base address error interrupt
+#ifdef DEBUG_CAMERA
+    debug.print("After start capture\n");
+    //Serial.printf("XCLK frequency: %u\n", _xclk_freq);
+    print_csi_registers();
+#endif
+
+
+    elapsedMillis timeout = 0; // reset the timeout
+    while (_dma_state == DMA_STATE_ONE_FRAME) {
+        if (timeout > _timeout) {
+            if (_debug)
+                debug.println("Timeout waiting for CSI Frame complete");
+#ifdef DEBUG_CAMERA
+                print_csi_registers();
+#endif
+            break;
+        }
+    }
+
+    // turn it off again?
+    CSI_CSICR18 &= ~CSI_CSICR18_CSI_ENABLE;
+    DBGdigitalWriteFast(0, LOW);
+
+    return frame_size_bytes;
+}
+
+// not implemented yet
+bool ImageSensor::startReadCSI(bool (*callback)(void *frame_buffer), void *fb1,
+                               size_t cb1, void *fb2, size_t cb2) {
+    return false;
+}
+
+// not implemented yet
+bool ImageSensor::stopReadCSI() { return false; }
+
+void ImageSensor::CSIInterrupt() { 
+    debug.printf("static CSII:%x\n", CSI_CSISR);
+    active_dma_camera->processCSIInterrupt(); 
+}
+
+void ImageSensor::processCSIInterrupt() {
+    // lets grab the state and see what the ISR was for....
+    uint32_t csisr = CSI_CSISR; //
+    debug.printf("CSII:%x\n", csisr);
+
+    // Not sure if we will not SOF or not but...
+    if (csisr & CSI_CSISR_SOF_INT) {
+    }
+
+    // Lets see if we finished first buffer
+    if (csisr & CSI_CSISR_DMA_TSF_DONE_FB1) {
+        if (_dma_state == DMA_STATE_ONE_FRAME) {
+            _dma_state = DMA_STATE_STOPPED;
+        }
+    }
+    // Then check for second buffer
+    if (csisr & CSI_CSISR_DMA_TSF_DONE_FB2) {
+        if (_dma_state == DMA_STATE_ONE_FRAME) {
+            _dma_state = DMA_STATE_STOPPED;
+        }
+    }
+    // clear all of the interrupts
+    CSI_CSISR = csisr;
+    asm("DSB"); // hopefully keeps from being called again
 }
 
 //=============================================================================
@@ -911,7 +1133,8 @@ size_t ImageSensor::readFrameGPIO(void *buffer, size_t cb1, void *buffer2,
 
     // Falling edge indicates start of frame
     // pinMode(PCLK_PIN, INPUT); // make sure back to input pin...
-    // lets add our own glitch filter.  Say it must be hig for at least 100us
+    // lets add our own glitch filter.  Say it must be hig for at least
+    // 100us
 
     delayMicroseconds(5); // debug for digitalWrite
     DBGdigitalWriteFast(0, LOW);
@@ -938,8 +1161,8 @@ size_t ImageSensor::readFrameGPIO(void *buffer, size_t cb1, void *buffer2,
             while ((*_pclkPort & _pclkMask) == 0)
                 ; // wait for HIGH
 
-            // uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >>
-            // 18; // read all bits in parallel
+            // uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR :
+            // GPIO6_DR) >> 18; // read all bits in parallel
             uint32_t in = (GPIO7_PSR >> 4); // read all bits in parallel
 
             // uint32_t in = mmBus;

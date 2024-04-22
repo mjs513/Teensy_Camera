@@ -143,6 +143,18 @@ bool Camera::startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1,
 
 bool Camera::stopReadFlexIO() { return sensor->stopReadFlexIO(); }
 
+
+size_t Camera::readFrameCSI(void *buffer, size_t cb1, void *buffer2, size_t cb2) {
+   return sensor->readFrameCSI(buffer, cb1, buffer2, cb2);
+}
+
+bool Camera::startReadCSI(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2) {
+   return sensor->startReadCSI(callback, fb1, cb1, fb1, cb2);
+}
+
+bool Camera::stopReadCSI() {
+   return sensor->stopReadCSI();
+}
 // Lets try a dma version.  Doing one DMA that is synchronous does not gain
 // anything So lets have a start, stop... Have it allocate 2 frame buffers and
 // it's own DMA buffers, with the option of setting your own buffers if desired.

@@ -71,6 +71,7 @@ SDA             18      AD_B1_1 I2C
     9 // 9       B0_11   FlexIO2:11 - probably not needed, use 4 bit mode
 
 #elif defined USE_CSI_PINS
+#define GC2145_RST 0xff   // reset pin
 #define GC2145_PLK 40 // 40 // AD_B1_04 CSI_PIXCLK
 #define GC2145_XCLK_JUMPER                                                     \
     41                  // BUGBUG CSI 41 is NOT a PWM pin so we jumper to it...
@@ -87,6 +88,7 @@ SDA             18      AD_B1_1 I2C
 #define GC2145_D6 23 // AD_B1_09 CSI_D8
 #define GC2145_D7 22 // AD_B1_08 CSI_D9
 #elif 1
+#define GC2145_RST 0xff   // reset pin
 #define GC2145_PLK 4    // 40 // AD_B1_04 CSI_PIXCLK
 #define GC2145_XCLK 5   // 41 // AD_B1_05 CSI_MCLK
 #define GC2145_HREF 40  // AD_B1_07 CSI_HSYNC

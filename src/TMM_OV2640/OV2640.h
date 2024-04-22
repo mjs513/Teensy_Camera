@@ -79,7 +79,10 @@ SDA             18      AD_B1_1 I2C
 #define OV2640_D5 20 // AD_B1_10 CSI_D7
 #define OV2640_D6 23 // AD_B1_09 CSI_D8
 #define OV2640_D7 22 // AD_B1_08 CSI_D9
+#define OV2640_RST 0xff   // reset pin
+
 #elif 1
+#define OV2640_RST 0xff   // reset pin
 #define OV2640_PLK 4    // 40 // AD_B1_04 CSI_PIXCLK
 #define OV2640_XCLK 5   // 41 // AD_B1_05 CSI_MCLK
 #define OV2640_HREF 40  // AD_B1_07 CSI_HSYNC

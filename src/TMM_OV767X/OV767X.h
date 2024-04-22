@@ -8,7 +8,13 @@
 #define _OV767X_H_
 
 #include <Arduino.h>
+// Teensy 4.1 default to CSI pisn
+#ifdef ARDUINO_TEENSY41
+#define USE_CSI_PINS
+#warning "Use CSI Pins"
+#endif
 #include <Camera.h>
+#include "teensy_csi_support.h"
 #if defined(__IMXRT1062__) // Teensy 4.x
 #include <DMAChannel.h>
 #include <FlexIO_t4.h>
@@ -28,6 +34,7 @@
 #define DebugDigitalWrite(pin, val)
 #define DebugDigitalToggle(pin)
 #endif
+
 
 #ifdef ARDUINO_TEENSY_MICROMOD
 /*
@@ -67,10 +74,8 @@ SDA             18      AD_B1_1 I2C
 #define OV7670_D7 9  // 9       B0_11   FlexIO2:11
 
 #elif defined USE_CSI_PINS
-#define OV7670_PLK 40 // 40 // AD_B1_04 CSI_PIXCLK
-#define OV7670_XCLK_JUMPER                                                     \
-    41                  // BUGBUG CSI 41 is NOT a PWM pin so we jumper to it...
-#define OV7670_XCLK 37  // 41 // AD_B1_05 CSI_MCLK
+#define OV7670_PLK 40   // AD_B1_04 CSI_PIXCLK
+#define OV7670_XCLK 41  // AD_B1_05 CSI_MCLK
 #define OV7670_HREF 16  // AD_B1_07 CSI_HSYNC
 #define OV7670_VSYNC 17 // AD_B1_06 CSI_VSYNC
 
@@ -82,6 +87,9 @@ SDA             18      AD_B1_1 I2C
 #define OV7670_D5 20 // AD_B1_10 CSI_D7
 #define OV7670_D6 23 // AD_B1_09 CSI_D8
 #define OV7670_D7 22 // AD_B1_08 CSI_D9
+
+#define OV7670_RST 14   // reset pin
+
 #elif 1
 #define OV7670_PLK 4    // 40 // AD_B1_04 CSI_PIXCLK
 #define OV7670_XCLK 5   // 41 // AD_B1_05 CSI_MCLK
