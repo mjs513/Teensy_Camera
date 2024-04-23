@@ -221,7 +221,6 @@ bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format,
         return false;
     }
 
-
 #ifdef DEBUG_CAMERA
     debug.printf("Calling ov7670_configure\n");
     debug.printf("Cam Name: %d, Format: %d, Resolution: %d, Clock: %d\n",

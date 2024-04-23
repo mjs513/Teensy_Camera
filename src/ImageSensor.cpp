@@ -19,6 +19,7 @@ DMASetting ImageSensor::_dmasettings[10];
 #define USE_DEBUG_PINS_TIMING
 
 #ifdef USE_DEBUG_PINS_TIMING
+#define DBG_TIMING_PIN 2
 #define DBGdigitalWriteFast digitalWriteFast
 #define DBGdigitalToggleFast digitalToggleFast
 #else
@@ -97,13 +98,13 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
     if (_debug)
         debug.printf("$$ImageSensor::readFrameFlexIO(%p, %u, %p, %u, %u, %u)\n",
                      buffer, cb1, buffer2, cb2, _fuse_dma, _hw_config);
-    DBGdigitalWriteFast(0, HIGH);
+    DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
 
     uint32_t frame_size_bytes = _width * _height * _bytesPerPixel;
     if (_format == 8) {
         frame_size_bytes = frame_size_bytes / 5;
     } else if ((cb1 + cb2) < frame_size_bytes) {
-        DBGdigitalWriteFast(0, LOW);
+        DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
         return 0; // not enough to hold normal images...
     }
 
@@ -111,7 +112,7 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
     // wait for VSYNC to go high and then low with a sort of glitch filter
     elapsedMillis emWaitSOF;
     elapsedMicros emGlitch;
-    DBGdigitalWriteFast(0, LOW);
+    DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
 
     for (;;) {
         if (emWaitSOF > _timeout) {
@@ -142,7 +143,7 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
     _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
     _pflexio->SHIFTERR = _fshifter_mask;
     uint32_t *p = (uint32_t *)buffer;
-    DBGdigitalWriteFast(0, HIGH);
+    DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
 
     elapsedMillis timeout = 0;
 
@@ -160,14 +161,14 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
         while (frame_bytes_received < frame_size_bytes) {
             while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
                 if (timeout > max_time_to_wait) {
-                    DBGdigitalWriteFast(0, LOW);
+                    DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
 
                     if (_debug)
                         debug.printf(
                             "Timeout between characters: received: %u bytes\n",
                             frame_bytes_received);
                     // wait for FlexIO shifter data
-                    DBGdigitalWriteFast(0, HIGH);
+                    DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
                     break;
                 }
             }
@@ -181,7 +182,7 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
                         if (_debug)
                             Serial.printf("JPEG - found end marker at %u\n",
                                           frame_bytes_received + i);
-                        DBGdigitalWriteFast(0, LOW);
+                        DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
                         return frame_bytes_received + i + 1;
                     }
                 }
@@ -206,7 +207,7 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
             timeout = 0;           // reset timeout.
         }
 
-        DBGdigitalWriteFast(0, LOW);
+        DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
         return frame_bytes_received;
     }
 
@@ -358,7 +359,7 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
 #endif
     //    dumpDMA_TCD(&_dmasettings[0], " 0: ");
     //    dumpDMA_TCD(&_dmasettings[1], " 1: ");
-    DBGdigitalWriteFast(0, LOW);
+    DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
 
     return frame_size_bytes;
 }
@@ -925,7 +926,6 @@ bool ImageSensor::csi_configure() {
 
     // Lets configure all of the IO pins to CSI
     // Need to see what we do with XCLK
-
     configureCSIPin(_vsyncPin);
     configureCSIPin(_hrefPin);
     configureCSIPin(_pclkPin);
@@ -939,8 +939,8 @@ bool ImageSensor::csi_configure() {
 
     // Update the XCLK
 
-    configureCSIPin(_xclkPin);
-
+    // Done earlier
+    //configureCSIPin(_xclkPin);
     // lets initialize the CSI
     NVIC_DISABLE_IRQ(IRQ_CSI);
     // set initial values in CSICR1
@@ -955,66 +955,29 @@ bool ImageSensor::csi_configure() {
     CSI_CSIIMAG_PARA = CSI_CSIIMAG_PARA_IMAGE_WIDTH(2 * _width) |
                        CSI_CSIIMAG_PARA_IMAGE_HEIGHT(_height);
 
-    CSI_CSICR3 = CSI_CSICR3_FRMCNT_RST |    // clear the frame counter
-                 CSI_CSICR3_DMA_REQ_EN_RFF; //  Enable RxFIFO DMA request
+    CSI_CSICR3 = CSI_CSICR3_FRMCNT_RST |            // clear the frame counter
+                 CSI_CSICR3_DMA_REQ_EN_RFF;         //  Enable RxFIFO DMA request
     CSI_CSICR2 |= CSI_CSICR2_DMA_BURST_TYPE_RFF(3); // RxFIFO inc by 16
 
     // Start off only write to memory if CSI is enabled. Option 0
     CSI_CSICR18 = (CSI_CSICR18 & ~((CSI_CSICR18_MASK_OPTION(3)) |
-                                   CSI_CSICR18_MASK_OPTION(3)));
-
-    attachInterruptVector(IRQ_CSI, &CSIInterrupt);
-    NVIC_ENABLE_IRQ(IRQ_CSI);
-    _cameraInput = CAMERA_INPUT_CSI;
-    return true;
-}
-
-#define PV(N) debug.print(#N); debug.print(":\t"); debug.println(N, HEX);
-void print_csi_registers() {
-
-    PV(CSI_CSICR1)
-    PV(CSI_CSICR2)
-    PV(CSI_CSICR3)
-    PV(CSI_CSISTATFIFO)
-    PV(CSI_CSIRFIFO)
-    PV(CSI_CSIRXCNT)
-    PV(CSI_CSISR)
-    PV(CSI_CSIDMASA_STATFIFO)
-    PV(CSI_CSIDMATS_STATFIFO)
-    PV(CSI_CSIDMASA_FB1)
-    PV(CSI_CSIDMASA_FB2)
-    PV(CSI_CSIFBUF_PARA)
-    PV(CSI_CSIIMAG_PARA)
-    PV(CSI_CSICR18)
-    PV(CSI_CSICR19)
-    PV(CSI_CSIRFIFO)
-}
-
-
-
-size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2,
-                                 size_t cb2) {
-
-    if (_debug)
-        debug.printf("$$ImageSensor::readFrameCSI(%p, %u, %p, %u)\n",
-                     buffer, cb1, buffer2, cb2);
-    DBGdigitalWriteFast(0, HIGH);
-    // Setup our buffer pointers.  Not sure if there is some place to store the
-    // sizes?
-    uint32_t frame_size_bytes = _width * _height * _bytesPerPixel;
-
-    CSI_CSIDMASA_FB1 = (uint32_t)buffer;
-    CSI_CSIDMASA_FB2 = (uint32_t)buffer2;
+                                   CSI_CSICR18_MASK_OPTION(0)));
 
     // setup interrupts on DMA done on either buffer and maybe Start of frame.
     CSI_CSICR1 |= CSI_CSICR1_FB1_DMA_DONE_INTEN |
-                  CSI_CSICR1_FB2_DMA_DONE_INTEN | CSI_CSICR1_SOF_INTEN;
+                  CSI_CSICR1_FB2_DMA_DONE_INTEN /* | CSI_CSICR1_SOF_INTEN */;
 
     // lets clear out anything that is cached.
-    uint32_t csicr1 = CSI_CSICR1;                   
-    uint32_t csicr1_minus_fcc = csicr1 & ~CSI_CSICR1_FCC;
-    CSI_CSICR1 = csicr1_minus_fcc; // we can not clear the FIFOs with this bit set.
-    CSI_CSICR1 = csicr1_minus_fcc | (CSI_CSICR1_CLR_STATFIFO | CSI_CSICR1_CLR_RXFIFO);
+    uint32_t creg, maskbits;
+
+    creg = CSI_CSICR1;
+    CSI_CSICR1 = (creg & ~CSI_CSICR1_FCC);                          // clear FCC bit
+    maskbits = (CSI_CSICR1_CLR_STATFIFO) | (CSI_CSICR1_CLR_RXFIFO); // bits high for clearing stat and rx FIFOs
+    CSI_CSICR1 = creg & (~CSI_CSICR1_FCC | maskbits);               // keep FCC off and clear FIFOs
+    // wait while clear completes
+    while ((CSI_CSICR1 & maskbits) != 0) {
+    }
+    CSI_CSICR1 = creg; // restore original status
 
     // wait until the clear is done.
     while (CSI_CSICR1 & (CSI_CSICR1_CLR_STATFIFO | CSI_CSICR1_CLR_RXFIFO)) {
@@ -1040,19 +1003,58 @@ size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2,
     uint32_t csisr = CSI_CSISR;
     CSI_CSISR = csisr;
 
+    // set this camera as the active one.
+    active_dma_camera = this;
+    attachInterruptVector(IRQ_CSI, &CSIInterrupt);
+    NVIC_ENABLE_IRQ(IRQ_CSI);
+    _cameraInput = CAMERA_INPUT_CSI;
+    return true;
+}
+
+void print_csi_registers() {
+    debug.printf("\tCSI_CSICR1: %x\n", CSI_CSICR1);
+    debug.printf("\tCSI_CSICR2: %x\n", CSI_CSICR2);
+    debug.printf("\tCSI_CSICR3: %x\n", CSI_CSICR3);
+    debug.printf("\tCSI_CSISTATFIFO: %x\n", CSI_CSISTATFIFO);
+    debug.printf("\tCSI_CSIRFIFO: %x\n", CSI_CSIRFIFO);
+    debug.printf("\tCSI_CSIRXCNT: %x\n", CSI_CSIRXCNT);
+    debug.printf("\tCSI_CSISR: %x\n", CSI_CSISR);
+    debug.printf("\tCSI_CSIDMASA_STATFIFO: %x\n", CSI_CSIDMASA_STATFIFO);
+    debug.printf("\tCSI_CSIDMATS_STATFIFO: %x\n", CSI_CSIDMATS_STATFIFO);
+    debug.printf("\tCSI_CSIDMASA_FB1: %x\n", CSI_CSIDMASA_FB1);
+    debug.printf("\tCSI_CSIDMASA_FB2: %x\n", CSI_CSIDMASA_FB2);
+    debug.printf("\tCSI_CSIFBUF_PARA: %x\n", CSI_CSIFBUF_PARA);
+    debug.printf("\tCSI_CSIIMAG_PARA: %x\n", CSI_CSIIMAG_PARA);
+    debug.printf("\tCSI_CSICR18: %x\n", CSI_CSICR18);
+    debug.printf("\tCSI_CSICR19: %x\n", CSI_CSICR19);
+    debug.printf("\tCSI_CSIRFIFO: %x\n", CSI_CSIRFIFO);
+};
+;
+size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2,
+                                 size_t cb2) {
+
+    if (_debug)
+        debug.printf("$$ImageSensor::readFrameCSI(%p, %u, %p, %u)\n",
+                     buffer, cb1, buffer2, cb2);
+    DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
+    // Setup our buffer pointers.  Not sure if there is some place to store the
+    // sizes?
+    uint32_t frame_size_bytes = _width * _height * _bytesPerPixel;
+
+    CSI_CSIDMASA_FB1 = (uint32_t)buffer;
+    CSI_CSIDMASA_FB2 = (uint32_t)buffer2;
+
     // Set our logical state
     _dma_state = DMA_STATE_ONE_FRAME;
 
     // Lets tell CSI to start the capture.
-    CSI_CSICR18 |= (CSI_CSICR18_CSI_ENABLE
-                  | CSI_CSICR18_BASEADDR_SWITCH_EN    // CSI switches base addresses at frame start
-                  | CSI_CSICR18_BASEADDR_CHANGE_ERROR_IE); //  Enables base address error interrupt
+    CSI_CSICR18 |= (CSI_CSICR18_CSI_ENABLE | CSI_CSICR18_BASEADDR_SWITCH_EN // CSI switches base addresses at frame start
+                    | CSI_CSICR18_BASEADDR_CHANGE_ERROR_IE);                //  Enables base address error interrupt
 #ifdef DEBUG_CAMERA
     debug.print("After start capture\n");
-    //Serial.printf("XCLK frequency: %u\n", _xclk_freq);
+    // Serial.printf("XCLK frequency: %u\n", _xclk_freq);
     print_csi_registers();
 #endif
-
 
     elapsedMillis timeout = 0; // reset the timeout
     while (_dma_state == DMA_STATE_ONE_FRAME) {
@@ -1060,7 +1062,7 @@ size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2,
             if (_debug)
                 debug.println("Timeout waiting for CSI Frame complete");
 #ifdef DEBUG_CAMERA
-                print_csi_registers();
+            print_csi_registers();
 #endif
             break;
         }
@@ -1068,7 +1070,7 @@ size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2,
 
     // turn it off again?
     CSI_CSICR18 &= ~CSI_CSICR18_CSI_ENABLE;
-    DBGdigitalWriteFast(0, LOW);
+    DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
 
     return frame_size_bytes;
 }
@@ -1082,9 +1084,9 @@ bool ImageSensor::startReadCSI(bool (*callback)(void *frame_buffer), void *fb1,
 // not implemented yet
 bool ImageSensor::stopReadCSI() { return false; }
 
-void ImageSensor::CSIInterrupt() { 
-    debug.printf("static CSII:%x\n", CSI_CSISR);
-    active_dma_camera->processCSIInterrupt(); 
+void ImageSensor::CSIInterrupt() {
+    //debug.printf("static CSII:%x\n", CSI_CSISR);
+    active_dma_camera->processCSIInterrupt();
 }
 
 void ImageSensor::processCSIInterrupt() {
@@ -1124,7 +1126,7 @@ size_t ImageSensor::readFrameGPIO(void *buffer, size_t cb1, void *buffer2,
 
     if ((cb1 + cb2) < frame_size_bytes)
         return 0; // not enough to hold image
-    DBGdigitalWriteFast(0, HIGH);
+    DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
 
     uint8_t *b = (uint8_t *)buffer;
     uint32_t cb = (uint32_t)cb1;
@@ -1137,7 +1139,7 @@ size_t ImageSensor::readFrameGPIO(void *buffer, size_t cb1, void *buffer2,
     // 100us
 
     delayMicroseconds(5); // debug for digitalWrite
-    DBGdigitalWriteFast(0, LOW);
+    DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
     elapsedMicros emHigh;
     do {
         while ((*_vsyncPort & _vsyncMask) == 0)
@@ -1146,7 +1148,7 @@ size_t ImageSensor::readFrameGPIO(void *buffer, size_t cb1, void *buffer2,
         while ((*_vsyncPort & _vsyncMask) != 0)
             ; // wait for LOW
     } while (emHigh < 2);
-    DBGdigitalWriteFast(0, HIGH);
+    DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
 
     for (int i = 0; i < _height; i++) {
         // rising edge indicates start of line
@@ -1187,6 +1189,6 @@ size_t ImageSensor::readFrameGPIO(void *buffer, size_t cb1, void *buffer2,
             ; // wait for LOW
         interrupts();
     }
-    DBGdigitalWriteFast(0, LOW);
+    DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
     return frame_size_bytes;
 }

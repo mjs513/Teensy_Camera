@@ -7,6 +7,7 @@
 #ifndef ARDUINO_TEENSY41
 #define USE_MMOD_ATP_ADAPTER
 #endif
+#define TFT_ROTATION 3
 // #define USE_SDCARD
 
 // #define ARDUCAM_CAMERA_HM01B0
@@ -132,6 +133,13 @@ static const uint16_t mono_palette[256] PROGMEM = {
 #define TFT_DC 4  // 0   // "TX1" on left side of Sparkfun ML Carrier
 #define TFT_CS 5  // 4   // "CS" on left side of Sparkfun ML Carrier
 #define TFT_RST 2 // 1  // "RX1" on left side of Sparkfun ML Carrier
+#elif defined(ARDUINO_TEENSY41)
+// My T4.1 Camera board
+#undef TFT_ROTATION
+#define TFT_ROTATION 1
+#define TFT_DC 9
+#define TFT_CS 7
+#define TFT_RST 8 
 #else
 #define TFT_DC 0  // 20   // "TX1" on left side of Sparkfun ML Carrier
 #define TFT_CS 4  // 5, 4   // "CS" on left side of Sparkfun ML Carrier
@@ -199,7 +207,7 @@ void setup() {
 
     tft.begin(15000000);
 
-    tft.setRotation(3);
+    tft.setRotation(TFT_ROTATION);
     tft.fillScreen(TFT_RED);
     delay(500);
     tft.fillScreen(TFT_GREEN);
@@ -264,7 +272,7 @@ void setup() {
     }
 
 #elif defined(ARDUINO_TEENSY41)
-  pinMode(0, OUTPUT);
+  pinMode(2, OUTPUT);
 #else
     if (_hmConfig == 0) {
         // camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
