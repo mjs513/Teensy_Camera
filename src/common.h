@@ -95,7 +95,11 @@ typedef enum {
     HIMAX_NUM_ERR
 } status_e;
 
-enum { OV7670 = 0, OV7675 = 1, GC2145a = 2, OV2640a = 3, OV5640a = 4 };
+enum { OV7670 = 0,
+       OV7675 = 1,
+       GC2145a = 2,
+       OV2640a = 3,
+       OV5640a = 4 };
 
 // for 0V2640 only
 typedef enum {
@@ -106,6 +110,6 @@ typedef enum {
     GREENISH,
     BLUEISH,
     RETRO,
-    Overexposure,
-    Solarize
+    OVEREXPOSURE,
+    SOLARIZE
 } sde_t;

@@ -202,15 +202,15 @@ class OV5640 : public ImageSensor {
      * Sets OV5640 Image Special Effects.
      *
      * Input: Enumerated
-     * 1. NOEFFECT.
-     * 2. NEGATIVE.
-     * 3. BW.
-     * 4. REDDISH.
-     * 5. GREENISH.
-     * 6. BLUEISH.
-     * 7. RETRO.
-     * 8. OVEREXPOSURE (5640 only).
-     * 9. SOLARIZE (5640 only).
+     * 0. NOEFFECT.
+     * 1. NEGATIVE.
+     * 2. BW.
+     * 3. REDDISH.
+     * 4. GREENISH.
+     * 5. BLUEISH.
+     * 6. RETRO.
+     * 7. OVEREXPOSURE (5640 only).
+     * 8. SOLARIZE (5640 only).
      * RETURNS:  Non-zero if it fails.
      */
     int setSpecialEffect(sde_t sde);
