@@ -1,3 +1,18 @@
+/*
+ * This file is part of the OpenMV project.
+ *
+ * Copyright (c) 2013-2021 Ibrahim Abdelkader <iabdalkader@openmv.io>
+ * Copyright (c) 2013-2021 Kwabena W. Agyeman <kwagyeman@openmv.io>
+ *
+ * This work is licensed under the MIT license, see the file LICENSE for
+ * details.
+ *
+ * OV5640 driver.
+ *
+ * Note: Some mods made to get JPEG working and other minor things, like
+ * special effects, white balance, night mode, hue, sharpness.
+ */
+
 #include "OV5640.h"
 #include "OV5640_regs.h"
 
@@ -45,17 +60,17 @@ static inline void DBGdigitalToggleFast(uint8_t pin){}
 #endif /*!M_LN2 */
 
 #define LOG2_2(x) (((x) & 0x2ULL) ? (2) : 1) // NO ({ ... }) !
-#define LOG2_4(x)                                                              \
+#define LOG2_4(x) \
     (((x) & 0xCULL) ? (2 + LOG2_2((x) >> 2)) : LOG2_2(x)) // NO ({ ... }) !
-#define LOG2_8(x)                                                              \
+#define LOG2_8(x) \
     (((x) & 0xF0ULL) ? (4 + LOG2_4((x) >> 4)) : LOG2_4(x)) // NO ({ ... }) !
-#define LOG2_16(x)                                                             \
+#define LOG2_16(x) \
     (((x) & 0xFF00ULL) ? (8 + LOG2_8((x) >> 8)) : LOG2_8(x)) // NO ({ ... }) !
-#define LOG2_32(x)                                                             \
-    (((x) & 0xFFFF0000ULL) ? (16 + LOG2_16((x) >> 16))                         \
+#define LOG2_32(x)                                     \
+    (((x) & 0xFFFF0000ULL) ? (16 + LOG2_16((x) >> 16)) \
                            : LOG2_16(x)) // NO ({ ... }) !
-#define LOG2(x)                                                                \
-    (((x) & 0xFFFFFFFF00000000ULL) ? (32 + LOG2_32((x) >> 32))                 \
+#define LOG2(x)                                                \
+    (((x) & 0xFFFFFFFF00000000ULL) ? (32 + LOG2_32((x) >> 32)) \
                                    : LOG2_32(x)) // NO ({ ... }) !
 
 // Sensor frame size/resolution table.
@@ -407,7 +422,7 @@ static const uint8_t default_regs[][3] = {
     {0x3a, 0x14, 0x07},
     {0x3a, 0x15, 0xae},
     {0x44, 0x01,
-     0x0d}, // | Read SRAM enable when blanking | Read SRAM at first blanking
+     0x0d},             // | Read SRAM enable when blanking | Read SRAM at first blanking
     {0x47, 0x23, 0x03}, // DVP JPEG Mode456 Skip Line Number
 
     // End.
@@ -759,9 +774,7 @@ static const uint8_t af_firmware_regs[] = {
 
 static const uint8_t af_firmware_command_regs[][3] = {
 
-    {0x30, 0x22, 0x03}, {0x30, 0x23, 0x00}, {0x30, 0x24, 0x00},
-    {0x30, 0x25, 0x00}, {0x30, 0x26, 0x00}, {0x30, 0x27, 0x00},
-    {0x30, 0x28, 0x00}, {0x30, 0x29, 0x7f},
+    {0x30, 0x22, 0x03}, {0x30, 0x23, 0x00}, {0x30, 0x24, 0x00}, {0x30, 0x25, 0x00}, {0x30, 0x26, 0x00}, {0x30, 0x27, 0x00}, {0x30, 0x28, 0x00}, {0x30, 0x29, 0x7f},
 
     {0x00, 0x00, 0x00}};
 #endif
@@ -779,15 +792,17 @@ static const uint8_t contrast_regs[NUM_CONTRAST_LEVELS][1] = {
     {0x1C}, /* +3 */
 };
 
-#define NUM_SATURATION_LEVELS (7)
-static const uint8_t saturation_regs[NUM_SATURATION_LEVELS][6] = {
-    {0x0c, 0x30, 0x3d, 0x3e, 0x3d, 0x01}, /* -3 */
-    {0x10, 0x3d, 0x4d, 0x4e, 0x4d, 0x01}, /* -2 */
-    {0x15, 0x52, 0x66, 0x68, 0x66, 0x02}, /* -1 */
-    {0x1a, 0x66, 0x80, 0x82, 0x80, 0x02}, /* +0 */
-    {0x1f, 0x7a, 0x9a, 0x9c, 0x9a, 0x02}, /* +1 */
-    {0x24, 0x8f, 0xb3, 0xb6, 0xb3, 0x03}, /* +2 */
-    {0x2b, 0xab, 0xd6, 0xda, 0xd6, 0x04}, /* +3 */
+#define NUM_SATURATION_LEVELS (9)
+static const uint8_t saturation_regs[NUM_SATURATION_LEVELS][2] = {
+    {0x00, 0x00}, /* -4 */
+    {0x10, 0x10}, /* -3 */
+    {0x20, 0x20}, /* -2 */
+    {0x30, 0x30}, /* -1 */
+    {0x40, 0x40}, /* +0 */
+    {0x50, 0x50}, /* +1 */
+    {0x60, 0x60}, /* +2 */
+    {0x70, 0x70}, /* +3 */
+    {0x80, 0x80}, /* +4 */
 };
 
 #define NUM_WB_MODES (5)
@@ -812,6 +827,37 @@ static const uint8_t special_effects_regs[NUM_SPECIAL_EFFECTS][4] = {
     {0x06, 0x40, 0x10, 0x09}  /* Solarize */
 
 };
+
+#define NUM_HUE_LEVELS (12)
+static const uint8_t hue_regs[NUM_HUE_LEVELS][3] = {
+    {0x80, 0x00, 0x32}, /* -180, -6*/
+    {0x64, 0x40, 0x32}, /* -150, -5 */
+    {0x40, 0x6F, 0x32}, /* -120, -4*/
+    {0x00, 0x80, 0x02}, /* -90, -3*/
+    {0x40, 0x6f, 0x02}, /* -60, -2*/
+    {0x6f, 0x40, 0x02}, /* -30, -1 */
+    {0x80, 0x00, 0x01}, /* 0, 0  */
+    {0x6f, 0x40, 0x01}, /* +30, +1 */
+    {0x40, 0x6F, 0x01}, /* +60, +2 */
+    {0x00, 0x80, 0x31}, /* +90, +3 */
+    {0x40, 0x6F, 0x31}, /* +120, +4 */
+    {0x6f, 0x40, 0x31}, /* +150, +5 */
+};
+
+#define NUM_SHARPNESS_LEVELS (9)
+static const uint8_t sharpness_regs[NUM_SHARPNESS_LEVELS][1] = {
+    {0x00}, /* OFF */
+    {0x02}, /* 1 */
+    {0x04},
+    {0x08},
+    {0x0C},
+    {0x10},
+    {0x18},
+    {0x20},
+    {0x14}, /* 8 */
+};
+
+/********************************************************/
 
 const int OV5640_D[8] = {OV5640_D0, OV5640_D1, OV5640_D2, OV5640_D3,
                          OV5640_D4, OV5640_D5, OV5640_D6, OV5640_D7};
@@ -1417,7 +1463,7 @@ void OV5640::setContrast(int level) {
 
     int new_level = level + (NUM_CONTRAST_LEVELS / 2);
     if (new_level < 0 || new_level >= NUM_CONTRAST_LEVELS) {
-        level = 2;
+        new_level = 3;
     }
 
     ret |= cameraWriteRegister(0x3212, 0x03); // start group 3
@@ -1434,7 +1480,7 @@ int OV5640::setBrightness(int level) {
 
     int new_level = level + (NUM_BRIGHTNESS_LEVELS / 2);
     if (new_level < 0 || new_level >= NUM_BRIGHTNESS_LEVELS) {
-        new_level = 3;
+        new_level = 5;
     }
 
     ret |= cameraWriteRegister(0x3212, 0x03); // start group 3
@@ -1455,17 +1501,11 @@ void OV5640::setSaturation(int level) {
     }
 
     ret |= cameraWriteRegister(0x3212, 0x03); // start group 3
-    ret |= cameraWriteRegister(0x5581, 0x1c);
-    ret |= cameraWriteRegister(0x5582, 0x5a);
-    ret |= cameraWriteRegister(0x5583, 0x06);
-    ret |= cameraWriteRegister(0x5584, saturation_regs[new_level][0]);
-    ret |= cameraWriteRegister(0x5585, saturation_regs[new_level][1]);
-    ret |= cameraWriteRegister(0x5586, saturation_regs[new_level][2]);
-    ret |= cameraWriteRegister(0x5587, saturation_regs[new_level][3]);
-    ret |= cameraWriteRegister(0x5588, saturation_regs[new_level][4]);
-    ret |= cameraWriteRegister(0x5589, saturation_regs[new_level][5]);
-    ret |= cameraWriteRegister(0x558b, 0x98);
-    ret |= cameraWriteRegister(0x558a, 0x01);
+    ret |= cameraWriteRegister(0x5001, 0xFF);
+    ret |= cameraWriteRegister(0x5583, saturation_regs[new_level][0]);
+    ret |= cameraWriteRegister(0x5584, saturation_regs[new_level][1]);
+    ret |= cameraWriteRegister(0x5580, 0x02);
+    ret |= cameraWriteRegister(0x5588, 0x41);
     ret |= cameraWriteRegister(0x3212, 0x13); // end group 3
     ret |= cameraWriteRegister(0x3212, 0xa3); // launch group 3
 
@@ -1777,6 +1817,25 @@ int OV5640::setVflip(int enable) {
     return ret;
 }
 
+void OV5640::setHue(int hue) {
+    int ret = 0;
+    int new_level = hue + (NUM_HUE_LEVELS / 2);
+    if (new_level < 0 || new_level >= NUM_HUE_LEVELS) {
+        new_level = 6;
+    }
+
+    ret |= cameraWriteRegister(ISP_CONTROL_01, 0xFF);
+    ret |= cameraWriteRegister(SDE_CTRL0, 0x01);
+    ret |= cameraWriteRegister(SDE_CTRL6, hue_regs[new_level][0]);
+    ret |= cameraWriteRegister(SDE_CTRL5, hue_regs[new_level][1]);
+    ret |= cameraWriteRegister(SDE_CTRL2, hue_regs[new_level][2]);
+    ret |= cameraWriteRegister(SDE_CTRL8, 0xA3);
+
+    if (ret < 0)
+        debug.printf("HUE NOT SET!!!");
+}
+
+/*  Functions specific to the OV5640 */
 int OV5640::setWBmode(int mode) {
     int ret = 0;
     if (mode < 0 || mode > NUM_WB_MODES) {
@@ -1877,6 +1936,47 @@ int OV5640::setNightMode(int enable) {
         return cameraWriteRegister(AEC_CTRL_00, aecCtrl00_old);
     }
     return 0;
+}
+
+int OV5640::setSharpness(int level) {
+    int ret = 0;
+
+    if (level < 0 || level > NUM_SHARPNESS_LEVELS) {
+        return 1;
+    }
+
+    ret |= cameraWriteRegister(CIP_CTRL, 0x65);
+    ret |= cameraWriteRegister(CIP_SHARPENMT_OFFSET1, sharpness_regs[level][0]);
+
+    return ret;
+}
+
+int OV5640::setAutoSharpness(int enable) {
+    int ret = 0;
+
+    if (enable) {
+        ret |= cameraWriteRegister(CIP_CTRL, 0x25);
+        ret |= cameraWriteRegister(CIP_SHARPENMT_THRESH1, 0x08);
+        ret |= cameraWriteRegister(CIP_SHARPENMT_THRESH2, 0x30);
+        ret |= cameraWriteRegister(CIP_SHARPENMT_OFFSET1, 0x10);
+        ret |= cameraWriteRegister(CIP_SHARPENMT_OFFSET1, 0x00);
+        ret |= cameraWriteRegister(CIP_SHARPENTH_THRESH1, 0x08);
+        ret |= cameraWriteRegister(CIP_SHARPENTH_THRESH2, 0x30);
+        ret |= cameraWriteRegister(CIP_SHARPENTH_OFFSET1, 0x04);
+        ret |= cameraWriteRegister(CIP_SHARPENTH_OFFSET2, 0x06);
+    } else {
+        ret |= cameraWriteRegister(CIP_CTRL, 0x25);
+        ret |= cameraWriteRegister(CIP_SHARPENMT_THRESH1, 0x08);
+        ret |= cameraWriteRegister(CIP_SHARPENMT_THRESH2, 0x48);
+        ret |= cameraWriteRegister(CIP_SHARPENMT_OFFSET1, 0x18);
+        ret |= cameraWriteRegister(CIP_SHARPENMT_OFFSET1, 0x0E);
+        ret |= cameraWriteRegister(CIP_SHARPENTH_THRESH1, 0x08);
+        ret |= cameraWriteRegister(CIP_SHARPENTH_THRESH2, 0x48);
+        ret |= cameraWriteRegister(CIP_SHARPENTH_OFFSET1, 0x04);
+        ret |= cameraWriteRegister(CIP_SHARPENTH_OFFSET2, 0x06);
+    }
+
+    return ret;
 }
 
 /*******************************************************************/
@@ -2522,7 +2622,7 @@ static const OV5640_TO_NAME_t OV5640_reg_name_table[] PROGMEM{
     {F("COMPRESSION_CTRL0E"), 0x440e},
 };
 
-#define CNT_REG_NAME_TABLE                                                     \
+#define CNT_REG_NAME_TABLE \
     (sizeof(OV5640_reg_name_table) / sizeof(OV5640_reg_name_table[0]))
 
 void OV5640::showRegisters(void) {

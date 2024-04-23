@@ -65,7 +65,7 @@ SDA             18      AD_B1_1 I2C
 
 #elif defined USE_CSI_PINS
 #define OV5640_PLK 40 // 40 // AD_B1_04 CSI_PIXCLK
-#define OV5640_XCLK_JUMPER                                                     \
+#define OV5640_XCLK_JUMPER \
     41                  // BUGBUG CSI 41 is NOT a PWM pin so we jumper to it...
 #define OV5640_XCLK 37  // 41 // AD_B1_05 CSI_MCLK
 #define OV5640_HREF 16  // AD_B1_07 CSI_HSYNC
@@ -196,6 +196,7 @@ class OV5640 : public ImageSensor {
     int getRGB_Gain_db(float *r_gain_db, float *g_gain_db, float *b_gain_db);
     int setHmirror(int enable);
     int setVflip(int enable);
+    void setHue(int hue);
 
     /**
      * Sets OV5640 Image Special Effects.
@@ -231,6 +232,8 @@ class OV5640 : public ImageSensor {
     int getBlcRegs(int *regs);
     int setLensCorrection(int enable);
     int setNightMode(int enable);
+    int setSharpness(int level);
+    int setAutoSharpness(int enable);
 
     void showRegisters();
 
@@ -238,7 +241,6 @@ class OV5640 : public ImageSensor {
     bool writeRegister(uint8_t reg, uint8_t data) { return false; }
 
     /*********************************************************/
-    void setHue(int hue) {}
     void setExposure(int exposure) {}
 
     bool begin(framesize_t framesize = FRAMESIZE_QVGA, int framerate = 30,
