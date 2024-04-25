@@ -82,7 +82,7 @@ class ImageSensor {
     virtual size_t readFrame(void *buffer1, size_t cb1, void *buffer2 = nullptr,
                              size_t cb2 = 0); // give default one for now
 
-    virtual void *readFrameReturnBuffer() {return _last_frame_buffer_returned; }
+    virtual void *readFrameReturnBuffer() {return _dma_last_completed_frame; }
 
     virtual void useDMA(bool f) { _fuse_dma = f; }
     virtual bool useDMA() { return _fuse_dma; }
@@ -208,7 +208,7 @@ class ImageSensor {
     size_t _frame_buffer_1_size = 0;
     uint8_t *_frame_buffer_2 = nullptr;
     size_t _frame_buffer_2_size = 0;
-    void* _last_frame_buffer_returned = nullptr;
+    //void* _last_frame_buffer_returned = nullptr;
     FlexIOHandler *_pflex;
     IMXRT_FLEXIO_t *_pflexio;
     uint8_t _fshifter;

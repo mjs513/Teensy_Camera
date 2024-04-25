@@ -933,10 +933,11 @@ void loop() {
                 }
 
             } else {
+                uint16_t *pfbuffer = (uint16_t*)g_new_flexio_data;
                 for (int i = 0; i < numPixels; i++)
-                    frameBuffer[i] = HTONS(frameBuffer[i]);
+                    pfbuffer[i] = HTONS(pfbuffer[i]);
                 tft.writeRect(CENTER, CENTER, camera.width(), camera.height(),
-                              (uint16_t *)g_new_flexio_data);
+                              (uint16_t *)pfbuffer);
                 // Serial.printf("T: %p\n", g_new_flexio_data);
             }
 #else // Monochrome

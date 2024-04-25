@@ -88,11 +88,19 @@ size_t ImageSensor::readFrame(void *buffer1, size_t cb1, void *buffer2,
 // The read and stop continuous typically just call off to the FlexIO
 bool ImageSensor::readContinuous(bool (*callback)(void *frame_buffer),
                                  void *fb1, size_t cb1, void *fb2, size_t cb2) {
-
-    return startReadFlexIO(callback, fb1, cb1, fb2, cb2);
+    Serial.printf("readContinuous called(%p, %p, %u, %p, %u): %u\n", callback, fb1, cb1, fb2, cb2, _cameraInput);
+    if (_cameraInput == CAMERA_INPUT_CSI)
+        return startReadCSI(callback, fb1, cb1, fb2, cb2);
+    else
+        return startReadFlexIO(callback, fb1, cb1, fb2, cb2);
 }
 
-void ImageSensor::stopReadContinuous() { stopReadFlexIO(); }
+void ImageSensor::stopReadContinuous() { 
+    if (_cameraInput == CAMERA_INPUT_CSI)
+        stopReadCSI(); 
+    else
+        stopReadFlexIO(); 
+}
 
 //=============================================================================
 // FlexIO support
@@ -1086,8 +1094,8 @@ size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2,
     DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
     
     // maybe flush out frame buffer
-    if ((uint32_t)_last_frame_buffer_returned >= 0x20200000u)
-        arm_dcache_delete(_last_frame_buffer_returned, frame_size_bytes);
+    if ((uint32_t)_dma_last_completed_frame >= 0x20200000u)
+        arm_dcache_delete(_dma_last_completed_frame, frame_size_bytes);
 
     return frame_size_bytes;
 }
@@ -1095,11 +1103,46 @@ size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2,
 // not implemented yet
 bool ImageSensor::startReadCSI(bool (*callback)(void *frame_buffer), void *fb1,
                                size_t cb1, void *fb2, size_t cb2) {
-    return false;
+    if (_debug)
+        debug.printf("$$ImageSensor::startReadCSI(%p: %p, %u, %p, %u)\n",
+                     callback, fb1, cb1, fb2, cb2);
+    DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
+    // Setup our buffer pointers.  Not sure if there is some place to store the
+    // sizes?
+
+    _frame_buffer_1 = (uint8_t *)fb1;
+    _frame_buffer_1_size = cb1;
+    _frame_buffer_2 = (uint8_t *)fb2;
+    _frame_buffer_2_size = cb2;
+    _callback = callback;
+    active_dma_camera = this;
+
+    CSI_CSIDMASA_FB1 = (uint32_t)fb1;
+    CSI_CSIDMASA_FB2 = (uint32_t)fb2;
+
+    // Set our logical state
+    _dma_state = DMASTATE_RUNNING;
+
+    // Lets tell CSI to start the capture.
+    CSI_CSICR18 |= (CSI_CSICR18_CSI_ENABLE | CSI_CSICR18_BASEADDR_SWITCH_EN // CSI switches base addresses at frame start
+                   | CSI_CSICR18_BASEADDR_CHANGE_ERROR_IE);                //  Enables base address error interrupt
+#ifdef DEBUG_CAMERA
+    debug.print("After start capture\n");
+    // Serial.printf("XCLK frequency: %u\n", _xclk_freq);
+    print_csi_registers();
+#endif
+
+    return true;
 }
 
+
 // not implemented yet
-bool ImageSensor::stopReadCSI() { return false; }
+bool ImageSensor::stopReadCSI() { 
+     // turn it off again?
+    CSI_CSICR18 &= ~CSI_CSICR18_CSI_ENABLE;
+    _dma_state = DMA_STATE_STOPPED;
+    return true;
+}
 
 void ImageSensor::CSIInterrupt() {
     //debug.printf("static CSII:%x\n", CSI_CSISR);
@@ -1109,27 +1152,39 @@ void ImageSensor::CSIInterrupt() {
 void ImageSensor::processCSIInterrupt() {
     // lets grab the state and see what the ISR was for....
     uint32_t csisr = CSI_CSISR; //
-    debug.printf("CSII:%x\n", csisr);
+    if(_debug) debug.printf("CSII:%x\n", csisr);
+    uint32_t frame_size_bytes = _width * _height * _bytesPerPixel;
 
     // Not sure if we will not SOF or not but...
     if (csisr & CSI_CSISR_SOF_INT) {
     }
 
-    // Lets see if we finished first buffer
-    if (csisr & CSI_CSISR_DMA_TSF_DONE_FB1) {
-        if (_dma_state == DMA_STATE_ONE_FRAME) {
-            _last_frame_buffer_returned = (uint8_t*)CSI_CSIDMASA_FB1;
+    if (_dma_state == DMA_STATE_ONE_FRAME) {
+        if (csisr & CSI_CSISR_DMA_TSF_DONE_FB1) {
+            _dma_last_completed_frame = (uint8_t*)CSI_CSIDMASA_FB1;
+            _dma_state = DMA_STATE_STOPPED;
+        } else if (csisr & CSI_CSISR_DMA_TSF_DONE_FB2) {
+            _dma_last_completed_frame = (uint8_t*)CSI_CSIDMASA_FB2;
             _dma_state = DMA_STATE_STOPPED;
         }
-    }
-    // Then check for second buffer
-    if (csisr & CSI_CSISR_DMA_TSF_DONE_FB2) {
-        if (_dma_state == DMA_STATE_ONE_FRAME) {
-            _last_frame_buffer_returned = (uint8_t*)CSI_CSIDMASA_FB2;
-            _dma_state = DMA_STATE_STOPPED;
+
+    } else if (_dma_state == DMASTATE_RUNNING) {
+        if (csisr & CSI_CSISR_DMA_TSF_DONE_FB1) {
+            _dma_last_completed_frame = (uint8_t*)CSI_CSIDMASA_FB1;
+
+            if ((uint32_t)_dma_last_completed_frame >= 0x20200000u)
+                arm_dcache_delete(_dma_last_completed_frame, frame_size_bytes);
+            if (_callback)
+                (*_callback)(_dma_last_completed_frame); // TODO: use EventResponder
+        } else if (csisr & CSI_CSISR_DMA_TSF_DONE_FB2) {
+            _dma_last_completed_frame = (uint8_t*)CSI_CSIDMASA_FB2;
+            if ((uint32_t)_dma_last_completed_frame >= 0x20200000u)
+                arm_dcache_delete(_dma_last_completed_frame, frame_size_bytes);
+            if (_callback)
+                (*_callback)(_dma_last_completed_frame); // TODO: use EventResponder
+
         }
     }
-    // clear all of the interrupts
     CSI_CSISR = csisr;
     asm("DSB"); // hopefully keeps from being called again
 }
