@@ -108,6 +108,10 @@ size_t Camera::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
     return sensor->readFrame(buffer1, cb1, buffer2, cb2);
 }
 
+void *Camera::readFrameReturnBuffer() {
+    return sensor->readFrameReturnBuffer();
+}
+
 void Camera::useDMA(bool f) { sensor->useDMA(f); }
 
 bool Camera::useDMA() { return sensor->useDMA(); }

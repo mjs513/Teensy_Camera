@@ -19,7 +19,12 @@ DMASetting ImageSensor::_dmasettings[10];
 #define USE_DEBUG_PINS_TIMING
 
 #ifdef USE_DEBUG_PINS_TIMING
+#ifdef ARDUINO_TEENSY41
 #define DBG_TIMING_PIN 2
+#else
+#define DBG_TIMING_PIN 0
+#endif
+
 #define DBGdigitalWriteFast digitalWriteFast
 #define DBGdigitalToggleFast digitalToggleFast
 #else
@@ -146,6 +151,9 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
     DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
 
     elapsedMillis timeout = 0;
+
+    // for flexIO will simply return the first buffer.
+    //_dma_last_completed_frame = buffer;
 
     //----------------------------------------------------------------------
     // Polling FlexIO version
@@ -1047,9 +1055,14 @@ size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2,
     // Set our logical state
     _dma_state = DMA_STATE_ONE_FRAME;
 
+    #if 1
     // Lets tell CSI to start the capture.
     CSI_CSICR18 |= (CSI_CSICR18_CSI_ENABLE | CSI_CSICR18_BASEADDR_SWITCH_EN // CSI switches base addresses at frame start
-                    | CSI_CSICR18_BASEADDR_CHANGE_ERROR_IE);                //  Enables base address error interrupt
+                   | CSI_CSICR18_BASEADDR_CHANGE_ERROR_IE);                //  Enables base address error interrupt
+    #else
+    //just setting the ENABLE appears to fault
+    CSI_CSICR18 |= CSI_CSICR18_CSI_ENABLE; // try without baseaddr change
+    #endif
 #ifdef DEBUG_CAMERA
     debug.print("After start capture\n");
     // Serial.printf("XCLK frequency: %u\n", _xclk_freq);
@@ -1067,10 +1080,14 @@ size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2,
             break;
         }
     }
-
-    // turn it off again?
+    
+     // turn it off again?
     CSI_CSICR18 &= ~CSI_CSICR18_CSI_ENABLE;
     DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
+    
+    // maybe flush out frame buffer
+    if ((uint32_t)_last_frame_buffer_returned >= 0x20200000u)
+        arm_dcache_delete(_last_frame_buffer_returned, frame_size_bytes);
 
     return frame_size_bytes;
 }
@@ -1101,12 +1118,14 @@ void ImageSensor::processCSIInterrupt() {
     // Lets see if we finished first buffer
     if (csisr & CSI_CSISR_DMA_TSF_DONE_FB1) {
         if (_dma_state == DMA_STATE_ONE_FRAME) {
+            _last_frame_buffer_returned = (uint8_t*)CSI_CSIDMASA_FB1;
             _dma_state = DMA_STATE_STOPPED;
         }
     }
     // Then check for second buffer
     if (csisr & CSI_CSISR_DMA_TSF_DONE_FB2) {
         if (_dma_state == DMA_STATE_ONE_FRAME) {
+            _last_frame_buffer_returned = (uint8_t*)CSI_CSIDMASA_FB2;
             _dma_state = DMA_STATE_STOPPED;
         }
     }

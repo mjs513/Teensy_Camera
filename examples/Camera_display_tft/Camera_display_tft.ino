@@ -256,6 +256,7 @@ void setup() {
 #ifdef USE_MMOD_ATP_ADAPTER
     pinMode(30, INPUT);
     pinMode(31, INPUT_PULLUP);
+    pinMode(0, OUTPUT);
 
     if ((_hmConfig == 0) || (_hmConfig == 2)) {
         camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);

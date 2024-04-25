@@ -52,6 +52,7 @@ OV767X omni;
 Camera camera(omni);
 #define CameraID 0x7673
 #define SCREEN_ROTATION 3
+pixformat_t camera_format = RGB565;
 
 #elif defined(ARDUCAM_CAMERA_GC2145)
 #include "TMM_GC2145/GC2145.h"
@@ -135,6 +136,17 @@ static const uint16_t mono_palette[256] PROGMEM = {
 #define TFT_RST 24
 #define VSYNC_PIN 21
 
+#elif defined(ARDUINO_TEENSY41)
+// My T4.1 Camera board
+#undef USE_MMOD_ATP_ADAPTER
+#undef TFT_ROTATION
+#define TFT_ROTATION 1
+#define TFT_DC 9
+#define TFT_CS 7
+#define TFT_RST 8 
+#define VSYNC_PIN 33
+
+
 #elif defined(USE_MMOD_ATP_ADAPTER)
 #define VSYNC_PIN 33
 #define TFT_DC 4  // 0   // "TX1" on left side of Sparkfun ML Carrier
@@ -158,6 +170,7 @@ ILI9488_t3 tft = ILI9488_t3(TFT_CS, TFT_DC, TFT_RST);
 
 // Setup framebuffers
 DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
+
 #ifdef ARDUINO_TEENSY_DEVBRD4
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
     defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
@@ -181,7 +194,29 @@ uint8_t frameBufferM2[640 * 480] __attribute__((aligned(32)));
 uint32_t sizeof_framebuffer = 0;
 uint32_t sizeof_framebuffer2 = 0;
 uint32_t sizeof_framebufferSDRAM = 0;
+
+#elif defined(ARDUINO_TEENSY41)
+// CSI - lets try to setup for PSRAM (EXTMEM)
+#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
+    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
+// only half buffer will fit in each of the two main memory regions
+// split into two parts, part dmamem and part fast mememory to fit 640x480x2
+EXTMEM uint16_t frameBuffer[640 * 480] __attribute__((aligned(32)));
+EXTMEM uint16_t frameBuffer2[640 * 480] __attribute__((aligned(32)));
 #else
+// split into two parts, part dmamem and part fast mememory to fit 640x480x2
+// mono can fit one in each.
+DMAMEM uint8_t frameBuffer[640 * 480] __attribute__((aligned(32)));
+uint8_t frameBuffer2[640 * 480] __attribute__((aligned(32)));
+
+#define CAMERA_USES_MONO_PALETTE
+// #define SCREEN_ROTATION 1
+#endif
+const uint32_t sizeof_framebuffer = sizeof(frameBuffer);
+const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
+
+
+#else // other boards like Micromod
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
     defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
 // only half buffer will fit in each of the two main memory regions
@@ -221,8 +256,8 @@ bool g_dma_mode = false;
 ae_cfg_t aecfg;
 
 void setup() {
-    pinMode(0, OUTPUT);
-    digitalWriteFast(0, LOW);
+    pinMode(2, OUTPUT);
+    digitalWriteFast(2, LOW);
     while (!Serial && millis() < 5000) {
     }
     Serial.begin(921600);
@@ -268,9 +303,16 @@ void setup() {
     delay(100);
 #endif
 
+    Serial.printf("TFT Begin: CS:%u DC:%u RST:%u\n", TFT_CS, TFT_DC, TFT_RST);
     tft.begin(15000000);
 
+    // BUGBUG Teensy41 board is rotated 180 degrees.
+    // Actually depends on if I put display above or below the Board...
+    #ifdef ARDUINO_TEENSY41
+    tft.setRotation(SCREEN_ROTATION ^ 2);
+    #else
     tft.setRotation(SCREEN_ROTATION);
+    #endif
     tft.fillScreen(TFT_RED);
     delay(500);
     tft.fillScreen(TFT_GREEN);
@@ -318,6 +360,10 @@ void setup() {
         camera.setPins(7, 8, 21, 46, 31, 40, 41, 42, 43);
     }
 
+#elif defined(ARDUINO_TEENSY41)
+  // CSI support
+  pinMode(2, OUTPUT);
+
 #else
     if (_hmConfig == 0) {
         // camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
@@ -343,12 +389,12 @@ void setup() {
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
     defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
     // VGA mode
-#if defined(ARDUCAM_CAMERA_GC2145) || defined(ARDUCAM_CAMERA_OV2640)
-    status = camera.begin(FRAMESIZE_SVGA, camera_format, 15, false);
-    camera.setZoomWindow(-1, -1, 480, 320);
-#else
-    status = camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
-#endif
+  #if defined(ARDUCAM_CAMERA_GC2145) || defined(ARDUCAM_CAMERA_OV2640)
+      status = camera.begin(FRAMESIZE_SVGA, camera_format, 15, false);
+      camera.setZoomWindow(-1, -1, 480, 320);
+  #else
+      status = camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
+  #endif
 #elif defined(ARDUCAM_CAMERA_HM0360)
     status = camera.begin(FRAMESIZE_VGA, 5);
 #else
@@ -1443,6 +1489,19 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
     }
     // tft.setOrigin(-2, -2);
     int numPixels = camera.width() * camera.height();
+
+#ifdef ARDUINO_TEENSY41
+    // See what which camera buffer was used.
+    uint16_t *pbuffer = (uint16_t*)camera.readFrameReturnBuffer();
+
+    if (pbuffer) {
+      for (int i = 0; i < numPixels; i++) pbuffer[i] = HTONS(pbuffer[i]);
+      tft.writeRect(CENTER, CENTER, camera.width(), camera.height(),
+                          pbuffer);
+    }
+
+#else
+
 #ifndef CAMERA_USES_MONO_PALETTE
 // #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
 
@@ -1533,6 +1592,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
         tft.writeRect8BPP(start_x, start_y, camera.width(), num_rows,
                           frameBuffer2, mono_palette);
     }
+#endif
 #endif
 }
 
