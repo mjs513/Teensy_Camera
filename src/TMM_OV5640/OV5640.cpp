@@ -1497,7 +1497,7 @@ void OV5640::setSaturation(int level) {
 
     int new_level = level + (NUM_SATURATION_LEVELS / 2);
     if (new_level < 0 || new_level >= NUM_SATURATION_LEVELS) {
-        new_level = 3;
+        new_level = 5;
     }
 
     ret |= cameraWriteRegister(0x3212, 0x03); // start group 3

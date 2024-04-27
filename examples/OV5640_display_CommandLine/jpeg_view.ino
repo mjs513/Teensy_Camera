@@ -43,11 +43,12 @@ inline void FillScreen(uint16_t color) {
     uint32_t eop = 0;
     
     
-    uint8_t status = readJPG(eoi, eop, true);
-    if(status == 0) return 0;
+    uint32_t bytesRead = readJPG(eoi, eop, true);
+    if(bytesRead == 0) return 0;
     
     uint8_t scale = 1;
-    if(jpeg.openRAM((uint8_t *)frameBuffer, sizeof(frameBuffer), JPEGDraw)) {
+    
+    if(jpeg.openRAM((uint8_t *)frameBuffer, bytesRead, JPEGDraw)) {
     //if (jpeg.open(name, myOpen, myClose, myReadJPG, mySeekJPG, JPEGDraw)) {
       int image_width = jpeg.getWidth();
       int image_height = jpeg.getHeight();
@@ -104,6 +105,7 @@ inline void FillScreen(uint16_t color) {
       jpeg.decode(0, 0, decode_options);
       jpeg.close();
     } else {
+      Serial.printf("Last error: %d\n", jpeg.getLastError());
       Serial.println("Failed to open JPEG Framebuffer......");
       return 0;
     }

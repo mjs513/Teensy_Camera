@@ -279,7 +279,7 @@ class OV5640 : public ImageSensor {
                        uint8_t sys_root_div);
 
   private:
-    int _xclk_freq = 10;
+    int _xclk_freq = 8;
 
     bool _grayscale;
     int _framesize = FRAMESIZE_QVGA;

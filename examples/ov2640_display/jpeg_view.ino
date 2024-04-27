@@ -43,8 +43,8 @@ inline void FillScreen(uint16_t color) {
     uint32_t eop = 0;
     
     
-    uint8_t status = readJPG(eoi, eop, true);
-    if(status == 0) return 0;
+    uint32_t bytesRead = readJPG(eoi, eop, true);
+    if(bytesRead == 0) return 0;
     
     uint8_t scale = 1;
     if(jpeg.openRAM((uint8_t *)frameBuffer, sizeof(frameBuffer), JPEGDraw)) {
