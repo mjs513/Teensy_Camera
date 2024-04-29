@@ -953,6 +953,11 @@ bool ImageSensor::csi_configure() {
             configureCSIPin(_dPins[i]);
     }
 
+    // complete the setup with the reset dma method.
+    return csi_reset_dma();
+}
+
+bool ImageSensor::csi_reset_dma() {
     // Update the XCLK
 
     // Done earlier
@@ -1025,7 +1030,10 @@ bool ImageSensor::csi_configure() {
     NVIC_ENABLE_IRQ(IRQ_CSI);
     _cameraInput = CAMERA_INPUT_CSI;
     return true;
+
 }
+
+
 
 void print_csi_registers() {
     debug.printf("\tCSI_CSICR1: %x\n", CSI_CSICR1);
@@ -1045,7 +1053,11 @@ void print_csi_registers() {
     debug.printf("\tCSI_CSICR19: %x\n", CSI_CSICR19);
     debug.printf("\tCSI_CSIRFIFO: %x\n", CSI_CSIRFIFO);
 };
-;
+
+
+volatile uint32_t CSIRxFIFOFullISRCount = 0;
+
+
 size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2,
                                  size_t cb2) {
 
@@ -1056,28 +1068,183 @@ size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2,
     // Setup our buffer pointers.  Not sure if there is some place to store the
     // sizes?
     uint32_t frame_size_bytes = _width * _height * _bytesPerPixel;
+    uint32_t return_value = frame_size_bytes;
+    uint32_t csisr;
 
     CSI_CSIDMASA_FB1 = (uint32_t)buffer;
     CSI_CSIDMASA_FB2 = (uint32_t)buffer2;
 
+    if (_dma_state == DMA_STATE_FRAME_ERROR) {
+        if (_debug)debug.println("$$Reset DMA due to previous error");
+        csi_reset_dma();
+    }
+
+    // Set Image Parameters--width in bytes and height
+    CSI_CSIIMAG_PARA = CSI_CSIIMAG_PARA_IMAGE_WIDTH(2 * _width) |
+                       CSI_CSIIMAG_PARA_IMAGE_HEIGHT(_height);
+
     // Set our logical state
     _dma_state = DMA_STATE_ONE_FRAME;
 
-    #if 1
+    elapsedMillis timeout = 0; // reset the timeout
+    //----------------------------------------------------------------------
+    // Polling CSI version
+    //----------------------------------------------------------------------
+    if (!_fuse_dma) {
+        if (_debug) debug.println("\tCSI Polling mode");
+
+        // We should turn off all of the CSI interrupts.  Maybe preserve the 
+        // configuration registers as the were when we entered.
+        CSI_CSICR1 &= ~(CSI_CSICR1_FB1_DMA_DONE_INTEN | CSI_CSICR1_FB2_DMA_DONE_INTEN  
+            | CSI_CSICR1_SOF_INTEN | CSI_CSICR1_RXFF_INTEN | CSI_CSICR1_FCC);
+        // lets also clear out the FIFO just in case.
+        CSI_CSICR1 |= CSI_CSICR1_CLR_RXFIFO;
+        while (CSI_CSICR1 & CSI_CSICR1_CLR_RXFIFO) {};
+        CSI_CSICR1 |= CSI_CSICR1_FCC; // turn back to automatic. 
+
+        CSI_CSICR3 &= ~CSI_CSICR3_DMA_REQ_EN_RFF;         //  Disable RxFIFO DMA request
+
+        CSI_CSICR18 &= ~(CSI_CSICR18_BASEADDR_SWITCH_EN | CSI_CSICR18_BASEADDR_CHANGE_ERROR_IE); 
+
+        uint32_t *p = (uint32_t*)buffer;
+        uint32_t *p_end = (uint32_t *)((uint8_t *)p + cb1);
+        uint32_t max_time_to_wait = _timeout;
+
+        // First lets wait for start of frame. 
+        csisr = CSI_CSISR;  // clear out all the initial state
+        CSI_CSISR = csisr; 
+        // start up CSI
+        CSI_CSICR18 |= CSI_CSICR18_CSI_ENABLE;
+#ifdef DEBUG_CAMERA
+        if (_debug) {
+            debug.print("After start capture\n");
+            // Serial.printf("XCLK frequency: %u\n", _xclk_freq);
+            print_csi_registers();
+        }
+#endif
+        CSIRxFIFOFullISRCount = 0; // clear out the count...
+
+        uint32_t frame_bytes_received = 0;
+        csisr = CSI_CSISR;  
+        while ((csisr & CSI_CSISR_SOF_INT) == 0) {
+            if (timeout > max_time_to_wait) {
+                DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
+
+                if (_debug) debug.printf("Timeout Waiting for start of frame\n");
+                CSI_CSICR18 &= ~CSI_CSICR18_CSI_ENABLE;
+                DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
+                return 0; // nothing received
+            }
+            csisr = CSI_CSISR;  
+        }
+    
+        // How many FIFO Entries should we read for full?
+        static const uint8_t RxFF_LEVEL_TBL[] = {8, 16, 32, 48, 64, 96, 128, 192};
+        uint8_t cnt_fifo_entries_per_full = RxFF_LEVEL_TBL[(CSI_CSICR3 >> 4) & 0x7];
+        if (_debug)debug.printf("CNT Rx Fifo to read per full: %u\n", cnt_fifo_entries_per_full);
+
+        CSI_CSISR = csisr;  // clear out that status.
+
+        while (frame_bytes_received < frame_size_bytes) {
+            if (timeout > max_time_to_wait) {
+                DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
+
+                if (_debug) debug.printf("Timeout received: %u bytes\n", frame_bytes_received);
+                break;
+            }
+
+            csisr = CSI_CSISR; // get the status again
+            // Lets try waiting for FIFO Full before grabbing data.
+            if (csisr & CSI_CSISR_RxFF_INT) {
+                DBGdigitalWriteFast(3, HIGH);
+                CSIRxFIFOFullISRCount++;
+                uint8_t cnt_fifo_read = 0;
+
+                while ((frame_bytes_received < frame_size_bytes) && (cnt_fifo_read < cnt_fifo_entries_per_full) && (CSI_CSISR & CSI_CSISR_DRDY)) {
+                    // We have data rready
+                    // Lets simplify back to single shifter for now
+                    *p = CSI_CSIRFIFO;
+    #ifdef DEBUG_CAMERA
+                    static uint8_t debug_count = 32;
+                    if (debug_count) {
+                        debug.printf("\tD: %x\n", *p);
+                        debug_count--;
+                    }
+    #endif
+                    if ((_format == 8) && (frame_bytes_received > 0)) {
+                        uint8_t *pu8 = (uint8_t *)p;
+                        // jpeg check for
+                        for (int i = 0; i < 4; i++) {
+                            if ((pu8[i - 1] == 0xff) && (pu8[i] == 0xd9)) {
+                                if (_debug)
+                                    Serial.printf("JPEG - found end marker at %u\n",
+                                                  frame_bytes_received + i);
+                                CSI_CSICR18 &= ~CSI_CSICR18_CSI_ENABLE; // disable CSI
+                                DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
+                                return frame_bytes_received + i + 1;
+                            }
+                        }
+                    }
+                    p++; // increment to next
+                    frame_bytes_received += sizeof(uint32_t);
+                    // Check to see if we filled current buffer
+                    if (p >= p_end) {
+                        // yes, now see if we have another
+                        if (buffer2) {
+                            p = (uint32_t *)buffer2;
+                            p_end = (uint32_t *)((uint8_t *)p + cb2);
+                            buffer2 = nullptr;
+                        } else {
+                            if (_debug && (frame_bytes_received < frame_size_bytes))
+                                Serial.printf(
+                                    "Error: Image size exceeded buffer space\n");
+                            break;
+                        }
+                    }
+                    cnt_fifo_read++; // increment how many reads we have done here... 
+                }
+                DBGdigitalWriteFast(3, LOW);
+
+            } else if (csisr & CSI_CSISR_SOF_INT) {
+                // we received another SOF.  Probably not right...
+                if (_debug) debug.printf("Timeout received: %u bytes\n", frame_bytes_received);
+                // wait for FlexIO shifter data
+                break;
+            }
+        }
+        if (_debug)debug.printf("Count of FIFO Fulls: %u\n", CSIRxFIFOFullISRCount);
+        CSI_CSICR18 &= ~CSI_CSICR18_CSI_ENABLE;
+        DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
+        return frame_bytes_received;
+    }
+
+    //----------------------------------------------------------------------
+    // DMA version
+    //----------------------------------------------------------------------
+
     // Lets tell CSI to start the capture.
+    // cear out any status bits set...
+    csisr = CSI_CSISR;
+    CSI_CSISR = csisr;
+
+    // setup interrupts on DMA done on either buffer and maybe Start of frame.
+    CSI_CSICR1 |= CSI_CSICR1_FB1_DMA_DONE_INTEN |
+                  CSI_CSICR1_FB2_DMA_DONE_INTEN /* | CSI_CSICR1_SOF_INTEN */;
+    CSI_CSICR1 |= CSI_CSICR1_RXFF_INTEN; // lets add in interruptting on RXFIFO Full. 
+    CSI_CSICR3 |= CSI_CSICR3_DMA_REQ_EN_RFF;         //  Disable RxFIFO DMA request
+    CSIRxFIFOFullISRCount = 0; // clear out the count...
+
     CSI_CSICR18 |= (CSI_CSICR18_CSI_ENABLE | CSI_CSICR18_BASEADDR_SWITCH_EN // CSI switches base addresses at frame start
                    | CSI_CSICR18_BASEADDR_CHANGE_ERROR_IE);                //  Enables base address error interrupt
-    #else
-    //just setting the ENABLE appears to fault
-    CSI_CSICR18 |= CSI_CSICR18_CSI_ENABLE; // try without baseaddr change
-    #endif
 #ifdef DEBUG_CAMERA
-    debug.print("After start capture\n");
-    // Serial.printf("XCLK frequency: %u\n", _xclk_freq);
-    print_csi_registers();
+    if (_debug) {
+        debug.print("After start capture\n");
+        // Serial.printf("XCLK frequency: %u\n", _xclk_freq);
+        print_csi_registers();
+    }
 #endif
 
-    elapsedMillis timeout = 0; // reset the timeout
+    timeout = 0; // reset the timeout
     while (_dma_state == DMA_STATE_ONE_FRAME) {
         if (timeout > _timeout) {
             if (_debug)
@@ -1085,19 +1252,32 @@ size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2,
 #ifdef DEBUG_CAMERA
             print_csi_registers();
 #endif
+            return_value = 0; // error state. 
             break;
         }
     }
-    
-     // turn it off again?
+    Serial.printf("$$Count of RxFifoFull ISRs:%u\n", CSIRxFIFOFullISRCount);
+    if (_dma_state == DMA_STATE_FRAME_ERROR) {
+
+        // hackarama - lets see if I get a couple more interrupts before we return, will that help...
+        uint16_t isr_count_entering = CSIRxFIFOFullISRCount;
+        elapsedMicros emKludge;
+        while ((emKludge < 1500) && ((CSIRxFIFOFullISRCount - isr_count_entering) < 3)) {}
+        return_value = 0; // error state. 
+        if (_debug) { 
+            Serial.println("$$ImageSensor::readFrameCSI exited with Frame Error");
+            print_csi_registers();
+        }
+    }
+   // turn it off again?
     CSI_CSICR18 &= ~CSI_CSICR18_CSI_ENABLE;
     DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
-    
+
     // maybe flush out frame buffer
     if ((uint32_t)_dma_last_completed_frame >= 0x20200000u)
         arm_dcache_delete(_dma_last_completed_frame, frame_size_bytes);
 
-    return frame_size_bytes;
+    return return_value;
 }
 
 // not implemented yet
@@ -1119,6 +1299,9 @@ bool ImageSensor::startReadCSI(bool (*callback)(void *frame_buffer), void *fb1,
 
     CSI_CSIDMASA_FB1 = (uint32_t)fb1;
     CSI_CSIDMASA_FB2 = (uint32_t)fb2;
+    // Set Image Parameters--width in bytes and height
+    CSI_CSIIMAG_PARA = CSI_CSIIMAG_PARA_IMAGE_WIDTH(2 * _width) |
+                       CSI_CSIIMAG_PARA_IMAGE_HEIGHT(_height);
 
     // Set our logical state
     _dma_state = DMASTATE_RUNNING;
@@ -1146,21 +1329,32 @@ bool ImageSensor::stopReadCSI() {
 
 void ImageSensor::CSIInterrupt() {
     //debug.printf("static CSII:%x\n", CSI_CSISR);
+    DBGdigitalWriteFast(3, HIGH);
     active_dma_camera->processCSIInterrupt();
+    DBGdigitalWriteFast(3, LOW);
 }
 
 void ImageSensor::processCSIInterrupt() {
     // lets grab the state and see what the ISR was for....
     uint32_t csisr = CSI_CSISR; //
-    if(_debug) debug.printf("CSII:%x\n", csisr);
+    if(_debug && (csisr & (CSI_CSISR_BASEADDR_CHHANGE_ERROR | CSI_CSISR_SOF_INT | CSI_CSISR_DMA_TSF_DONE_FB1 | CSI_CSISR_DMA_TSF_DONE_FB2))) debug.printf("CSII:%x\n", csisr);
     uint32_t frame_size_bytes = _width * _height * _bytesPerPixel;
 
     // Not sure if we will not SOF or not but...
     if (csisr & CSI_CSISR_SOF_INT) {
     }
 
+    // experiment keep track of how many times this was called.
+    //if (csisr & CSI_CSISR_RxFF_INT) {
+        CSIRxFIFOFullISRCount++;  //
+    //}
+
     if (_dma_state == DMA_STATE_ONE_FRAME) {
-        if (csisr & CSI_CSISR_DMA_TSF_DONE_FB1) {
+        if (csisr & CSI_CSISR_BASEADDR_CHHANGE_ERROR) {
+            // We ran into an error
+            _dma_state = DMA_STATE_FRAME_ERROR;
+
+        } else if (csisr & CSI_CSISR_DMA_TSF_DONE_FB1) {
             _dma_last_completed_frame = (uint8_t*)CSI_CSIDMASA_FB1;
             _dma_state = DMA_STATE_STOPPED;
         } else if (csisr & CSI_CSISR_DMA_TSF_DONE_FB2) {

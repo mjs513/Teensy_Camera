@@ -10,8 +10,8 @@
 //#define USE_SDCARD
 //#define useILI9341
 
-//#define ARDUCAM_CAMERA_OV2640
-#define ARDUCAM_CAMERA_OV5640
+#define ARDUCAM_CAMERA_OV2640
+//#define ARDUCAM_CAMERA_OV5640
 
 #if defined(ARDUCAM_CAMERA_OV2640)
 #include "TMM_OV2640/OV2640.h"
@@ -91,6 +91,17 @@ PROGMEM const char hmConfig[][48] = {
 #define TFT_DC 25  // AD_B0_03
 #define TFT_RST 24
 #define VSYNC_PIN 21
+#elif defined(ARDUINO_TEENSY41)
+
+// My T4.1 Camera board
+#undef USE_MMOD_ATP_ADAPTER
+#undef TFT_ROTATION
+#define TFT_ROTATION 1
+#define TFT_DC 9
+#define TFT_CS 7
+#define TFT_RST 8
+#define VSYNC_PIN 33
+
 
 #elif defined(USE_MMOD_ATP_ADAPTER)
 #define VSYNC_PIN 33
@@ -138,6 +149,14 @@ uint16_t frameBufferM2[640 * 240] __attribute__((aligned(32)));
 uint32_t sizeof_framebuffer = 0;
 uint32_t sizeof_framebuffer2 = 0;
 uint32_t sizeof_framebufferSDRAM = 0;
+#elif defined(ARDUINO_TEENSY41)
+// CSI - lets try to setup for PSRAM (EXTMEM)
+// only half buffer will fit in each of the two main memory regions
+// split into two parts, part dmamem and part fast mememory to fit 640x480x2
+EXTMEM uint16_t frameBuffer[800 * 600] __attribute__((aligned(32)));
+EXTMEM uint16_t frameBuffer2[800 * 600] __attribute__((aligned(32)));
+const uint32_t sizeof_framebuffer = sizeof(frameBuffer);
+const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
 #else
 #if defined(USE_SDCARD)
 DMAMEM uint16_t frameBuffer[700 * 240] __attribute__((aligned(32)));
@@ -202,11 +221,12 @@ void setup() {
 
   tft.fillScreen(TFT_BLACK);
 
-/***************************************************************/
-//    setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, en_pin,
-//    uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3,
-//    uint8_t g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
-uint8_t reset_pin = 31;
+  /***************************************************************/
+  //    setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, en_pin,
+  //    uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3,
+  //    uint8_t g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
+  uint8_t reset_pin = 31;
+  uint8_t powdwn_pin = 30;
 #ifdef USE_MMOD_ATP_ADAPTER
   pinMode(30, INPUT);
   pinMode(31, INPUT_PULLUP);
@@ -227,6 +247,14 @@ uint8_t reset_pin = 31;
   }
   reset_pin = 23;
 
+#elif defined(ARDUINO_TEENSY41)
+  // CSI support
+  pinMode(2, OUTPUT);
+  pinMode(3, OUTPUT);
+  reset_pin = 14;
+  powdwn_pin = 15;
+  pinMode(powdwn_pin, INPUT);
+  pinMode(reset_pin, INPUT_PULLUP);
 #else
   if (_hmConfig == 0) {
     //camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
@@ -253,7 +281,8 @@ uint8_t reset_pin = 31;
   Serial.printf("Begin status: %d\n", status);
   if (!status) {
     Serial.println("Camera failed to start - try reset!!!");
-    Serial.printf("\tPin 30:%u 31:%u\n", digitalReadFast(30), digitalReadFast(31));
+    //Serial.printf("\tPin 30:%u 31:%u\n", digitalReadFast(30), digitalReadFast(31));
+    Serial.printf("\tPin rst(%u):%u PowDn(%u):%u\n", reset_pin, digitalRead(reset_pin), powdwn_pin, digitalRead(powdwn_pin));
     pinMode(reset_pin, OUTPUT);
     digitalWriteFast(reset_pin, LOW);
     delay(500);
@@ -554,11 +583,11 @@ void loop() {
         camera.showRegisters();
         break;
       case 'R':
-         change_camera_resolution(ch);
-         break;
+        change_camera_resolution(ch);
+        break;
       case 'Q':
-         show_change_jpeq_quality(ch);
-         break;
+        show_change_jpeq_quality(ch);
+        break;
       case 'w':
         changeCameraWindow();
         break;
@@ -1039,11 +1068,11 @@ bool save_jpg_SD() {
 
   if (eop <= sizeof_framebuffer) {
     // only used first buffer.
-    file.write((uint8_t*)frameBuffer, eop);
+    file.write((uint8_t *)frameBuffer, eop);
   } else {
     // used both buffers.
-    file.write((uint8_t*)frameBuffer, sizeof_framebuffer);
-    file.write((uint8_t*)frameBuffer2, eop - sizeof_framebuffer);
+    file.write((uint8_t *)frameBuffer, sizeof_framebuffer);
+    file.write((uint8_t *)frameBuffer2, eop - sizeof_framebuffer);
   }
 
   file.close();  // close file when done writing
@@ -1129,7 +1158,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
       for (uint16_t i = camera.width() - 8; i < camera.width(); i++) Serial.printf("%04x ", pfb[i]);
     }
     Serial.println("\n");
-#if 0  // Figure this out later...
+#if 0  // Figure this out later... \
        // Lets dump out some of center of image.
             Serial.println("Show Center pixels\n");
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
@@ -1154,6 +1183,18 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
   }
   //tft.setOrigin(-2, -2);
   int numPixels = camera.width() * camera.height();
+#ifdef ARDUINO_TEENSY41
+  // See what which camera buffer was used.
+  uint16_t *pbuffer = (uint16_t *)camera.readFrameReturnBuffer();
+
+  if (pbuffer) {
+    for (int i = 0; i < numPixels; i++) pbuffer[i] = HTONS(pbuffer[i]);
+    tft.writeRect(CENTER, CENTER, camera.width(), camera.height(),
+                  pbuffer);
+  }
+
+#else
+
 #ifndef CAMERA_USES_MONO_PALETTE
 //#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
 
@@ -1219,6 +1260,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
     tft.writeRect8BPP(start_x, start_y, camera.width(), num_rows, frameBuffer2, mono_palette);
   }
 #endif
+#endif
 }
 
 //=============================================================================
@@ -1278,7 +1320,11 @@ void read_display_multiple_frames(bool use_frame_buffer) {
 /***********************************************************/
 
 void test_display() {
+#ifdef ARDUINO_TEENSY41
+  tft.setRotation(1);
+#else
   tft.setRotation(3);
+#endif
   tft.fillScreen(TFT_RED);
   delay(500);
   tft.fillScreen(TFT_GREEN);
@@ -1414,13 +1460,12 @@ void change_camera_resolution(int ch) {
       Serial.println("Switching to UXGA mode");
       fs = FRAMESIZE_UXGA;
       break;
-    default: 
+    default:
       Serial.println("Unknown size option");
   }
   if (fs != FRAMESIZE_INVALID) {
     camera.setFramesize(fs);
     camera.setPixformat(camera_format);
-
   }
 }
 
@@ -1438,7 +1483,6 @@ void show_change_jpeq_quality(int ch) {
   } else {
     Serial.printf("Current JPEQ quality is: %u\n", omni.getQuality());
   }
-
 }
 
 bool readJPG(uint8_t &eoi_jpg, uint32_t &eop_jpg, bool debug_on) {
@@ -1490,7 +1534,7 @@ bool readJPG(uint8_t &eoi_jpg, uint32_t &eop_jpg, bool debug_on) {
   uint32_t bytes_read = 0;
   camera.useDMA(false);
   if (camera.usingGPIO()) {
-      bytes_read = omni.readFrameGPIO_JPEG(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+    bytes_read = omni.readFrameGPIO_JPEG(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
     //delay(1000);
     //omni.readFrameGPIO_JPEG(frameBuffer, sizeof_framebuffer);
   } else {
@@ -1504,8 +1548,63 @@ bool readJPG(uint8_t &eoi_jpg, uint32_t &eop_jpg, bool debug_on) {
   if (debug_on) Serial.printf("Bytes returned from camera: %u\n", bytes_read);
 
   if (bytes_read == 0) {
-    if (debug_on) Serial.printf("Error: No bytes returned from camera\n");
-    return false;
+    if (debug_on) {
+      Serial.printf("Error: No bytes returned from camera\n");
+      MemoryHexDump(Serial, frameBuffer, 256, true, "FB1\n", -1, 0);
+      MemoryHexDump(Serial, frameBuffer2, 256, true, "FB2\n", -1, 0);
+
+      // Curious to see if it maybe did retrieve the data...
+      uint8_t *pfb = (uint8_t *)frameBuffer;
+      if ((pfb[0] == 0xff) && (pfb[1] == 0xd8) && (pfb[2] == 0xff)) {
+        // looks like first buffer has start of a JPEG...
+        Serial.println("Data in buffer appears to be start with JPEG data");
+        for (int i = 3; i < (sizeof_framebuffer - 1); i++) {
+          if ((pfb[i] == 0xff) && (pfb[i + 1] == 0xd9)) {
+            Serial.println("Data in buffer appears to be JPEG data");
+            bytes_read = i + 2;
+            break;
+          }
+        }
+      } else {
+        pfb = (uint8_t *)frameBuffer2;
+        if ((pfb[0] == 0xff) && (pfb[1] == 0xd8) && (pfb[2] == 0xff)) {
+          Serial.println("Data in buffer2 appears to be start with JPEG data");
+          // looks like first buffer has start of a JPEG...
+          for (int i = 3; i < (sizeof_framebuffer2 - 1); i++) {
+            if ((pfb[i] == 0xff) && (pfb[i + 1] == 0xd9)) {
+              bytes_read = i + 2;
+              // hack it wants it in the first fuffer...
+              Serial.println("Data in buffer2 appears to be JPEG data");
+              memcpy(frameBuffer, frameBuffer2, bytes_read);
+              break;
+            }
+          }
+        }
+      }
+      // If we found start marker but not end marker, lets look at what is at the end of both frames.
+      if ((bytes_read == 0) && (pfb[0] == 0xff) && (pfb[1] == 0xd8) && (pfb[2] == 0xff)) {
+        pfb = (uint8_t *)frameBuffer;
+        int i;
+        for (i = sizeof_framebuffer - 1; i > 128; i--) {
+          if (pfb[i] != 0) break;
+        }
+        if(i > 128) {
+          i &= 0xfffffff0;
+          MemoryHexDump(Serial, &pfb[i], 128, true, "End FB1\n", -1, (uint32_t)i);
+        }
+
+        pfb = (uint8_t *)frameBuffer2;
+        for (i = sizeof_framebuffer2 - 1; i > 128; i--) {
+          if (pfb[i] != 0) break;
+        }
+        if(i > 128) {
+          i &= 0xfffffff0;
+          MemoryHexDump(Serial, &pfb[i], 128, true, "End FB2\n", -1, (uint32_t)i);
+        }
+      }
+    }
+
+    if (bytes_read == 0) return false;
   }
 
   // verify that the start of data returned has valid marker... assumes always in first buffer

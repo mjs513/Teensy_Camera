@@ -9,9 +9,9 @@
 
 // #define ARDUCAM_CAMERA_HM01B0
 // #define ARDUCAM_CAMERA_HM0360
-//#define ARDUCAM_CAMERA_OV2640
+#define ARDUCAM_CAMERA_OV2640
 // #define ARDUCAM_CAMERA_OV7670
-#define ARDUCAM_CAMERA_OV7675
+//#define ARDUCAM_CAMERA_OV7675
 // #define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
@@ -390,6 +390,7 @@ void setup() {
     defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
     // VGA mode
   #if defined(ARDUCAM_CAMERA_GC2145) || defined(ARDUCAM_CAMERA_OV2640)
+      //status = camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
       status = camera.begin(FRAMESIZE_SVGA, camera_format, 15, false);
       camera.setZoomWindow(-1, -1, 480, 320);
   #else

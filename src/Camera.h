@@ -170,6 +170,7 @@ class ImageSensor {
 
     // default for Teensy 4.1
     virtual bool csi_configure();
+    virtual bool csi_reset_dma(); // needed if something goes wrong.
     virtual void processFrameStartInterrupt() {};
     virtual bool supports4BitMode() { return false; }
 
@@ -232,6 +233,7 @@ class ImageSensor {
         DMASTATE_RUNNING,
         DMASTATE_STOP_REQUESTED,
         DMA_STATE_STOPPED,
+        DMA_STATE_FRAME_ERROR,
         DMA_STATE_ONE_FRAME
     };
     volatile uint8_t _dma_state = DMASTATE_INITIAL;
