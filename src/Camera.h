@@ -114,8 +114,17 @@ class ImageSensor {
 
     virtual bool startReadCSI(bool (*callback)(void *frame_buffer), void *fb1,
                          size_t cb1, void *fb2, size_t cb2);
+
     virtual bool stopReadCSI();
 
+    // helper function, that if you ask the CSI to not use DMA, may have
+    // issues, so will convert over to use FlexIO3 to do this.
+    // not sure if it needs to be virtual, but...
+    virtual size_t readFrameCSI_use_FlexIO(void *buffer, size_t cb1 = (uint32_t)-1,
+                           void *buffer2 = nullptr, size_t cb2 = 0);
+
+    // checks and if necessary changes the mode to either CSI or FlexIO
+    bool changeCSIReadToFlexIOMode(bool flexio_mode);
 
     // Lets try a dma version.  Doing one DMA that is synchronous does not gain
     // anything So lets have a start, stop... Have it allocate 2 frame buffers
@@ -178,9 +187,9 @@ class ImageSensor {
 
   protected:
     bool _debug = true; // Should the camera code print out debug information?
-    bool _fuse_dma =
-        true; // in some cameras should we use DMA or do the Io directly
+    bool _fuse_dma = true; // in some cameras should we use DMA or do the Io directly
     bool _use_gpio = false;   // set in the begin of some cameras
+    bool _csi_in_flexio_mode = false; // should combine some of these. 
     camera_input_t _cameraInput = CAMERA_INPUT_DEFAULT;
     uint32_t _timeout = 2000; // timeout in ms for a read
 

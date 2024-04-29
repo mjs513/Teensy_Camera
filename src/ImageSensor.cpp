@@ -9,7 +9,7 @@
 
 #define DEBUG_CAMERA
 // #define DEBUG_CAMERA_VERBOSE
-// #define DEBUG_FLEXIO
+ #define DEBUG_FLEXIO
 // #define USE_DEBUG_PINS
 
 ImageSensor *ImageSensor::active_dma_camera = nullptr;
@@ -1058,12 +1058,18 @@ void print_csi_registers() {
 volatile uint32_t CSIRxFIFOFullISRCount = 0;
 
 
-size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2,
-                                 size_t cb2) {
+size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2, size_t cb2) {
 
     if (_debug)
-        debug.printf("$$ImageSensor::readFrameCSI(%p, %u, %p, %u)\n",
-                     buffer, cb1, buffer2, cb2);
+        debug.printf("$$ImageSensor::readFrameCSI(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
+
+    // If we are not using DMA, use helper function
+    if (!_fuse_dma) {
+        return readFrameCSI_use_FlexIO(buffer, cb1, buffer2, cb2);
+    }
+    
+    changeCSIReadToFlexIOMode(false);
+
     DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
     // Setup our buffer pointers.  Not sure if there is some place to store the
     // sizes?
@@ -1087,137 +1093,6 @@ size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2,
     _dma_state = DMA_STATE_ONE_FRAME;
 
     elapsedMillis timeout = 0; // reset the timeout
-    //----------------------------------------------------------------------
-    // Polling CSI version
-    //----------------------------------------------------------------------
-    if (!_fuse_dma) {
-        if (_debug) debug.println("\tCSI Polling mode");
-
-        // We should turn off all of the CSI interrupts.  Maybe preserve the 
-        // configuration registers as the were when we entered.
-        CSI_CSICR1 &= ~(CSI_CSICR1_FB1_DMA_DONE_INTEN | CSI_CSICR1_FB2_DMA_DONE_INTEN  
-            | CSI_CSICR1_SOF_INTEN | CSI_CSICR1_RXFF_INTEN | CSI_CSICR1_FCC);
-        // lets also clear out the FIFO just in case.
-        CSI_CSICR1 |= CSI_CSICR1_CLR_RXFIFO;
-        while (CSI_CSICR1 & CSI_CSICR1_CLR_RXFIFO) {};
-        CSI_CSICR1 |= CSI_CSICR1_FCC; // turn back to automatic. 
-
-        CSI_CSICR3 &= ~CSI_CSICR3_DMA_REQ_EN_RFF;         //  Disable RxFIFO DMA request
-
-        CSI_CSICR18 &= ~(CSI_CSICR18_BASEADDR_SWITCH_EN | CSI_CSICR18_BASEADDR_CHANGE_ERROR_IE); 
-
-        uint32_t *p = (uint32_t*)buffer;
-        uint32_t *p_end = (uint32_t *)((uint8_t *)p + cb1);
-        uint32_t max_time_to_wait = _timeout;
-
-        // First lets wait for start of frame. 
-        csisr = CSI_CSISR;  // clear out all the initial state
-        CSI_CSISR = csisr; 
-        // start up CSI
-        CSI_CSICR18 |= CSI_CSICR18_CSI_ENABLE;
-#ifdef DEBUG_CAMERA
-        if (_debug) {
-            debug.print("After start capture\n");
-            // Serial.printf("XCLK frequency: %u\n", _xclk_freq);
-            print_csi_registers();
-        }
-#endif
-        CSIRxFIFOFullISRCount = 0; // clear out the count...
-
-        uint32_t frame_bytes_received = 0;
-        csisr = CSI_CSISR;  
-        while ((csisr & CSI_CSISR_SOF_INT) == 0) {
-            if (timeout > max_time_to_wait) {
-                DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
-
-                if (_debug) debug.printf("Timeout Waiting for start of frame\n");
-                CSI_CSICR18 &= ~CSI_CSICR18_CSI_ENABLE;
-                DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
-                return 0; // nothing received
-            }
-            csisr = CSI_CSISR;  
-        }
-    
-        // How many FIFO Entries should we read for full?
-        static const uint8_t RxFF_LEVEL_TBL[] = {8, 16, 32, 48, 64, 96, 128, 192};
-        uint8_t cnt_fifo_entries_per_full = RxFF_LEVEL_TBL[(CSI_CSICR3 >> 4) & 0x7];
-        if (_debug)debug.printf("CNT Rx Fifo to read per full: %u\n", cnt_fifo_entries_per_full);
-
-        CSI_CSISR = csisr;  // clear out that status.
-
-        while (frame_bytes_received < frame_size_bytes) {
-            if (timeout > max_time_to_wait) {
-                DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
-
-                if (_debug) debug.printf("Timeout received: %u bytes\n", frame_bytes_received);
-                break;
-            }
-
-            csisr = CSI_CSISR; // get the status again
-            // Lets try waiting for FIFO Full before grabbing data.
-            if (csisr & CSI_CSISR_RxFF_INT) {
-                DBGdigitalWriteFast(3, HIGH);
-                CSIRxFIFOFullISRCount++;
-                uint8_t cnt_fifo_read = 0;
-
-                while ((frame_bytes_received < frame_size_bytes) && (cnt_fifo_read < cnt_fifo_entries_per_full) && (CSI_CSISR & CSI_CSISR_DRDY)) {
-                    // We have data rready
-                    // Lets simplify back to single shifter for now
-                    *p = CSI_CSIRFIFO;
-    #ifdef DEBUG_CAMERA
-                    static uint8_t debug_count = 32;
-                    if (debug_count) {
-                        debug.printf("\tD: %x\n", *p);
-                        debug_count--;
-                    }
-    #endif
-                    if ((_format == 8) && (frame_bytes_received > 0)) {
-                        uint8_t *pu8 = (uint8_t *)p;
-                        // jpeg check for
-                        for (int i = 0; i < 4; i++) {
-                            if ((pu8[i - 1] == 0xff) && (pu8[i] == 0xd9)) {
-                                if (_debug)
-                                    Serial.printf("JPEG - found end marker at %u\n",
-                                                  frame_bytes_received + i);
-                                CSI_CSICR18 &= ~CSI_CSICR18_CSI_ENABLE; // disable CSI
-                                DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
-                                return frame_bytes_received + i + 1;
-                            }
-                        }
-                    }
-                    p++; // increment to next
-                    frame_bytes_received += sizeof(uint32_t);
-                    // Check to see if we filled current buffer
-                    if (p >= p_end) {
-                        // yes, now see if we have another
-                        if (buffer2) {
-                            p = (uint32_t *)buffer2;
-                            p_end = (uint32_t *)((uint8_t *)p + cb2);
-                            buffer2 = nullptr;
-                        } else {
-                            if (_debug && (frame_bytes_received < frame_size_bytes))
-                                Serial.printf(
-                                    "Error: Image size exceeded buffer space\n");
-                            break;
-                        }
-                    }
-                    cnt_fifo_read++; // increment how many reads we have done here... 
-                }
-                DBGdigitalWriteFast(3, LOW);
-
-            } else if (csisr & CSI_CSISR_SOF_INT) {
-                // we received another SOF.  Probably not right...
-                if (_debug) debug.printf("Timeout received: %u bytes\n", frame_bytes_received);
-                // wait for FlexIO shifter data
-                break;
-            }
-        }
-        if (_debug)debug.printf("Count of FIFO Fulls: %u\n", CSIRxFIFOFullISRCount);
-        CSI_CSICR18 &= ~CSI_CSICR18_CSI_ENABLE;
-        DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
-        return frame_bytes_received;
-    }
-
     //----------------------------------------------------------------------
     // DMA version
     //----------------------------------------------------------------------
@@ -1280,12 +1155,259 @@ size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2,
     return return_value;
 }
 
+    // checks and if necessary changes the mode to either CSI or FlexIO
+bool ImageSensor::changeCSIReadToFlexIOMode(bool flexio_mode) {
+    if (_csi_in_flexio_mode == flexio_mode) return true;
+
+    //=========================================================================
+    // Switch to FlexIO mode
+    //=========================================================================
+    if (flexio_mode) {
+        // See if this is our first switch.
+        // Switch to FlexIO mode. 
+        if (_pflex == nullptr) {
+            if (_debug) debug.println("\tFirst Convert to FlexIO mode");
+            // lets ontly try FlexIO3
+            _pflex = FlexIOHandler::flexIOHandler_list[2];
+
+            // lets map some of the pins over.
+            _pflexio = &(_pflex->port());
+            uint8_t tpclk_pin = _pflex->mapIOPinToFlexPin(_pclkPin);
+            uint8_t thsync_pin = _pflex->mapIOPinToFlexPin(_hrefPin);
+            uint8_t tg[8];
+            for (uint8_t i = 0; i < 8; i++) tg[i] = _pflex->mapIOPinToFlexPin(_dPins[i]);
+
+
+            if (_pflex->claimShifter(3))
+                _fshifter = 3;
+            else if (_pflex->claimShifter(7))
+                _fshifter = 7;
+            else {
+                if (_debug)
+                    debug.printf("OV767X Flex IO: Could not claim Shifter 3 or 7\n");
+                _pflexio = nullptr;
+                return false;
+            }
+            _fshifter_mask = 1 << _fshifter;  
+            // 3 does not have DMA
+            //_dma_source = _pflex->shiftersDMAChannel(_fshifter); // looks like they use
+            // Now request one timer
+            // BUGBUG< check other usage
+            _ftimer = _pflex->requestTimers(); // request 1 timer.
+            if (_ftimer == 0xff) {
+                if (_debug)
+                    debug.printf("ImageSensor Flex IO: failed to request timer\n");
+                _pflexio = nullptr;
+                return false;
+            }
+
+
+            if (_debug) {
+                debug.printf("\tPCLK:%x hsync:%x data pin: ", tpclk_pin, thsync_pin );
+                for (uint8_t i = 0; i < 8; i++) debug.printf(" %x", tg[i]);
+                debug.println();
+            }
+
+
+            // We are always 8 bit mode
+            // For more notes see the flexio_configure function
+            _pflexio->SHIFTCFG[_fshifter] = FLEXIO_SHIFTCFG_PWIDTH(7);
+            _pflexio->TIMCMP[_ftimer] = (8U * 1) - 1;
+
+            _pflexio->TIMCTL[_ftimer] =
+                FLEXIO_TIMCTL_TIMOD(3) |
+                FLEXIO_TIMCTL_PINSEL(tpclk_pin) // "Pin" is 16 = PCLK
+                //| FLEXIO_TIMCTL_TRGSEL(4 * (thsync_pin/2)) // "Trigger" is 12 =
+                // HSYNC
+                | FLEXIO_TIMCTL_TRGSEL(FLEXIO_TIMER_TRIGGER_SEL_PININPUT(
+                      thsync_pin)) // "Trigger" is 12 = HSYNC
+                | FLEXIO_TIMCTL_TRGSRC;
+        
+            // BUGBUG:: the pins are in reversed order... Arg...
+            _pflexio->SHIFTCTL[_fshifter] = FLEXIO_SHIFTCTL_TIMSEL(_ftimer) |
+                                        FLEXIO_SHIFTCTL_SMOD(1) |
+                                        FLEXIO_SHIFTCTL_PINSEL(tg[7]);
+            _pflexio->TIMCFG[_ftimer] =
+                FLEXIO_TIMCFG_TIMOUT(1) | FLEXIO_TIMCFG_TIMDEC(2) |
+                FLEXIO_TIMCFG_TIMENA(6) | FLEXIO_TIMCFG_TIMDIS(6);
+
+            // CTRL, page 2916
+            _pflexio->CTRL = FLEXIO_CTRL_FLEXEN; // enable after everything configured
+        #ifdef DEBUG_FLEXIO
+            debug.printf(" FLEXIO:%u Shifter:%u Timer:%u\n", _pflex->FlexIOIndex(),
+                         _fshifter, _ftimer);
+            debug.print("     SHIFTCFG = ");
+            debug.printf(" %08X", _pflexio->SHIFTCFG[_fshifter]);
+            debug.print("\n     SHIFTCTL = ");
+            debug.printf(" %08X", _pflexio->SHIFTCTL[_fshifter]);
+            debug.printf("\n     TIMCMP = %08X\n", _pflexio->TIMCMP[_ftimer]);
+            debug.printf("     TIMCFG = %08X\n", _pflexio->TIMCFG[_ftimer]);
+            debug.printf("     TIMCTL = %08X\n", _pflexio->TIMCTL[_ftimer]);
+        #endif
+
+        }
+        // We then need to make sure all of the IO pins are in the
+        // reight state.
+        _pflex->setIOPinToFlexMode(_hrefPin);
+        _pflex->setIOPinToFlexMode(_pclkPin);
+        for (uint8_t i=0; i < 8; i++) _pflex->setIOPinToFlexMode(_dPins[i]);
+        _pflex->setClockSettings(3, 1, 1);
+
+        // Set vsync pin to intput
+        pinMode(_vsyncPin, INPUT /*INPUT_PULLDOWN*/);
+    } 
+    //=========================================================================
+    // Switch back to CSI mode
+    //=========================================================================
+    else {
+        // start off trying to restore the right pin modes and
+        // see if that is enought
+        configureCSIPin(_vsyncPin);
+        configureCSIPin(_hrefPin);
+        configureCSIPin(_pclkPin);
+
+        for (uint8_t i = 0; i < 8; i++) configureCSIPin(_dPins[i]);
+    }
+    
+    _csi_in_flexio_mode = flexio_mode;
+    return true;
+}
+
+
+size_t ImageSensor::readFrameCSI_use_FlexIO(void *buffer, size_t cb1, void *buffer2, size_t cb2) {
+
+    if (_debug)
+        debug.printf("$$ImageSensor::readFrameCSI_use_FlexIO(%p, %u, %p, %u)\n", buffer, cb1, buffer2, cb2);
+
+    changeCSIReadToFlexIOMode(true);
+        // This is a duplicate of most of some of the readFrameFlexIO
+    // maybe later split off the none DMA version to subfunction.
+
+    DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
+
+    uint32_t frame_size_bytes = _width * _height * _bytesPerPixel;
+    if (_format == 8) {
+        frame_size_bytes = frame_size_bytes / 5;
+    } else if ((cb1 + cb2) < frame_size_bytes) {
+        DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
+        return 0; // not enough to hold normal images...
+    }
+
+    // flexio_configure(); // one-time hardware setup
+    // wait for VSYNC to go high and then low with a sort of glitch filter
+    elapsedMillis emWaitSOF;
+    elapsedMicros emGlitch;
+    DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
+
+    for (;;) {
+        if (emWaitSOF > _timeout) {
+            if (_debug)
+                debug.println("Timeout waiting for Start of Frame");
+            return 0;
+        }
+        while ((*_vsyncPort & _vsyncMask) == 0) {
+            if (emWaitSOF > _timeout) {
+                if (_debug)
+                    debug.println(
+                        "Timeout waiting for rising edge Start of Frame");
+                return 0;
+            }
+        }
+        emGlitch = 0;
+        while ((*_vsyncPort & _vsyncMask) != 0) {
+            if (emWaitSOF > _timeout) {
+                if (_debug)
+                    debug.println(
+                        "Timeout waiting for falling edge Start of Frame");
+                return 0;
+            }
+        }
+        if (emGlitch > 5)
+            break;
+    }
+    _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
+    _pflexio->SHIFTERR = _fshifter_mask;
+    uint32_t *p = (uint32_t *)buffer;
+    DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
+
+    elapsedMillis timeout = 0;
+
+    // for flexIO will simply return the first buffer.
+    //_dma_last_completed_frame = buffer;
+
+    //----------------------------------------------------------------------
+    // Polling FlexIO version
+    //----------------------------------------------------------------------
+    if (_debug)
+        debug.println("\tNot DMA");
+    // lets try another version of this to see if cleaner.
+    uint32_t *p_end = (uint32_t *)((uint8_t *)p + cb1);
+    uint32_t max_time_to_wait = _timeout;
+
+    uint32_t frame_bytes_received = 0;
+    while (frame_bytes_received < frame_size_bytes) {
+        while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
+            if (timeout > max_time_to_wait) {
+                DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
+
+                if (_debug)
+                    debug.printf(
+                        "Timeout between characters: received: %u bytes\n",
+                        frame_bytes_received);
+                // wait for FlexIO shifter data
+                DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
+                break;
+            }
+        }
+        // Lets simplify back to single shifter for now
+        uint8_t *pu8 = (uint8_t *)p;
+        // try the bitbyte swapped version.
+        *p++ = _pflexio->SHIFTBUFBBS[_fshifter];
+        if ((_format == 8) && (frame_bytes_received > 0)) {
+            // jpeg check for
+            for (int i = 0; i < 4; i++) {
+                if ((pu8[i - 1] == 0xff) && (pu8[i] == 0xd9)) {
+                    if (_debug)
+                        Serial.printf("JPEG - found end marker at %u\n",
+                                      frame_bytes_received + i);
+                    DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
+                    return frame_bytes_received + i + 1;
+                }
+            }
+        }
+
+        frame_bytes_received += sizeof(uint32_t);
+        // Check to see if we filled current buffer
+        if (p >= p_end) {
+            // yes, now see if we have another
+            if (buffer2) {
+                p = (uint32_t *)buffer2;
+                p_end = (uint32_t *)((uint8_t *)p + cb2);
+                buffer2 = nullptr;
+            } else {
+                if (_debug && (frame_bytes_received < frame_size_bytes))
+                    Serial.printf(
+                        "Error: Image size exceeded buffer space\n");
+                break;
+            }
+        }
+        max_time_to_wait = 50; // maybe second setting.
+        timeout = 0;           // reset timeout.
+    }
+
+    DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
+    return frame_bytes_received;
+}
+
+
 // not implemented yet
 bool ImageSensor::startReadCSI(bool (*callback)(void *frame_buffer), void *fb1,
                                size_t cb1, void *fb2, size_t cb2) {
     if (_debug)
-        debug.printf("$$ImageSensor::startReadCSI(%p: %p, %u, %p, %u)\n",
-                     callback, fb1, cb1, fb2, cb2);
+        debug.printf("$$ImageSensor::startReadCSI(%p: %p, %u, %p, %u)\n", callback, fb1, cb1, fb2, cb2);
+
+    changeCSIReadToFlexIOMode(false);
+
     DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
     // Setup our buffer pointers.  Not sure if there is some place to store the
     // sizes?
