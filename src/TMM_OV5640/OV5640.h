@@ -4,8 +4,13 @@
 
 #include "OV5640_regs.h"
 #include <Arduino.h>
+// Teensy 4.1 default to CSI pisn
+#ifdef ARDUINO_TEENSY41
+#define USE_CSI_PINS
+//#warning "Use CSI Pins"
+#endif
 #include <Camera.h>
-
+#include "teensy_csi_support.h"
 #if defined(__IMXRT1062__) // Teensy 4.x
 #include <DMAChannel.h>
 #include <FlexIO_t4.h>
@@ -65,9 +70,7 @@ SDA             18      AD_B1_1 I2C
 
 #elif defined USE_CSI_PINS
 #define OV5640_PLK 40 // 40 // AD_B1_04 CSI_PIXCLK
-#define OV5640_XCLK_JUMPER                                                     \
-    41                  // BUGBUG CSI 41 is NOT a PWM pin so we jumper to it...
-#define OV5640_XCLK 37  // 41 // AD_B1_05 CSI_MCLK
+#define OV5640_XCLK 41 // AD_B1_05 CSI_MCLK
 #define OV5640_HREF 16  // AD_B1_07 CSI_HSYNC
 #define OV5640_VSYNC 17 // AD_B1_06 CSI_VSYNC
 
@@ -246,7 +249,7 @@ class OV5640 : public ImageSensor {
 
     bool begin(framesize_t framesize = FRAMESIZE_QVGA, int framerate = 30,
                bool use_gpio = false) {
-        return false;
+        return 0;
     };
     uint8_t setMode(uint8_t Mode, uint8_t FrameCnt) {
         return 0;
@@ -327,8 +330,8 @@ class OV5640 : public ImageSensor {
     static void dmaInterrupt();
     void processDMAInterrupt();
 #if 0
-	static void frameStartInterrupt();
-	void processFrameStartInterrupt();
+    static void frameStartInterrupt();
+    void processFrameStartInterrupt();
 #endif
 
     // OpenMV support functions extracted from imglib.h

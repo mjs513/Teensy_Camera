@@ -7,11 +7,11 @@
 #include "Camera.h"
 
 #define USE_MMOD_ATP_ADAPTER
-//#define USE_SDCARD
+#define USE_SDCARD
 //#define useILI9341
 
-#define ARDUCAM_CAMERA_OV2640
-//#define ARDUCAM_CAMERA_OV5640
+//#define ARDUCAM_CAMERA_OV2640
+#define ARDUCAM_CAMERA_OV5640
 
 #if defined(ARDUCAM_CAMERA_OV2640)
 #include "TMM_OV2640/OV2640.h"

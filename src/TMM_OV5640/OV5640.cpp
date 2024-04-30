@@ -1037,8 +1037,12 @@ bool OV5640::begin_omnivision(framesize_t framesize, pixformat_t format,
 
     // flexIO/DMA
     if (!_use_gpio) {
+#ifdef USE_CSI_PINS
+        csi_configure();
+#else        
         flexio_configure();
         setVSyncISRPriority(102);
+#endif        
         setDMACompleteISRPriority(192);
     } else {
         setVSyncISRPriority(102);
@@ -1128,13 +1132,51 @@ int OV5640::reset() {
 }
 
 void OV5640::beginXClk() {
+    // Generates 8 MHz signal using PWM... Will speed up.
+#ifdef USE_CSI_PINS
+    
+    if (!verifyCSIPin(_xclkPin, CSI_MCLK)) return; // not valid pin
+
+    configureCSIPin(_xclkPin);
+
+    CCM_CCGR2 &= ~CCM_CCGR2_CSI(CCM_CCGR_ON);  // turn off csi clock
+    if (_xclk_freq <= 16) {
+        _xclk_freq = 12;
+        CCM_CSCDR3 = CCM_CSCDR3_CSI_CLK_SEL(0) | CCM_CSCDR3_CSI_PODF(1);  // set csi clock source and divide by 2 = 12 MHz        
+    //} else if (_xclk_freq <= 16) {
+    //    _xclk_freq = 15;
+    //    CCM_CSCDR3 = CCM_CSCDR3_CSI_CLK_SEL(2) | CCM_CSCDR3_CSI_PODF(7);  // 120/8 = 15 MHz        
+    } else if (_xclk_freq <= 20) {
+        _xclk_freq = 20;
+        CCM_CSCDR3 = CCM_CSCDR3_CSI_CLK_SEL(2) | CCM_CSCDR3_CSI_PODF(5);  // 120/6 = 20 MHz        
+    } else {
+        // for now lets try up to 24mhz
+        _xclk_freq = 24;
+        CCM_CSCDR3 = CCM_CSCDR3_CSI_CLK_SEL(2) | CCM_CSCDR3_CSI_PODF(4);  // 120/6 = 20 MHz        
+
+    }
+
+    IOMUXC_SW_MUX_CTL_PAD_GPIO_AD_B1_05 = 0b100; // alt4
+    IOMUXC_SW_PAD_CTL_PAD_GPIO_AD_B1_05 = 0x18U;  // 50MHz speed, DSE_3
+
+    CCM_CCGR2 |= CCM_CCGR2_CSI(CCM_CCGR_ON);
+
+#else        
+
     analogWriteFrequency(_xclkPin, _xclk_freq * 1000000);
     analogWrite(_xclkPin, 127);
+#endif
     delay(100); // 9mhz works, but try to reduce to debug timings with logic
                 // analyzer
 }
 
-void OV5640::endXClk() { analogWrite(OV5640_XCLK, 0); }
+void OV5640::endXClk() {
+#if defined(__IMXRT1062__) // Teensy 4.x
+    analogWrite(OV5640_XCLK, 0);
+#else
+    NRF_I2S->TASKS_STOP = 1;
+#endif
+}
 
 void OV5640::end() {
     endXClk();
