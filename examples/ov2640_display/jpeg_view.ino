@@ -47,7 +47,7 @@ inline void FillScreen(uint16_t color) {
     if(bytesRead == 0) return 0;
     
     uint8_t scale = 1;
-    if(jpeg.openRAM((uint8_t *)frameBuffer, sizeof(frameBuffer), JPEGDraw)) {
+    if(jpeg.openRAM((uint8_t *)frameBuffer, bytesRead, JPEGDraw)) {
     //if (jpeg.open(name, myOpen, myClose, myReadJPG, mySeekJPG, JPEGDraw)) {
       int image_width = jpeg.getWidth();
       int image_height = jpeg.getHeight();
