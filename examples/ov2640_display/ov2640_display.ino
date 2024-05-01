@@ -757,7 +757,8 @@ void loop() {
       ;  // lets strip the rest out
   }
 
-  if (g_continuous_flex_mode) {
+  
+  if (g_continuous_flex_mode && !tft.asyncUpdateActive()) {
     // try to make sure we alternate.
     if (g_new_flexio_data && (!g_flex_dual_buffer_per_frame || (g_new_flexio_data != g_last_flexio_data))) {
       //Serial.println("new FlexIO data");

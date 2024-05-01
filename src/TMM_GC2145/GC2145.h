@@ -4,6 +4,13 @@
 #define _GC2145_H_
 
 #include <Arduino.h>
+// Teensy 4.1 default to CSI pisn
+#ifdef ARDUINO_TEENSY41
+#define USE_CSI_PINS
+//#warning "Use CSI Pins"
+#endif
+#include <Camera.h>
+#include "teensy_csi_support.h"
 #if defined(__IMXRT1062__) // Teensy 4.x
 #include <DMAChannel.h>
 #include <FlexIO_t4.h>
@@ -72,10 +79,9 @@ SDA             18      AD_B1_1 I2C
 
 #elif defined USE_CSI_PINS
 #define GC2145_RST 0xff   // reset pin
-#define GC2145_PLK 40 // 40 // AD_B1_04 CSI_PIXCLK
-#define GC2145_XCLK_JUMPER                                                     \
-    41                  // BUGBUG CSI 41 is NOT a PWM pin so we jumper to it...
-#define GC2145_XCLK 37  // 41 // AD_B1_05 CSI_MCLK
+#define GC2145_PLK 40  // AD_B1_04 CSI_PIXCLK
+
+#define GC2145_XCLK 41 // AD_B1_05 CSI_MCLK
 #define GC2145_HREF 16  // AD_B1_07 CSI_HSYNC
 #define GC2145_VSYNC 17 // AD_B1_06 CSI_VSYNC
 
@@ -283,7 +289,7 @@ class GC2145 : public ImageSensor {
 
     // quick and dirty attempt to read in images larger than can fit into one
     // region of memory...
-    //	void readFrameMultiBuffer(void* buffer1, size_t size1, void* buffer2,
+    //  void readFrameMultiBuffer(void* buffer1, size_t size1, void* buffer2,
     // size_t size2);
 
     // normal Read mode
@@ -348,14 +354,14 @@ class GC2145 : public ImageSensor {
     enum {
         DMABUFFER_SIZE = 1296
     }; // 640x480  so 640*2*2
-       //	static DMAChannel _dmachannel;
-    //	static DMASetting _dmasettings[10];  // maybe handle up to 800x600
+       //   static DMAChannel _dmachannel;
+    //  static DMASetting _dmasettings[10];  // maybe handle up to 800x600
     static uint32_t _dmaBuffer1[DMABUFFER_SIZE];
     static uint32_t _dmaBuffer2[DMABUFFER_SIZE];
 
-    //	bool (*_callback)(void *frame_buffer) = nullptr ;
-    //	uint32_t  _dma_frame_count;
-    //	uint8_t *_dma_last_completed_frame;
+    //  bool (*_callback)(void *frame_buffer) = nullptr ;
+    //  uint32_t  _dma_frame_count;
+    //  uint8_t *_dma_last_completed_frame;
     // TBD Allow user to set all of the buffers...
 
 #if defined(ARDUINO_TEENSY_MICROMOD)
@@ -390,8 +396,8 @@ class GC2145 : public ImageSensor {
     static void dmaInterrupt();
     void processDMAInterrupt();
 #if 0
-	static void frameStartInterrupt();
-	void processFrameStartInterrupt();
+    static void frameStartInterrupt();
+    void processFrameStartInterrupt();
 #endif
 
     inline int fast_floorf(float x) {
