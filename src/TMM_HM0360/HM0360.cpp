@@ -526,7 +526,7 @@ bool HM0360::begin(framesize_t framesize, int framerate, bool use_gpio) {
     debug.printf("SENSOR ID :-) MODEL HM0%X\n", getModelid());
 
     if (!_use_gpio) {
-        flexio_configure();
+        hardware_configure();
     }
     setVSyncISRPriority(102);
     setDMACompleteISRPriority(192);
@@ -551,15 +551,6 @@ void HM0360::end() {
 
     Wire.end();
 }
-
-void HM0360::beginXClk() {
-    // Generates MCLK clock
-    analogWriteFrequency(_xclkPin, XCLK_FREQUENCY);
-    analogWrite(_xclkPin, 128);
-    delay(100);
-}
-
-void HM0360::endXClk() { analogWrite(XCLK_FREQUENCY, 0); }
 
 #define FLEXIO_USE_DMA
 

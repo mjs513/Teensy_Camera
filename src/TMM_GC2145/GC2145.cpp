@@ -858,77 +858,9 @@ static const uint8_t gc2145_setting_vga[][2] = {
 };
 
 // Constructor
-const int GC2145_D[8] = {GC2145_D0, GC2145_D1, GC2145_D2, GC2145_D3,
-                         GC2145_D4, GC2145_D5, GC2145_D6, GC2145_D7};
-
 GC2145::GC2145() : _GC2145(NULL), _frame_buffer_pointer(NULL) {
-    // setPins(GC2145_VSYNC, GC2145_HREF, GC2145_PLK, GC2145_XCLK, GC2145_RST,
-    // GC2145_D);
-    setPins(GC2145_XCLK, GC2145_PLK, GC2145_VSYNC, GC2145_HREF, GC2145_RST,
-            GC2145_D0, GC2145_D1, GC2145_D2, GC2145_D3, GC2145_D4, GC2145_D5,
-            GC2145_D6, GC2145_D7, Wire);
 }
 
-void GC2145::beginXClk() {
-    // Generates 8 MHz signal using PWM... Will speed up.
-#if defined(__IMXRT1062__) // Teensy 4.x
-#ifdef USE_CSI_PINS
-    
-    if (!verifyCSIPin(_xclkPin, CSI_MCLK)) return; // not valid pin
-
-    configureCSIPin(_xclkPin);
-
-    CCM_CCGR2 &= ~CCM_CCGR2_CSI(CCM_CCGR_ON);  // turn off csi clock
-    if (_xclk_freq <= 16) {
-        _xclk_freq = 12;
-        CCM_CSCDR3 = CCM_CSCDR3_CSI_CLK_SEL(0) | CCM_CSCDR3_CSI_PODF(1);  // set csi clock source and divide by 2 = 12 MHz        
-    //} else if (_xclk_freq <= 16) {
-    //    _xclk_freq = 15;
-    //    CCM_CSCDR3 = CCM_CSCDR3_CSI_CLK_SEL(2) | CCM_CSCDR3_CSI_PODF(7);  // 120/8 = 15 MHz        
-    } else if (_xclk_freq <= 20) {
-        _xclk_freq = 20;
-        CCM_CSCDR3 = CCM_CSCDR3_CSI_CLK_SEL(2) | CCM_CSCDR3_CSI_PODF(5);  // 120/6 = 20 MHz        
-    } else {
-        // for now lets try up to 24mhz
-        _xclk_freq = 24;
-        CCM_CSCDR3 = CCM_CSCDR3_CSI_CLK_SEL(2) | CCM_CSCDR3_CSI_PODF(4);  // 120/6 = 20 MHz        
-
-    }
-
-    IOMUXC_SW_MUX_CTL_PAD_GPIO_AD_B1_05 = 0b100; // alt4
-    IOMUXC_SW_PAD_CTL_PAD_GPIO_AD_B1_05 = 0x18U;  // 50MHz speed, DSE_3
-
-    CCM_CCGR2 |= CCM_CCGR2_CSI(CCM_CCGR_ON);
-#else
-    analogWriteFrequency(_xclkPin, _xclk_freq);
-    analogWrite(_xclkPin, 127);
-#endif
-    delay(100); // 9mhz works, but try to reduce to debug timings with logic
-                // analyzer
-
-#else
-    // Generates 16 MHz signal using I2S peripheral
-    NRF_I2S->CONFIG.MCKEN =
-        (I2S_CONFIG_MCKEN_MCKEN_ENABLE << I2S_CONFIG_MCKEN_MCKEN_Pos);
-    NRF_I2S->CONFIG.MCKFREQ = I2S_CONFIG_MCKFREQ_MCKFREQ_32MDIV2
-                              << I2S_CONFIG_MCKFREQ_MCKFREQ_Pos;
-    NRF_I2S->CONFIG.MODE = I2S_CONFIG_MODE_MODE_MASTER
-                           << I2S_CONFIG_MODE_MODE_Pos;
-
-    NRF_I2S->PSEL.MCK = (digitalPinToPinName(_xclkPin) << I2S_PSEL_MCK_PIN_Pos);
-
-    NRF_I2S->ENABLE = 1;
-    NRF_I2S->TASKS_START = 1;
-#endif
-}
-
-void GC2145::endXClk() {
-#if defined(__IMXRT1062__) // Teensy 4.x
-    analogWrite((_xclk_freq * 1000000), 0);
-#else
-    NRF_I2S->TASKS_STOP = 1;
-#endif
-}
 
 void GC2145::end() {
     endXClk();
@@ -969,14 +901,39 @@ uint16_t GC2145::getModelid() {
 // bool GC2145::begin(framesize_t resolution, int format, bool use_gpio)
 bool GC2145::begin_omnivision(framesize_t resolution, pixformat_t format,
                               int fps, int camera_name, bool use_gpio) {
-    //_wire = &Wire;
-    _wire->begin();
 
     _use_gpio = use_gpio;
+
+    // WIP - Need set functions:
+    if (_rst != 0xff) {
+        if (_rst_init >= 0) {
+            pinMode(_rst, OUTPUT);
+            digitalWrite(_rst, _rst_init);            
+        } 
+        else if (_rst_init == -1) pinMode(_rst, INPUT);
+        else if (_rst_init == -2) pinMode(_rst, INPUT_PULLUP);
+        else if (_rst_init == -3) pinMode(_rst, INPUT_PULLDOWN);
+        delay(5);
+    }
+
+    if (_pwdn != 0xff) {
+        if (_pwdn_init >= 0) {
+            pinMode(_pwdn, OUTPUT);
+            digitalWrite(_pwdn, _pwdn_init);            
+        } 
+        else if (_pwdn_init == -1) pinMode(_pwdn, INPUT);
+        else if (_pwdn_init == -2) pinMode(_pwdn, INPUT_PULLUP);
+        else if (_pwdn_init == -3) pinMode(_pwdn, INPUT_PULLDOWN);
+        delay(5);
+    }
+
+
 // BUGBUG::: see where frame is
 #ifdef USE_DEBUG_PINS
     pinMode(49, OUTPUT);
 #endif
+
+    _wire->begin();
 
     _grayscale = false;
     switch (format) {
@@ -1052,12 +1009,8 @@ bool GC2145::begin_omnivision(framesize_t resolution, pixformat_t format,
 
     // flexIO/DMA
     if (!_use_gpio) {
-#ifdef USE_CSI_PINS
-        csi_configure();
-#else        
-        flexio_configure();
+        hardware_configure();
         setVSyncISRPriority(102);
-#endif
         setDMACompleteISRPriority(192);
     } else {
         setVSyncISRPriority(102);

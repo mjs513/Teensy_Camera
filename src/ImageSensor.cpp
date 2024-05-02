@@ -640,6 +640,90 @@ void ImageSensor::dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title) {
         dmabc->TCD->CSR, dmabc->TCD->BITER);
 }
 
+//=============================================================================
+// hardware_configure() - will check the pins to see if the camera is configured
+// to hse CSI and if not check for FlexIO
+//=============================================================================
+bool ImageSensor::hardware_configure() {
+    // first try CSI
+    if (_debug)debug.println("hardware_configure - try CSI");
+    if (!csi_configure()) {
+        if (_debug)debug.println("\tfailed try FLEXIO");
+        if (!flexio_configure()) {
+            // Later we can expand this to look at GPIO...
+            if (_debug)debug.println("\tfailed");
+            return false;
+        }
+    }
+    return true;
+}
+
+
+// Default function to set the VSYNC priority
+// only needed in some implementations.
+void ImageSensor::setVSyncISRPriority(uint8_t priority) {
+    if (_cameraInput == CAMERA_INPUT_FLEXIO) {
+        NVIC_SET_PRIORITY(IRQ_GPIO6789, priority);
+    }
+}
+
+//=============================================================================
+// Begin the XCLK - this also needs to do quick test to see if we are running
+// CSI pins or not...
+//=============================================================================
+void ImageSensor::beginXClk() {
+    // Generates 8 MHz signal using PWM... Will speed up.
+
+    if (checkForCSIPins()) {
+        if (_debug)debug.println("** beginXCLK CSI **");    
+        configureCSIPin(_xclkPin);
+
+        CCM_CCGR2 &= ~CCM_CCGR2_CSI(CCM_CCGR_ON);  // turn off csi clock
+        if (_xclk_freq <= 16) {
+            _xclk_freq = 12;
+            CCM_CSCDR3 = CCM_CSCDR3_CSI_CLK_SEL(0) | CCM_CSCDR3_CSI_PODF(1);  // set csi clock source and divide by 2 = 12 MHz        
+        //} else if (_xclk_freq <= 16) {
+        //    _xclk_freq = 15;
+        //    CCM_CSCDR3 = CCM_CSCDR3_CSI_CLK_SEL(2) | CCM_CSCDR3_CSI_PODF(7);  // 120/8 = 15 MHz        
+        } else if (_xclk_freq <= 20) {
+            _xclk_freq = 20;
+            CCM_CSCDR3 = CCM_CSCDR3_CSI_CLK_SEL(2) | CCM_CSCDR3_CSI_PODF(5);  // 120/6 = 20 MHz        
+        } else {
+            // for now lets try up to 24mhz
+            _xclk_freq = 24;
+            CCM_CSCDR3 = CCM_CSCDR3_CSI_CLK_SEL(2) | CCM_CSCDR3_CSI_PODF(4);  // 120/6 = 20 MHz        
+
+        }
+
+        IOMUXC_SW_MUX_CTL_PAD_GPIO_AD_B1_05 = 0b100; // alt4
+        IOMUXC_SW_PAD_CTL_PAD_GPIO_AD_B1_05 = 0x18U;  // 50MHz speed, DSE_3
+
+        CCM_CCGR2 |= CCM_CCGR2_CSI(CCM_CCGR_ON);
+    } else {
+        // USE PWM
+        if (_debug)debug.println("** beginXCLK PWM **");    
+        analogWriteFrequency(_xclkPin, _xclk_freq * 1000000);
+        analogWrite(_xclkPin, 127);
+    }
+    delay(100); // 9mhz works, but try to reduce to debug timings with logic
+                // analyzer
+}
+
+void ImageSensor::endXClk() {
+#if defined(__IMXRT1062__) // Teensy 4.x
+    if (_cameraInput == CAMERA_INPUT_CSI) {
+        CCM_CCGR2 &= ~CCM_CCGR2_CSI(CCM_CCGR_ON);
+    } else {
+        analogWrite(_xclkPin, 0);
+    }
+#else
+    NRF_I2S->TASKS_STOP = 1;
+#endif
+}
+
+//=============================================================================
+// this is the main code to configure for FlexIO
+//=============================================================================
 bool ImageSensor::flexio_configure() {
 #ifdef DEBUG_CAMERA
     debug.println("ImageSensor::flexio_configure() called");
@@ -916,30 +1000,30 @@ bool ImageSensor::flexio_configure() {
 //=============================================================================
 // Reading using CSI support
 //=============================================================================
-bool ImageSensor::csi_configure() {
-    // lets first verify that all of the CSI pins are valid for CSI
-
-    bool pins_valid;
-    pins_valid = verifyCSIPin(_vsyncPin, CSI_VS);
-    pins_valid &= verifyCSIPin(_hrefPin, CSI_HS);
-    pins_valid &= verifyCSIPin(_pclkPin, CSI_PCLK);
-    pins_valid &= verifyCSIPin(_xclkPin, CSI_MCLK);
+bool ImageSensor::checkForCSIPins() {
+    if (!verifyCSIPin(_vsyncPin, CSI_VS)) return false;
+    if (!verifyCSIPin(_hrefPin, CSI_HS)) return false;
+    if (!verifyCSIPin(_pclkPin, CSI_PCLK)) return false;
+    if (!verifyCSIPin(_xclkPin, CSI_MCLK)) return false;
 
     // note we are wanting 4 or 8 data pins but they start at 2 in this case
     for (uint8_t i = 0; i < 4; i++)
-        pins_valid &= verifyCSIPin(_dPins[i], i + 2);
+        if (!verifyCSIPin(_dPins[i], i + 2)) return false;
     if (_dPins[4] != 0xff) {
         for (uint8_t i = 4; i < 8; i++)
-            pins_valid &= verifyCSIPin(_dPins[i], i + 2);
+            if (!verifyCSIPin(_dPins[i], i + 2)) return false;
     } else {
         _hw_config = TEENSY_MICROMOD_FLEXIO_4BIT;
     }
 
     CCM_CCGR2 |= CCM_CCGR2_CSI(CCM_CCGR_ON); // turn on CSI clocks
 
-    if (!pins_valid)
-        return false;
+    return true;
+}
 
+bool ImageSensor::csi_configure() {
+    // lets first verify that all of the CSI pins are valid for CSI
+    if (!checkForCSIPins()) return false;
     // Lets configure all of the IO pins to CSI
     // Need to see what we do with XCLK
     configureCSIPin(_vsyncPin);
@@ -973,7 +1057,7 @@ bool ImageSensor::csi_reset_dma() {
          CSI_CSICR1_REDGE);     // Use pixel clock rising edge
 
     // Set Image Parameters--width in bytes and height
-    CSI_CSIIMAG_PARA = CSI_CSIIMAG_PARA_IMAGE_WIDTH(2 * _width) |
+    CSI_CSIIMAG_PARA = CSI_CSIIMAG_PARA_IMAGE_WIDTH(_bytesPerPixel * _width) |
                        CSI_CSIIMAG_PARA_IMAGE_HEIGHT(_height);
 
     CSI_CSICR3 = CSI_CSICR3_FRMCNT_RST |            // clear the frame counter
@@ -1086,7 +1170,7 @@ size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2, size_t
     }
 
     // Set Image Parameters--width in bytes and height
-    CSI_CSIIMAG_PARA = CSI_CSIIMAG_PARA_IMAGE_WIDTH(2 * _width) |
+    CSI_CSIIMAG_PARA = CSI_CSIIMAG_PARA_IMAGE_WIDTH(_bytesPerPixel * _width) |
                        CSI_CSIIMAG_PARA_IMAGE_HEIGHT(_height);
 
     // Set our logical state

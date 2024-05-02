@@ -5,121 +5,12 @@
 #include "OV2640_regs.h"
 #include <Arduino.h>
 // Teensy 4.1 default to CSI pisn
-#ifdef ARDUINO_TEENSY41
-#define USE_CSI_PINS
-//#warning "Use CSI Pins"
-#endif
 #include <Camera.h>
 #include "teensy_csi_support.h"
 #if defined(__IMXRT1062__) // Teensy 4.x
 #include <DMAChannel.h>
 #include <FlexIO_t4.h>
 #include <Wire.h>
-
-// #define OV2640_VSYNC 2    // Lets setup for T4.1 CSI pins
-// #define USE_CSI_PINS
-
-// #define OV2640_USE_DEBUG_PINS
-#ifdef OV2640_USE_DEBUG_PINS
-#define OV2640_DEBUG_PIN_1 14
-#define OV2640_DEBUG_PIN_2 15
-#define OV2640_DEBUG_PIN_3 3
-#define DebugDigitalWrite(pin, val) digitalWriteFast(pin, val)
-#define DebugDigitalToggle(pin) digitalToggleFast(pin)
-#else
-#define DebugDigitalWrite(pin, val)
-#define DebugDigitalToggle(pin)
-#endif
-
-#ifdef ARDUINO_TEENSY_MICROMOD
-/*
-HM01B0 pin      pin#    NXP     Usage
-----------      ----    ---     -----
-FVLD/VSYNC      33      EMC_07  GPIO
-LVLD/HSYNC      32      B0_12   FlexIO2:12
-MCLK            7       B1_01   PWM
-PCLK            8       B1_00   FlexIO2:16
-D0              40      B0_04   FlexIO2:4
-D1              41      B0_05   FlexIO2:5
-D2              42      B0_06   FlexIO2:6
-D3              43      B0_07   FlexIO2:7
-D4              44      B0_08   FlexIO2:8  - probably not needed, use 4 bit mode
-D5              45      B0_09   FlexIO2:9  - probably not needed, use 4 bit mode
-D6              6       B0_10   FlexIO2:10 - probably not needed, use 4 bit mode
-D7              9       B0_11   FlexIO2:11 - probably not needed, use 4 bit mode
-TRIG            5       EMC_08  ???
-INT             29      EMC_31  ???
-SCL             19      AD_B1_0 I2C
-SDA             18      AD_B1_1 I2C
-*/
-
-#define OV2640_PLK 8    // 8       B1_00   FlexIO2:16
-#define OV2640_XCLK 7   // 7       B1_01   PWM
-#define OV2640_HREF 32  // 32      B0_12   FlexIO2:12, pin 46 on sdram board
-#define OV2640_VSYNC 33 // 33      EMC_07  GPIO, 21 pon sdram board
-#define OV2640_RST 17   // reset pin
-
-#define OV2640_D0 40 // 40      B0_04   FlexIO2:4
-#define OV2640_D1 41 // 41      B0_05   FlexIO2:5
-#define OV2640_D2 42 // 42      B0_06   FlexIO2:6
-#define OV2640_D3 43 // 43      B0_07   FlexIO2:7
-#define OV2640_D4 44 // 44      B0_08   FlexIO2:8
-#define OV2640_D5 45 // 45      B0_09   FlexIO2:9
-#define OV2640_D6 6  // 6       B0_10   FlexIO2:10
-#define OV2640_D7 9  // 9       B0_11   FlexIO2:11
-
-#elif defined USE_CSI_PINS
-#define OV2640_PLK 40 // 40 // AD_B1_04 CSI_PIXCLK
-#define OV2640_XCLK  41 // AD_B1_05 CSI_MCLK
-#define OV2640_HREF 16  // AD_B1_07 CSI_HSYNC
-#define OV2640_VSYNC 17 // AD_B1_06 CSI_VSYNC
-
-#define OV2640_D0 27 // AD_B1_15 CSI_D2
-#define OV2640_D1 26 // AD_B1_14 CSI_D3
-#define OV2640_D2 39 // AD_B1_13 CSI_D4
-#define OV2640_D3 38 // AD_B1_12 CSI_D5
-#define OV2640_D4 21 // AD_B1_11 CSI_D6
-#define OV2640_D5 20 // AD_B1_10 CSI_D7
-#define OV2640_D6 23 // AD_B1_09 CSI_D8
-#define OV2640_D7 22 // AD_B1_08 CSI_D9
-#define OV2640_RST 0xff   // reset pin
-
-#elif 1
-#define OV2640_RST 0xff   // reset pin
-#define OV2640_PLK 4    // 40 // AD_B1_04 CSI_PIXCLK
-#define OV2640_XCLK 5   // 41 // AD_B1_05 CSI_MCLK
-#define OV2640_HREF 40  // AD_B1_07 CSI_HSYNC
-#define OV2640_VSYNC 41 // AD_B1_06 CSI_VSYNC
-
-#define OV2640_D0 27 // AD_B1_02 1.18
-#define OV2640_D1 15 // AD_B1_03 1.19
-#define OV2640_D2 17 // AD_B1_06 1.22
-#define OV2640_D3 16 // AD_B1_07 1.23
-#define OV2640_D4 22 // AD_B1_08 1.24
-#define OV2640_D5 23 // AD_B1_09 1.25
-#define OV2640_D6 20 // AD_B1_10 1.26
-#define OV2640_D7 21 // AD_B1_11 1.27
-
-#else
-// For T4.1 can choose same or could choose a contiguous set of pins only one
-// shift required. Like:  Note was going to try GPI pins 1.24-21 but save SPI1
-// pins 26,27 as no ...
-#define OV2640_PLK 4
-#define OV2640_XCLK 5
-#define OV2640_HREF 40  // AD_B1_04 1.20 T4.1...
-#define OV2640_VSYNC 41 // AD_B1_05 1.21 T4.1...
-
-#define OV2640_D0 17 // AD_B1_06 1.22
-#define OV2640_D1 16 // AD_B1_07 1.23
-#define OV2640_D2 22 // AD_B1_08 1.24
-#define OV2640_D3 23 // AD_B1_09 1.25
-#define OV2640_D4 20 // AD_B1_10 1.26
-#define OV2640_D5 21 // AD_B1_11 1.27
-#define OV2640_D6 38 // AD_B1_12 1.28
-#define OV2640_D7 39 // AD_B1_13 1.29
-#endif
-//      #define OV2640_D6    26 // AD_B1_14 1.30
-//      #define OV2640_D7    27 // AD_B1_15 1.31
 
 #endif
 
@@ -268,13 +159,12 @@ class OV2640 : public ImageSensor {
     void autoGain(int enable, float gain_db, float gain_db_ceiling) {}
 
   private:
-    void beginXClk();
-    void endXClk();
+//    void beginXClk();
+//    void endXClk();
     uint8_t cameraReadRegister(uint8_t reg);
     uint8_t cameraWriteRegister(uint8_t reg, uint8_t data);
 
   private:
-    int _xclk_freq = 12;
 
     bool _grayscale;
     int _framesize = FRAMESIZE_QVGA;

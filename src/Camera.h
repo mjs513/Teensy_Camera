@@ -7,8 +7,15 @@
 #include <FlexIO_t4.h>
 #include <Wire.h>
 
+#if __has_include("user_camera_pins.h")
+#include "user_camera_pins.h"
+#else
+#include "default_camera_pins.h"
+#endif
+
 class ImageSensor {
   public:
+    //ImageSensor();
     virtual ~ImageSensor() {}
 
     // must be called before Camera.begin()
@@ -138,7 +145,7 @@ class ImageSensor {
 
     virtual bool stopReadFrameDMA() = 0;
 
-    virtual void setVSyncISRPriority(uint8_t priority) = 0;
+    virtual void setVSyncISRPriority(uint8_t priority);
     virtual void setDMACompleteISRPriority(uint8_t priority) = 0;
 
     virtual uint32_t frameCount() = 0; //{return _dma_frame_count;}
@@ -173,12 +180,22 @@ class ImageSensor {
     virtual void processDMAInterrupt() {}
 
     // default for Micromod
+    // The hardware configure will replace both
+    // the CSI and flexio configure.
+    // it will check what the pins belong to...
+    virtual bool hardware_configure();
     virtual bool flexio_configure();
+    virtual bool csi_configure();
+    bool checkForCSIPins();
+
+    // move a few more methods here:
+    virtual void beginXClk();
+    virtual void endXClk();
+
     virtual void processCSIInterrupt();
     static void CSIInterrupt();
 
     // default for Teensy 4.1
-    virtual bool csi_configure();
     virtual bool csi_reset_dma(); // needed if something goes wrong.
     virtual void processFrameStartInterrupt() {};
     virtual bool supports4BitMode() { return false; }
@@ -193,12 +210,17 @@ class ImageSensor {
     camera_input_t _cameraInput = CAMERA_INPUT_DEFAULT;
     uint32_t _timeout = 2000; // timeout in ms for a read
 
-    int _vsyncPin;
-    int _hrefPin;
-    int _pclkPin;
-    int _xclkPin;
-    int _rst;
-    int _dPins[8];
+    // Note this all could be uint8_t..
+    int _vsyncPin = CAMERAPIN_VSYNC;
+    int _hrefPin = CAMERAPIN_HREF;
+    int _pclkPin = CAMERAPIN_PLK;
+    int _xclkPin = CAMERAPIN_XCLK;
+    int _rst = CAMERAPIN_RST;
+    int _rst_init = CAMERAPIN_RST_INIT;
+    int _pwdn = CAMERAPIN_PWDN;
+    int _pwdn_init = CAMERAPIN_PWDN_INIT;
+    int _dPins[8] = {CAMERAPIN_D0, CAMERAPIN_D1, CAMERAPIN_D2, CAMERAPIN_D3,
+                    CAMERAPIN_D4, CAMERAPIN_D5, CAMERAPIN_D6, CAMERAPIN_D7};
 
     int16_t _width;
     int16_t _height;
@@ -208,7 +230,7 @@ class ImageSensor {
     bool _grayscale = false;
     int _format;
 
-    TwoWire *_wire;
+    TwoWire *_wire = &Wire;
 
     static DMAChannel _dmachannel;
     static DMASetting _dmasettings[10]; // For now lets have enough for two full
@@ -225,6 +247,7 @@ class ImageSensor {
     uint8_t _fshifter_mask;
     uint8_t _ftimer;
     uint8_t _dma_source;
+    int _xclk_freq = 12;
 
     volatile uint32_t *_vsyncPort;
     uint32_t _vsyncMask;

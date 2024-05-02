@@ -7,12 +7,13 @@
 #define USE_MMOD_ATP_ADAPTER
 #define USE_SDCARD
 
-// #define ARDUCAM_CAMERA_HM01B0
-// #define ARDUCAM_CAMERA_HM0360
+//#define ARDUCAM_CAMERA_HM01B0
+//#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV2640
-// #define ARDUCAM_CAMERA_OV7670
-//#define ARDUCAM_CAMERA_OV7675
-#define ARDUCAM_CAMERA_GC2145
+//#define ARDUCAM_CAMERA_OV5640
+//#define ARDUCAM_CAMERA_OV7670
+#define ARDUCAM_CAMERA_OV7675
+//#define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
 #include "TMM_HM0360/HM0360.h"
@@ -35,6 +36,15 @@ Camera camera(himax);
 OV2640 omni;
 Camera camera(omni);
 #define CameraID 0x2642
+#define MIRROR_FLIP_CAMERA
+#define SCREEN_ROTATION 3
+pixformat_t camera_format = RGB565;
+
+#elif defined(ARDUCAM_CAMERA_OV5640)
+#include "TMM_OV5640/OV5640.h"
+OV5640 omni;
+Camera camera(omni);
+#define CameraID OV5640a
 #define MIRROR_FLIP_CAMERA
 #define SCREEN_ROTATION 3
 pixformat_t camera_format = RGB565;
@@ -63,7 +73,7 @@ Camera camera(galaxycore);
 pixformat_t camera_format = RGB565;
 
 #endif
-#if defined(ARDUCAM_CAMERA_OV2640)
+#if defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640)
 #define skipFrames 1
 #else
 #define skipFrames 1
@@ -173,7 +183,7 @@ DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 
 #ifdef ARDUINO_TEENSY_DEVBRD4
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
-    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
+    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640)|| defined(ARDUCAM_CAMERA_GC2145)
 uint16_t *frameBuffer = nullptr;
 uint16_t *frameBuffer2 = nullptr;
 uint16_t *frameBufferSDRAM = nullptr;
@@ -198,7 +208,7 @@ uint32_t sizeof_framebufferSDRAM = 0;
 #elif defined(ARDUINO_TEENSY41)
 // CSI - lets try to setup for PSRAM (EXTMEM)
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
-    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
+    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640) || defined(ARDUCAM_CAMERA_GC2145)
 // only half buffer will fit in each of the two main memory regions
 // split into two parts, part dmamem and part fast mememory to fit 640x480x2
 EXTMEM uint16_t frameBuffer[640 * 480] __attribute__((aligned(32)));
@@ -218,7 +228,7 @@ const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
 
 #else // other boards like Micromod
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
-    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
+    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640) || defined(ARDUCAM_CAMERA_GC2145)
 // only half buffer will fit in each of the two main memory regions
 // split into two parts, part dmamem and part fast mememory to fit 640x480x2
 DMAMEM uint16_t frameBuffer[640 * 240] __attribute__((aligned(32)));
@@ -337,41 +347,9 @@ void setup() {
 
     tft.fillScreen(TFT_BLACK);
 
-/***************************************************************/
-//    setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t
-//    hsync_pin, en_pin, uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3, uint8_t
-//    g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
-#ifdef USE_MMOD_ATP_ADAPTER
-    pinMode(30, INPUT);
-    pinMode(31, INPUT_PULLUP);
-
-    if ((_hmConfig == 0) || (_hmConfig == 2)) {
-        camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
-    } else if ((_hmConfig == 1) || (_hmConfig == 3)) {
-        // camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
-        camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
-    }
-#elif defined(ARDUINO_TEENSY_DEVBRD4)
-    pinMode(23, INPUT_PULLUP);
-    if ((_hmConfig == 0) || (_hmConfig == 2)) {
-        camera.setPins(7, 8, 21, 46, 23, 40, 41, 42, 43, 44, 45, 6, 9);
-    } else if (_hmConfig == 1) {
-        // camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
-        camera.setPins(7, 8, 21, 46, 31, 40, 41, 42, 43);
-    }
-
-#elif defined(ARDUINO_TEENSY41)
-  // CSI support
+#if defined(ARDUINO_TEENSY41)
+  // Setup debug pin
   pinMode(2, OUTPUT);
-
-#else
-    if (_hmConfig == 0) {
-        // camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
-        camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43, 44, 45, 6, 9);
-    } else if (_hmConfig == 1) {
-        // camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
-        camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
-    }
 #endif
 
     //  FRAMESIZE_VGA = 0,
@@ -387,9 +365,9 @@ void setup() {
 
     uint8_t status = 0;
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
-    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
+    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640) || defined(ARDUCAM_CAMERA_GC2145)
     // VGA mode
-  #if defined(ARDUCAM_CAMERA_GC2145) || defined(ARDUCAM_CAMERA_OV2640)
+  #if defined(ARDUCAM_CAMERA_GC2145) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640)
       status = camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
       //status = camera.begin(FRAMESIZE_SVGA, camera_format, 15, false);
       //camera.setZoomWindow(-1, -1, 480, 320);
@@ -422,7 +400,7 @@ void setup() {
 
 #if defined(ARDUINO_TEENSY_DEVBRD4)
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
-    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
+    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640) || defined(ARDUCAM_CAMERA_GC2145)
 
     sizeof_framebufferSDRAM = sizeof_framebuffer = sizeof_framebuffer2 =
         camera.width() * camera.height() * 2;
@@ -449,7 +427,7 @@ void setup() {
 
 #ifndef CAMERA_USES_MONO_PALETTE
 // #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
-#if defined(ARDUCAM_CAMERA_OV2640)
+#if defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640)
 // camera.setBrightness(0);          // -2 to +2
 // camera.setContrast(0);            // -2 to +2
 // camera.setSaturation(0);          // -2 to +2
@@ -545,7 +523,7 @@ bool hm0360_flexio_callback(void *pfb) {
 #define UPDATE_ON_CAMERA_FRAMES
 
 inline uint16_t HTONS(uint16_t x) {
-#if defined(ARDUCAM_CAMERA_OV2640)
+#if defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640)
     return x;
 #else
     return ((x >> 8) & 0x00FF) | ((x << 8) & 0xFF00);
@@ -553,7 +531,7 @@ inline uint16_t HTONS(uint16_t x) {
 }
 
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
-    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
+    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640) || defined(ARDUCAM_CAMERA_GC2145)
 
 volatile uint16_t *pfb_last_frame_returned = nullptr;
 
@@ -739,7 +717,7 @@ void loop() {
             break;
         }
         case 'j': {
-#if (defined(USE_SDCARD) && defined(ARDUCAM_CAMERA_OV2640))
+#if (defined(USE_SDCARD) && (defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640)))
             bool error = false;
             error = save_jpg_SD();
             if (!error)
@@ -1246,6 +1224,7 @@ char name_jpg[] = "9px_0000.jpg"; // filename convention (will auto-increment)
                                   // can probably reuse framebuffer2...
 
 bool save_jpg_SD() {
+#if !defined(ARDUCAM_CAMERA_HM0360)
     camera.setPixformat(JPEG);
     delay(100);
     // omni.setQuality(12);
@@ -1381,6 +1360,10 @@ bool save_jpg_SD() {
     camera.useDMA(true);
     delay(50);
     return true;
+#else
+    Serial.println("ERROR: Not supported yet on this camera");
+    return false;
+#endif
 }
 
 #endif
@@ -1452,7 +1435,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
         Serial.println("Finished reading frame");
         Serial.flush();
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
-    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145)
+    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640) || defined(ARDUCAM_CAMERA_GC2145)
         for (volatile uint16_t *pfb = frameBuffer;
              pfb < (frameBuffer + 4 * camera.width()); pfb += camera.width()) {
 #else
@@ -1500,9 +1483,14 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
     uint16_t *pbuffer = (uint16_t*)camera.readFrameReturnBuffer();
 
     if (pbuffer) {
+      #ifndef CAMERA_USES_MONO_PALETTE
       for (int i = 0; i < numPixels; i++) pbuffer[i] = HTONS(pbuffer[i]);
       tft.writeRect(CENTER, CENTER, camera.width(), camera.height(),
                           pbuffer);
+      #else
+      tft.writeRect8BPP(0, 0, camera.width(), camera.height(), (uint8_t*)pbuffer,
+                      mono_palette);
+      #endif
     }
 
 #else
