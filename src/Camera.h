@@ -94,6 +94,10 @@ class ImageSensor {
     virtual void useDMA(bool f) { _fuse_dma = f; }
     virtual bool useDMA() { return _fuse_dma; }
 
+    virtual void data4BitMode(bool f) { _fdata_4bit_mode = f; }
+    virtual bool data4BitMode() { return _fdata_4bit_mode; }
+
+
     // normal Read mode
     // We will include default implementation, used by some/all of the current
     // ones.
@@ -205,6 +209,7 @@ class ImageSensor {
   protected:
     bool _debug = true; // Should the camera code print out debug information?
     bool _fuse_dma = true; // in some cameras should we use DMA or do the Io directly
+    bool _fdata_4bit_mode = false; // Some cameras only support 4 bit mode
     bool _use_gpio = false;   // set in the begin of some cameras
     bool _csi_in_flexio_mode = false; // should combine some of these. 
     camera_input_t _cameraInput = CAMERA_INPUT_DEFAULT;
@@ -667,6 +672,25 @@ class Camera {
      * Returns: true (default) if they are configured to use DMA
      */
     bool useDMA();
+
+
+/**
+     * Some cameras support 4 data bit mode.  Some like
+     * the Arduino HM01b0 only supports 4 bit mode.
+     * or not.
+     * Input: bool - yes or no
+     * Returns: none
+     */ 
+    void data4BitMode(bool f);
+
+    /**
+     * Returns True if we are in 4 bit mode.
+     * use DMA or not.
+     * Returns: true (default) if they are configured to use DMA
+     */
+    bool data4BitMode();
+
+
 
     // normal Read mode
 

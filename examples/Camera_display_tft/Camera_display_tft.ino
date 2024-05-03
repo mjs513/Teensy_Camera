@@ -10,11 +10,11 @@
 #define TFT_ROTATION 3
 // #define USE_SDCARD
 
-// #define ARDUCAM_CAMERA_HM01B0
+#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
 // #define ARDUCAM_CAMERA_OV2640
 // #define ARDUCAM_CAMERA_OV7670
- #define ARDUCAM_CAMERA_OV7675
+// #define ARDUCAM_CAMERA_OV7675
 // #define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
@@ -254,33 +254,11 @@ void setup() {
 //    hsync_pin, en_pin, uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3, uint8_t
 //    g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
 #ifdef USE_MMOD_ATP_ADAPTER
-    pinMode(30, INPUT);
-    pinMode(31, INPUT_PULLUP);
+    // debug pin
     pinMode(0, OUTPUT);
-
-    if ((_hmConfig == 0) || (_hmConfig == 2)) {
-        camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
-    } else if (_hmConfig == 1) {
-        // camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
-        camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
-    }
-#elif defined(ARDUINO_TEENSY_DEVBRD4)
-    if ((_hmConfig == 0) || (_hmConfig == 2)) {
-        camera.setPins(7, 8, 21, 46, 23, 40, 41, 42, 43, 44, 45, 6, 9);
-    } else if (_hmConfig == 1) {
-        // camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
-        camera.setPins(7, 8, 21, 46, 31, 40, 41, 42, 43);
-    }
 
 #elif defined(ARDUINO_TEENSY41)
   pinMode(2, OUTPUT);
-#else
-    if (_hmConfig == 0) {
-        // camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
-        camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43, 44, 45, 6, 9);
-    } else if (_hmConfig == 1) {
-        camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
-    }
 #endif
 
     // OV7675 Framerate = 15, 30, 60 (F, M not working looks like timing?)
@@ -316,6 +294,9 @@ void setup() {
 #else
     // HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
     // HM0360(8pin) 15/30/60/120 works :)
+    #if defined(ARDUCAM_CAMERA_HM01B0)
+    camera.data4BitMode(true);
+    #endif
     status = camera.begin(FRAMESIZE_QVGA, 15, false);
 #endif
 

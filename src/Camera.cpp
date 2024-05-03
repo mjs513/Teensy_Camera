@@ -116,6 +116,10 @@ void Camera::useDMA(bool f) { sensor->useDMA(f); }
 
 bool Camera::useDMA() { return sensor->useDMA(); }
 
+void Camera::data4BitMode(bool f) { sensor->data4BitMode(f); }
+
+bool Camera::data4BitMode() { return sensor->data4BitMode(); }
+
 // normal Read mode
 size_t Camera::readFrameGPIO(void *buffer, size_t cb1, void *buffer2,
                              size_t cb2) {

@@ -764,7 +764,8 @@ bool ImageSensor::flexio_configure() {
                          _dPins[3], tg3);
         return false;
     }
-    if (_dPins[4] != 0xff) {
+    // see if the caller set us explicitly into 4 bit mode
+    if (!_fdata_4bit_mode && _dPins[4] != 0xff) {
         uint8_t tg4 = _pflex->mapIOPinToFlexPin(_dPins[4]);
         uint8_t tg5 = _pflex->mapIOPinToFlexPin(_dPins[5]);
         uint8_t tg6 = _pflex->mapIOPinToFlexPin(_dPins[6]);
@@ -1001,20 +1002,15 @@ bool ImageSensor::flexio_configure() {
 // Reading using CSI support
 //=============================================================================
 bool ImageSensor::checkForCSIPins() {
+    if (_fdata_4bit_mode) return false; // currently we don't support 4 bit mode
     if (!verifyCSIPin(_vsyncPin, CSI_VS)) return false;
     if (!verifyCSIPin(_hrefPin, CSI_HS)) return false;
     if (!verifyCSIPin(_pclkPin, CSI_PCLK)) return false;
     if (!verifyCSIPin(_xclkPin, CSI_MCLK)) return false;
 
     // note we are wanting 4 or 8 data pins but they start at 2 in this case
-    for (uint8_t i = 0; i < 4; i++)
+    for (uint8_t i = 0; i < 8; i++)
         if (!verifyCSIPin(_dPins[i], i + 2)) return false;
-    if (_dPins[4] != 0xff) {
-        for (uint8_t i = 4; i < 8; i++)
-            if (!verifyCSIPin(_dPins[i], i + 2)) return false;
-    } else {
-        _hw_config = TEENSY_MICROMOD_FLEXIO_4BIT;
-    }
 
     CCM_CCGR2 |= CCM_CCGR2_CSI(CCM_CCGR_ON); // turn on CSI clocks
 
@@ -1030,13 +1026,8 @@ bool ImageSensor::csi_configure() {
     configureCSIPin(_hrefPin);
     configureCSIPin(_pclkPin);
 
-    for (uint8_t i = 0; i < 4; i++)
+    for (uint8_t i = 0; i < 8; i++)
         configureCSIPin(_dPins[i]);
-    if (_dPins[4] != 0xff) {
-        for (uint8_t i = 4; i < 8; i++)
-            configureCSIPin(_dPins[i]);
-    }
-
     // complete the setup with the reset dma method.
     return csi_reset_dma();
 }

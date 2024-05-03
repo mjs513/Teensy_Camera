@@ -1089,6 +1089,29 @@ uint8_t HM01B0::getAE(ae_cfg_t *psAECfg) {
 bool HM01B0::begin(framesize_t framesize, int framerate, bool use_gpio) {
     _use_gpio = use_gpio;
 
+    // WIP - Need set functions:
+    if (_rst != 0xff) {
+        if (_rst_init >= 0) {
+            pinMode(_rst, OUTPUT);
+            digitalWrite(_rst, _rst_init);            
+        } 
+        else if (_rst_init == -1) pinMode(_rst, INPUT);
+        else if (_rst_init == -2) pinMode(_rst, INPUT_PULLUP);
+        else if (_rst_init == -3) pinMode(_rst, INPUT_PULLDOWN);
+        delay(5);
+    }
+
+    if (_pwdn != 0xff) {
+        if (_pwdn_init >= 0) {
+            pinMode(_pwdn, OUTPUT);
+            digitalWrite(_pwdn, _pwdn_init);            
+        } 
+        else if (_pwdn_init == -1) pinMode(_pwdn, INPUT);
+        else if (_pwdn_init == -2) pinMode(_pwdn, INPUT_PULLUP);
+        else if (_pwdn_init == -3) pinMode(_pwdn, INPUT_PULLDOWN);
+        delay(5);
+    }
+
     _wire->begin();
 
     pinMode(_vsyncPin, INPUT_PULLDOWN); // VSYNC Pin
@@ -1146,7 +1169,7 @@ bool HM01B0::begin(framesize_t framesize, int framerate, bool use_gpio) {
     beginXClk();
 
     if (!_use_gpio) {
-        flexio_configure();
+        hardware_configure();
     }
     setVSyncISRPriority(102);
     setDMACompleteISRPriority(192);
@@ -1180,14 +1203,6 @@ void HM01B0::end() {
     Wire.end();
 }
 
-void HM01B0::beginXClk() {
-    // Generates MCLK clock
-    analogWriteFrequency(_xclkPin, OMV_XCLK_FREQUENCY);
-    analogWrite(_xclkPin, 128);
-    delay(100);
-}
-
-void HM01B0::endXClk() { analogWrite(OMV_XCLK_FREQUENCY, 0); }
 
 #define FLEXIO_USE_DMA
 
