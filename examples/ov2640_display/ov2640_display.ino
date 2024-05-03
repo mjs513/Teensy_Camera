@@ -228,42 +228,13 @@ void setup() {
   uint8_t reset_pin = 31;
   uint8_t powdwn_pin = 30;
 #ifdef USE_MMOD_ATP_ADAPTER
-  pinMode(30, INPUT);
-  pinMode(31, INPUT_PULLUP);
   pinMode(0, OUTPUT);
+  pinMode(3, OUTPUT);
   Serial.println("Using Micromod ATP Adapter");
-  if ((_hmConfig == 0) || (_hmConfig == 2)) {
-    camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
-  } else if (_hmConfig == 1) {
-    //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
-    camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
-  }
-#elif defined(ARDUINO_TEENSY_DEVBRD4)
-  pinMode(23, INPUT_PULLUP);
-  if ((_hmConfig == 0) || (_hmConfig == 2)) {
-    camera.setPins(7, 8, 21, 46, 23, 40, 41, 42, 43, 44, 45, 6, 9);
-  } else if (_hmConfig == 1) {
-    //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
-    camera.setPins(7, 8, 21, 46, 31, 40, 41, 42, 43);
-  }
-  reset_pin = 23;
-
 #elif defined(ARDUINO_TEENSY41)
   // CSI support
   pinMode(2, OUTPUT);
   pinMode(3, OUTPUT);
-  reset_pin = 14;
-  powdwn_pin = 15;
-  pinMode(powdwn_pin, INPUT);
-  pinMode(reset_pin, INPUT_PULLUP);
-#else
-  if (_hmConfig == 0) {
-    //camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
-    camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43, 44, 45, 6, 9);
-  } else if (_hmConfig == 1) {
-    camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
-  }
-  reset_pin = 17;
 #endif
 
   //  FRAMESIZE_VGA = 0,
@@ -1065,7 +1036,7 @@ bool save_jpg_SD() {
   status = readJPG(eoi, eop, false);
   if (status == 0) return false;
 
-  uint16_t *pfb = frameBuffer;
+  //uint16_t *pfb = frameBuffer;
   Serial.printf(F("Writing JPEG to SD: %s\n"), name_jpg);
 
   if (eop <= sizeof_framebuffer) {
@@ -1160,7 +1131,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
       for (uint16_t i = camera.width() - 8; i < camera.width(); i++) Serial.printf("%04x ", pfb[i]);
     }
     Serial.println("\n");
-#if 0  // Figure this out later... \
+#if 0  // Figure this out later...
        // Lets dump out some of center of image.
             Serial.println("Show Center pixels\n");
 #if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
@@ -1560,7 +1531,7 @@ bool readJPG(uint8_t &eoi_jpg, uint32_t &eop_jpg, bool debug_on) {
       if ((pfb[0] == 0xff) && (pfb[1] == 0xd8) && (pfb[2] == 0xff)) {
         // looks like first buffer has start of a JPEG...
         Serial.println("Data in buffer appears to be start with JPEG data");
-        for (int i = 3; i < (sizeof_framebuffer - 1); i++) {
+        for (int i = 3; i < (int)(sizeof_framebuffer - 1); i++) {
           if ((pfb[i] == 0xff) && (pfb[i + 1] == 0xd9)) {
             Serial.println("Data in buffer appears to be JPEG data");
             bytes_read = i + 2;
@@ -1572,7 +1543,7 @@ bool readJPG(uint8_t &eoi_jpg, uint32_t &eop_jpg, bool debug_on) {
         if ((pfb[0] == 0xff) && (pfb[1] == 0xd8) && (pfb[2] == 0xff)) {
           Serial.println("Data in buffer2 appears to be start with JPEG data");
           // looks like first buffer has start of a JPEG...
-          for (int i = 3; i < (sizeof_framebuffer2 - 1); i++) {
+          for (int i = 3; i < (int)(sizeof_framebuffer2 - 1); i++) {
             if ((pfb[i] == 0xff) && (pfb[i + 1] == 0xd9)) {
               bytes_read = i + 2;
               // hack it wants it in the first fuffer...

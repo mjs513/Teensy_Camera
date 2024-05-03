@@ -114,7 +114,7 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
     DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
 
     uint32_t frame_size_bytes = _width * _height * _bytesPerPixel;
-    if (_format == 8) {
+    if (_format == pixformat_t::JPEG) {
         frame_size_bytes = frame_size_bytes / 5;
     } else if ((cb1 + cb2) < frame_size_bytes) {
         DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
@@ -191,7 +191,7 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
             // Lets simplify back to single shifter for now
             uint8_t *pu8 = (uint8_t *)p;
             *p++ = _pflexio->SHIFTBUF[_fshifter];
-            if ((_format == 8) && (frame_bytes_received > 0)) {
+            if ((_format == pixformat_t::JPEG) && (frame_bytes_received > 0)) {
                 // jpeg check for
                 for (int i = 0; i < 4; i++) {
                     if ((pu8[i - 1] == 0xff) && (pu8[i] == 0xd9)) {
@@ -478,11 +478,43 @@ void ImageSensor::processDMAInterruptFlexIO() {
     asm("DSB");
 }
 
+//=============================================================================
+// Flexio - Start a read. 
+//=============================================================================
 bool ImageSensor::startReadFlexIO(bool (*callback)(void *frame_buffer),
                                   void *fb1, size_t cb1, void *fb2,
                                   size_t cb2) {
 
+    // Make sure DMA is avaialble on this Flexio object
+    if (_dma_source == 0xff) return false; // nope
+
     const uint32_t frame_size_bytes = _width * _height * _bytesPerPixel;
+    //-------------------------------------------------------------------------
+    // Experiment if we are doing JPEG - see if we can setup another shifter
+    // in compare mode to look for a end of frame marker. 
+    //-------------------------------------------------------------------------
+    if (_format == pixformat_t::JPEG) {
+        if (_fshifter_jpeg == 0xff) {
+            if (!_pflex->claimShifter(_fshifter-1)) return false; // could not allocate shifter
+            _fshifter_jpeg = _fshifter - 1;
+            _fshifter_mask |= (1 << _fshifter_jpeg); // update the mask of what to clear...
+
+            // Lets add our object to the 
+            _pflex->addIOHandlerCallback(this);
+
+            // We need to setup this shifter to be a compare type.
+            // 16 bits and use the shifter above us
+            _pflexio->SHIFTCFG[_fshifter_jpeg] = FLEXIO_SHIFTCFG_PWIDTH(15) | FLEXIO_SHIFTCFG_INSRC;
+            // match continuous mode 
+            _pflexio->SHIFTCTL[_fshifter_jpeg] = FLEXIO_SHIFTCTL_TIMSEL(_ftimer) | FLEXIO_SHIFTCTL_SMOD(0x5);
+            // Setup the match value. 
+            _pflexio->SHIFTBUF[_fshifter_jpeg] = 0xd9ff0000; // looking for a -0xff 0xd9 with masks of 0...
+        }
+        // enable the error interrupt on this channel - make sure it's state is not set...
+        _pflexio->SHIFTERR = _fshifter_mask;
+        _pflexio->SHIFTEIEN |= (1 << _fshifter_jpeg);
+    }
+
     // lets handle a few cases.
     if (fb1 == nullptr)
         return false;
@@ -599,6 +631,7 @@ bool ImageSensor::startReadFlexIO(bool (*callback)(void *frame_buffer),
 
     _dma_state = DMASTATE_RUNNING;
 
+    //-------------------------------------------------------------------------
     // Lets use interrupt on interrupt on VSYNC pin to start the capture of a
     // frame
     _dma_active = false;
@@ -639,6 +672,26 @@ void ImageSensor::dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title) {
         dmabc->TCD->DOFF, dmabc->TCD->CITER, dmabc->TCD->DLASTSGA,
         dmabc->TCD->CSR, dmabc->TCD->BITER);
 }
+
+
+//=============================================================================
+// Callback function for flexio
+//=============================================================================
+bool ImageSensor::call_back(FlexIOHandler *pflex) {
+    if (_pflexio->SHIFTSIEN & (1 << _fshifter_jpeg)) { 
+        // Maybe we have a match
+        DBGdigitalWriteFast(3, HIGH);
+        // Step 1 see if we actuall get it.
+        // clear
+        _pflexio->SHIFTERR = (1 << _fshifter_jpeg);
+        DBGdigitalWriteFast(3, LOW);
+    }
+
+    asm("dsb");  // not sure if we need this here or not 
+    return false;  // right now always return false... 
+}
+
+
 
 //=============================================================================
 // hardware_configure() - will check the pins to see if the camera is configured
@@ -934,7 +987,7 @@ bool ImageSensor::flexio_configure() {
     //        5 = match continuous, 6 = state machine, 7 = logic
     // 4 shifters
     _pflexio->SHIFTCTL[_fshifter] = FLEXIO_SHIFTCTL_TIMSEL(_ftimer) |
-                                    FLEXIO_SHIFTCTL_SMOD(1) |
+                                    FLEXIO_SHIFTCTL_SMOD(5) |
                                     FLEXIO_SHIFTCTL_PINSEL(tg0);
 
     // TIMCFG, page 2935
@@ -1361,7 +1414,7 @@ size_t ImageSensor::readFrameCSI_use_FlexIO(void *buffer, size_t cb1, void *buff
     DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
 
     uint32_t frame_size_bytes = _width * _height * _bytesPerPixel;
-    if (_format == 8) {
+    if (_format == pixformat_t::JPEG) {
         frame_size_bytes = frame_size_bytes / 5;
     } else if ((cb1 + cb2) < frame_size_bytes) {
         DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
@@ -1438,7 +1491,7 @@ size_t ImageSensor::readFrameCSI_use_FlexIO(void *buffer, size_t cb1, void *buff
         uint8_t *pu8 = (uint8_t *)p;
         // try the bitbyte swapped version.
         *p++ = _pflexio->SHIFTBUFBBS[_fshifter];
-        if ((_format == 8) && (frame_bytes_received > 0)) {
+        if ((_format == pixformat_t::JPEG) && (frame_bytes_received > 0)) {
             // jpeg check for
             for (int i = 0; i < 4; i++) {
                 if ((pu8[i - 1] == 0xff) && (pu8[i] == 0xd9)) {

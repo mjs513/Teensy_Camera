@@ -13,7 +13,7 @@
 #include "default_camera_pins.h"
 #endif
 
-class ImageSensor {
+class ImageSensor : public FlexIOHandlerCallback {
   public:
     //ImageSensor();
     virtual ~ImageSensor() {}
@@ -183,6 +183,9 @@ class ImageSensor {
     virtual void processFrameStartInterruptFlexIO();
     virtual void processDMAInterrupt() {}
 
+    // Callback function for flexio
+    bool call_back(FlexIOHandler *pflex);
+
     // default for Micromod
     // The hardware configure will replace both
     // the CSI and flexio configure.
@@ -252,6 +255,7 @@ class ImageSensor {
     uint8_t _fshifter_mask;
     uint8_t _ftimer;
     uint8_t _dma_source;
+    uint8_t _fshifter_jpeg = 0xff; // if jpeg have we claimed shifter? 
     int _xclk_freq = 12;
 
     volatile uint32_t *_vsyncPort;
