@@ -108,15 +108,16 @@ void ImageSensor::stopReadContinuous() {
 
 size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
                                     size_t cb2) {
+    uint32_t frame_size_bytes = _width * _height * _bytesPerPixel;
     if (_debug)
-        debug.printf("$$ImageSensor::readFrameFlexIO(%p, %u, %p, %u, %u, %u)\n",
-                     buffer, cb1, buffer2, cb2, _fuse_dma, _hw_config);
+        debug.printf("$$ImageSensor::readFrameFlexIO(%p, %u, %p, %u, %u, %u) %u\n",
+                     buffer, cb1, buffer2, cb2, _fuse_dma, _hw_config, frame_size_bytes);
     DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
 
-    uint32_t frame_size_bytes = _width * _height * _bytesPerPixel;
     if (_format == pixformat_t::JPEG) {
         frame_size_bytes = frame_size_bytes / 5;
     } else if ((cb1 + cb2) < frame_size_bytes) {
+        if (_debug) debug.println("Error: buffers are too small");
         DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
         return 0; // not enough to hold normal images...
     }
@@ -318,6 +319,8 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
 
     _dma_state = DMA_STATE_ONE_FRAME;
     _pflexio->SHIFTSDEN = _fshifter_mask;
+    _dmachannel.clearComplete();
+    _dmachannel.clearInterrupt();
     _dmachannel.enable();
 
 #ifdef DEBUG_FLEXIO
@@ -388,7 +391,7 @@ void ImageSensor::processFrameStartInterruptFlexIO() {
 #ifdef USE_DEBUG_PINS
     digitalWriteFast(5, HIGH);
 #endif
-    // debug.println("VSYNC");
+    debug.println("VSYNC");
     // See if we read the state of it a few times if the pin stays high...
     if (digitalReadFast(_vsyncPin) && digitalReadFast(_vsyncPin) &&
         digitalReadFast(_vsyncPin) && digitalReadFast(_vsyncPin)) {
@@ -404,6 +407,7 @@ void ImageSensor::processFrameStartInterruptFlexIO() {
         _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
         _pflexio->SHIFTERR = _fshifter_mask;
 
+        _dmachannel.clearInterrupt();
         _dmachannel.clearComplete();
         _dmachannel.enable();
     }
@@ -418,7 +422,7 @@ void ImageSensor::dmaInterruptFlexIO() {
 }
 
 void ImageSensor::processDMAInterruptFlexIO() {
-
+    if (_debug) debug.println("PDMAI");
     _dmachannel.clearInterrupt();
 #ifdef USE_DEBUG_PINS
     //  digitalToggleFast(2);
@@ -715,7 +719,9 @@ bool ImageSensor::hardware_configure() {
 // Default function to set the VSYNC priority
 // only needed in some implementations.
 void ImageSensor::setVSyncISRPriority(uint8_t priority) {
-    if (_cameraInput == CAMERA_INPUT_FLEXIO) {
+    if (_debug) debug.printf("\n@@@ SetVSYNC ISR priority: %u camera Input:%u\n", priority, _cameraInput);
+
+    if (_cameraInput != CAMERA_INPUT_CSI) {
         NVIC_SET_PRIORITY(IRQ_GPIO6789, priority);
     }
 }
@@ -987,7 +993,7 @@ bool ImageSensor::flexio_configure() {
     //        5 = match continuous, 6 = state machine, 7 = logic
     // 4 shifters
     _pflexio->SHIFTCTL[_fshifter] = FLEXIO_SHIFTCTL_TIMSEL(_ftimer) |
-                                    FLEXIO_SHIFTCTL_SMOD(5) |
+                                    FLEXIO_SHIFTCTL_SMOD(1) |
                                     FLEXIO_SHIFTCTL_PINSEL(tg0);
 
     // TIMCFG, page 2935
@@ -1587,7 +1593,7 @@ void ImageSensor::CSIInterrupt() {
 void ImageSensor::processCSIInterrupt() {
     // lets grab the state and see what the ISR was for....
     uint32_t csisr = CSI_CSISR; //
-    if(_debug && (csisr & (CSI_CSISR_BASEADDR_CHHANGE_ERROR | CSI_CSISR_SOF_INT | CSI_CSISR_DMA_TSF_DONE_FB1 | CSI_CSISR_DMA_TSF_DONE_FB2))) debug.printf("CSII:%x\n", csisr);
+    if(_debug /*&& (csisr & (CSI_CSISR_BASEADDR_CHHANGE_ERROR | CSI_CSISR_SOF_INT | CSI_CSISR_DMA_TSF_DONE_FB1 | CSI_CSISR_DMA_TSF_DONE_FB2))*/) debug.printf("CSII:%x\n", csisr);
     uint32_t frame_size_bytes = _width * _height * _bytesPerPixel;
 
     // Not sure if we will not SOF or not but...

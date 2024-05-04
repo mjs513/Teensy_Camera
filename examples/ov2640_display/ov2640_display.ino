@@ -10,8 +10,8 @@
 #define USE_SDCARD
 //#define useILI9341
 
-//#define ARDUCAM_CAMERA_OV2640
-#define ARDUCAM_CAMERA_OV5640
+#define ARDUCAM_CAMERA_OV2640
+//#define ARDUCAM_CAMERA_OV5640
 
 #if defined(ARDUCAM_CAMERA_OV2640)
 #include "TMM_OV2640/OV2640.h"
@@ -159,7 +159,7 @@ const uint32_t sizeof_framebuffer = sizeof(frameBuffer);
 const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
 #else
 #if defined(USE_SDCARD)
-DMAMEM uint16_t frameBuffer[700 * 240] __attribute__((aligned(32)));
+DMAMEM uint16_t frameBuffer[700 * 320] __attribute__((aligned(32)));
 uint16_t frameBuffer2[480 * 240] __attribute__((aligned(32)));
 #else
 DMAMEM uint16_t frameBuffer[640 * 240] __attribute__((aligned(32)));
@@ -1113,11 +1113,11 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
   }
   //  digitalWriteFast(24, HIGH);
   camera.useDMA(use_dma);
-  camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+  uint32_t cbRead = camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
   //  digitalWriteFast(24, LOW);
 
   if (show_debug_info) {
-    Serial.println("Finished reading frame");
+    Serial.printf("Finished reading frame(%u)\n", cbRead);
     Serial.flush();
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145) || defined(ARDUCAM_CAMERA_OV5640))
     for (volatile uint16_t *pfb = frameBuffer; pfb < (frameBuffer + 4 * camera.width()); pfb += camera.width()) {

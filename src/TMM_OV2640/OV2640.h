@@ -47,9 +47,6 @@ class OV2640 : public ImageSensor {
     inline void *frameBuffer() { return _dma_last_completed_frame; }
     void captureFrameStatistics();
 
-    void setVSyncISRPriority(uint8_t priority) {
-        NVIC_SET_PRIORITY(IRQ_GPIO6789, priority);
-    }
     void setDMACompleteISRPriority(uint8_t priority) {
         NVIC_SET_PRIORITY(_dmachannel.channel & 0xf, priority);
     }
