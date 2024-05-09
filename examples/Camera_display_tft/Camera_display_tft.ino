@@ -4,9 +4,8 @@
 
 #include "Camera.h"
 
-#ifndef ARDUINO_TEENSY41
 #define USE_MMOD_ATP_ADAPTER
-#endif
+
 #define TFT_ROTATION 3
 // #define USE_SDCARD
 
@@ -187,34 +186,43 @@ ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
 // Setup framebuffers
 DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 #ifdef ARDUINO_TEENSY_DEVBRD4
-// #include "SDRAM_t4.h"
-//  SDRAM_t4 sdram;
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
-    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145) ||         \
-    defined(ARDUCAM_CAMERA_OV5640)
+//#include "SDRAM_t4.h"
+//SDRAM_t4 sdram;
 uint16_t *frameBuffer = nullptr;
 uint16_t *frameBuffer2 = nullptr;
+uint16_t *frameBufferSDRAM = nullptr;
+uint16_t *frameBufferSDRAM2 = nullptr;
+DMAMEM uint16_t frameBufferM[640 * 240] __attribute__((aligned(32)));
+uint16_t frameBufferM2[640 * 240] __attribute__((aligned(32)));
+uint32_t sizeof_framebuffer = 0;
+uint32_t sizeof_framebuffer2 = 0;
+uint32_t sizeof_framebufferSDRAM = 0;
+#elif defined(ARDUINO_TEENSY41)
+// CSI - lets try to setup for PSRAM (EXTMEM)
+// only half buffer will fit in each of the two main memory regions
+// split into two parts, part dmamem and part fast mememory to fit 640x480x2
+EXTMEM uint16_t frameBuffer[800 * 600] __attribute__((aligned(32)));
+EXTMEM uint16_t frameBuffer2[800 * 600] __attribute__((aligned(32)));
+const uint32_t sizeof_framebuffer = sizeof(frameBuffer);
+const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
 #else
-uint8_t *frameBuffer = nullptr;
-uint8_t *frameBuffer2 = nullptr;
-#define CAMERA_USES_MONO_PALETTE
+#if defined(USE_SDCARD)
+DMAMEM uint16_t frameBuffer[700 * 320] __attribute__((aligned(32)));
+uint16_t frameBuffer2[480 * 240] __attribute__((aligned(32)));
+#else
+DMAMEM uint16_t frameBuffer[640 * 240] __attribute__((aligned(32)));
+uint16_t frameBuffer2[640 * 240] __attribute__((aligned(32)));
 #endif
-#else
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
-    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145) ||        \
-    defined(ARDUCAM_CAMERA_OV5640)
-uint16_t DMAMEM frameBuffer[(480) * 320] __attribute__((aligned(32)));
-uint16_t DMAMEM frameBuffer2[(320) * 240] __attribute__((aligned(32)));
-#else
-uint8_t DMAMEM frameBuffer[(324) * 244] __attribute__((aligned(32)));
-uint8_t DMAMEM frameBuffer2[(324) * 244] __attribute__((aligned(32)));
-#define CAMERA_USES_MONO_PALETTE
-#endif
+//#define SCREEN_ROTATION 1
+const uint32_t sizeof_framebuffer = sizeof(frameBuffer);
+const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
 #endif
 
 // Setup display modes frame / video
 bool g_continuous_flex_mode = false;
+bool g_flex_dual_buffer_per_frame = false;
 void *volatile g_new_flexio_data = nullptr;
+void *volatile g_last_flexio_data = nullptr;
 uint32_t g_flexio_capture_count = 0;
 uint32_t g_flexio_redraw_count = 0;
 elapsedMillis g_flexio_runtime;
@@ -321,7 +329,6 @@ void setup() {
     delay(500);
     pinMode(reset_pin, INPUT_PULLUP);
     delay(500);
-    
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||      \
      defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145) ||      \
      defined(ARDUCAM_CAMERA_OV5640)) 
@@ -334,7 +341,6 @@ void setup() {
     #endif
     status = camera.begin(camera_framesize, 15, false);
 #endif
-
     if (!status) {
       Serial.println("Camera failed to start again program halted");
       while (1) {}
@@ -460,9 +466,9 @@ bool hm0360_flexio_callback(void *pfb) {
 
 inline uint16_t HTONS(uint16_t x) {
 #if defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640)
-    return x;
-#else
-    return ((x >> 8) & 0x00FF) | ((x << 8) & 0xFF00);
+  return x;
+#else  //byte reverse
+  return ((x >> 8) & 0x00FF) | ((x << 8) & 0xFF00);
 #endif
 }
 
