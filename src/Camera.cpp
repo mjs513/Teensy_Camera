@@ -23,6 +23,10 @@ int Camera::setPixformat(pixformat_t pfmt) {
     return sensor->setPixformat(pfmt);
 }
 
+pixformat_t Camera::getPixformat() {
+    return sensor->getPixformat();
+}
+
 void Camera::debug(bool debug_on) { sensor->debug(debug_on); }
 bool Camera::debug() { return sensor->debug(); }
 
@@ -110,6 +114,10 @@ size_t Camera::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
 
 void *Camera::readFrameReturnBuffer() {
     return sensor->readFrameReturnBuffer();
+}
+
+size_t Camera::readImageSizeBytes() {
+    return sensor->readImageSizeBytes();
 }
 
 void Camera::useDMA(bool f) { sensor->useDMA(f); }

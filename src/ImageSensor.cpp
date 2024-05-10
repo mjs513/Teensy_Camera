@@ -405,11 +405,18 @@ void ImageSensor::processFrameStartInterruptFlexIO() {
 
         // For this pass will leave in longer DMAChain with both buffers.
         _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
-        _pflexio->SHIFTERR = _fshifter_mask;
+        _pflexio->SHIFTERR = _fshifter_mask | _fshifter_jpeg_mask;
 
         _dmachannel.clearInterrupt();
         _dmachannel.clearComplete();
         _dmachannel.enable();
+
+        if (_format == pixformat_t::JPEG) {
+            // if JPEG reenable match for ending interrupt...
+            _pflexio->SHIFTEIEN |= _fshifter_jpeg_mask;
+        }
+
+
     }
     asm("DSB");
 #ifdef USE_DEBUG_PINS
@@ -467,6 +474,8 @@ void ImageSensor::processDMAInterruptFlexIO() {
                               min(_frame_buffer_1_size, frame_size_bytes));
     }
 
+    _dma_last_completed_image_size = frame_size_bytes;
+
     if (_callback)
         (*_callback)(_dma_last_completed_frame); // TODO: use EventResponder
     // if we disabled the DMA, then setup to wait for vsyncpin...
@@ -498,25 +507,53 @@ bool ImageSensor::startReadFlexIO(bool (*callback)(void *frame_buffer),
     // in compare mode to look for a end of frame marker. 
     //-------------------------------------------------------------------------
     if (_format == pixformat_t::JPEG) {
+        if (_debug) debug.printf("startReadFlexIO called in JPEG mode: fshifter:%u\n", _fshifter_jpeg);
         if (_fshifter_jpeg == 0xff) {
+            DBGdigitalWriteFast(3, HIGH);
+            delayMicroseconds(10);
+            DBGdigitalWriteFast(3, LOW);
+            delayMicroseconds(10);
+            DBGdigitalWriteFast(3, HIGH);
+            delayMicroseconds(10);
+            DBGdigitalWriteFast(3, LOW);
+            delayMicroseconds(10);
+            DBGdigitalWriteFast(3, HIGH);
+            delayMicroseconds(10);
+            DBGdigitalWriteFast(3, LOW);
             if (!_pflex->claimShifter(_fshifter-1)) return false; // could not allocate shifter
             _fshifter_jpeg = _fshifter - 1;
-            _fshifter_mask |= (1 << _fshifter_jpeg); // update the mask of what to clear...
-
+            _fshifter_jpeg_mask = (1 << _fshifter_jpeg);
+            
             // Lets add our object to the 
             _pflex->addIOHandlerCallback(this);
 
             // We need to setup this shifter to be a compare type.
             // 16 bits and use the shifter above us
-            _pflexio->SHIFTCFG[_fshifter_jpeg] = FLEXIO_SHIFTCFG_PWIDTH(15) | FLEXIO_SHIFTCFG_INSRC;
+            _pflexio->SHIFTCFG[_fshifter_jpeg] = FLEXIO_SHIFTCFG_PWIDTH(31) | FLEXIO_SHIFTCFG_INSRC;
             // match continuous mode 
             _pflexio->SHIFTCTL[_fshifter_jpeg] = FLEXIO_SHIFTCTL_TIMSEL(_ftimer) | FLEXIO_SHIFTCTL_SMOD(0x5);
             // Setup the match value. 
+            //_pflexio->SHIFTBUF[_fshifter_jpeg] = 0xd90000FF; // looking for a -0xff 0xd9 with masks of 0...
             _pflexio->SHIFTBUF[_fshifter_jpeg] = 0xd9ff0000; // looking for a -0xff 0xd9 with masks of 0...
+            //_pflexio->SHIFTBUF[_fshifter_jpeg] = 0xffd90000; // looking for a -0xff 0xd9 with masks of 0...
         }
         // enable the error interrupt on this channel - make sure it's state is not set...
         _pflexio->SHIFTERR = _fshifter_mask;
-        _pflexio->SHIFTEIEN |= (1 << _fshifter_jpeg);
+        _pflexio->SHIFTEIEN |= _fshifter_jpeg_mask;
+    #ifdef DEBUG_FLEXIO
+        debug.printf("FLEXIO: JPEG Shifter:%u\n", _fshifter_jpeg);
+        debug.printf("     SHIFTCFG =  %08X\n", _pflexio->SHIFTCFG[_fshifter_jpeg]);
+        debug.printf("     SHIFTCTL =  %08X\n", _pflexio->SHIFTCTL[_fshifter_jpeg]);
+        debug.printf("     SHIFTBUF =  %08X\n", _pflexio->SHIFTBUF[_fshifter_jpeg]);
+        debug.printf("     SHIFTBUF =  %08X\n", _pflexio->SHIFTBUF[_fshifter_jpeg]);
+        debug.printf("     SHIFTSTAT =  %08X\n", _pflexio->SHIFTSTAT);
+        debug.printf("     SHIFTSIEN =  %08X\n", _pflexio->SHIFTSIEN);
+        debug.printf("     SHIFTERR =  %08X\n", _pflexio->SHIFTERR);
+        debug.printf("     SHIFTEIEN =  %08X\n", _pflexio->SHIFTEIEN);
+
+    #endif
+
+
     }
 
     // lets handle a few cases.
@@ -682,15 +719,72 @@ void ImageSensor::dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title) {
 // Callback function for flexio
 //=============================================================================
 bool ImageSensor::call_back(FlexIOHandler *pflex) {
-    if (_pflexio->SHIFTSIEN & (1 << _fshifter_jpeg)) { 
-        // Maybe we have a match
-        DBGdigitalWriteFast(3, HIGH);
-        // Step 1 see if we actuall get it.
-        // clear
-        _pflexio->SHIFTERR = (1 << _fshifter_jpeg);
-        DBGdigitalWriteFast(3, LOW);
+    DBGdigitalWriteFast(3, HIGH);
+    IMXRT_FLEXIO_t *p = &pflex->port();
+    // if neither of them are active return quick...
+    // hack may want to count interrupts to get the last data
+    static uint8_t count_SHIFSIEN_ints = 0;
+
+    if ((p->SHIFTEIEN == 0) && (p->SHIFTSIEN == 0)) return false;
+
+    if (_debug && ((p->SHIFTSTAT) || (p->SHIFTERR))) debug.printf("CB: %x %x\n", p->SHIFTSTAT , p->SHIFTERR);
+
+    // First check for the Shifter match for the ending 0xFF 0xD9
+    if ((p->SHIFTEIEN & _fshifter_jpeg_mask) && (p->SHIFTERR & _fshifter_jpeg_mask)) {
+        // we have a match disable us.  Maybe enable on main shifter as to allow
+        // last stuff to be saved away. 
+        p->SHIFTERR = _fshifter_jpeg_mask;
+        p->SHIFTSTAT = _fshifter_jpeg_mask;
+        p->SHIFTEIEN &= ~_fshifter_jpeg_mask;
+        p->SHIFTSIEN |= _fshifter_mask;  // enable interrupt on this one...
+        count_SHIFSIEN_ints = 2; // lets try receiving two 
+    
+    // I think the DMA will have already processed the SHIFT state, so only test we have it enable
+    } else if ((p->SHIFTSIEN & _fshifter_mask) /* && (p->SHIFTSTAT & _fshifter_mask)*/) {
+        count_SHIFSIEN_ints--;
+        if (count_SHIFSIEN_ints == 0) {
+            // So we have shifter output after we received the 0xff 0xd9
+            // now to disable the DMA operation and signal the complete frame.
+            // Not sure if I need to wait for one more transfer after this or not
+            // what happens first the DMA operation or the Interrupt call?
+            p->SHIFTSIEN &= ~_fshifter_mask; // turn off this interrupt.
+
+            // Now lets try to act like the dma completion interrupt.
+            _dmachannel.disable();
+
+            // going to assume one frame buffer used.
+            uint32_t end_address = (uint32_t)_dmachannel.TCD->DADDR;
+            uint32_t start_address = 0;
+            uint32_t frame_size_bytes = 0xffffffff;
+            if (end_address >= (uint32_t)_frame_buffer_1) {
+                start_address = (uint32_t)_frame_buffer_1;
+                frame_size_bytes = end_address - start_address;
+            }
+
+            if (end_address >= (uint32_t)_frame_buffer_2) {
+                uint32_t frame_size_bytes2 = end_address - (uint32_t)_frame_buffer_2;
+                if (frame_size_bytes2 < frame_size_bytes) {
+                    start_address = (uint32_t)_frame_buffer_2;
+                    frame_size_bytes = frame_size_bytes2;
+                }
+            }
+            _dma_last_completed_frame = (uint8_t*)start_address;
+            _dma_last_completed_image_size = frame_size_bytes;
+
+            if (start_address >= 0x20200000u)
+                arm_dcache_delete((void*)start_address, frame_size_bytes);
+
+            if (_callback) (*_callback)(_dma_last_completed_frame);
+
+            // bugbug: Lets reset to first dma setting, as we are probably in the middle of some other
+            // one... 
+            _dmachannel = _dmasettings[0];
+
+            if (_dma_state == DMASTATE_RUNNING) attachInterrupt(_vsyncPin, &frameStartInterruptFlexIO, RISING);
+        }
     }
 
+    DBGdigitalWriteFast(3, LOW);
     asm("dsb");  // not sure if we need this here or not 
     return false;  // right now always return false... 
 }
@@ -1037,7 +1131,7 @@ bool ImageSensor::flexio_configure() {
     //  either TSTART: Start bit, 0 = disabled, 1 = enabled
     _pflexio->TIMCFG[_ftimer] =
         FLEXIO_TIMCFG_TIMOUT(1) | FLEXIO_TIMCFG_TIMDEC(2) |
-        FLEXIO_TIMCFG_TIMENA(6) | FLEXIO_TIMCFG_TIMDIS(6);
+        FLEXIO_TIMCFG_TIMENA(6) | FLEXIO_TIMCFG_TIMDIS(3/*6*/);
 
     // CTRL, page 2916
     _pflexio->CTRL = FLEXIO_CTRL_FLEXEN; // enable after everything configured
@@ -1612,15 +1706,18 @@ void ImageSensor::processCSIInterrupt() {
 
         } else if (csisr & CSI_CSISR_DMA_TSF_DONE_FB1) {
             _dma_last_completed_frame = (uint8_t*)CSI_CSIDMASA_FB1;
+            _dma_last_completed_image_size = frame_size_bytes;
             _dma_state = DMA_STATE_STOPPED;
         } else if (csisr & CSI_CSISR_DMA_TSF_DONE_FB2) {
             _dma_last_completed_frame = (uint8_t*)CSI_CSIDMASA_FB2;
+            _dma_last_completed_image_size = frame_size_bytes;
             _dma_state = DMA_STATE_STOPPED;
         }
 
     } else if (_dma_state == DMASTATE_RUNNING) {
         if (csisr & CSI_CSISR_DMA_TSF_DONE_FB1) {
             _dma_last_completed_frame = (uint8_t*)CSI_CSIDMASA_FB1;
+            _dma_last_completed_image_size = frame_size_bytes;
 
             if ((uint32_t)_dma_last_completed_frame >= 0x20200000u)
                 arm_dcache_delete(_dma_last_completed_frame, frame_size_bytes);

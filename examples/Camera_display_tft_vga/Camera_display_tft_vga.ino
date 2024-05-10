@@ -368,9 +368,9 @@ void setup() {
     defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640) || defined(ARDUCAM_CAMERA_GC2145)
     // VGA mode
   #if defined(ARDUCAM_CAMERA_GC2145) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640)
-      status = camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
-      //status = camera.begin(FRAMESIZE_SVGA, camera_format, 15, false);
-      //camera.setZoomWindow(-1, -1, 480, 320);
+      //status = camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
+      status = camera.begin(FRAMESIZE_SVGA, camera_format, 8, false);
+      camera.setZoomWindow(-1, -1, 480, 320);
   #else
       status = camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
   #endif

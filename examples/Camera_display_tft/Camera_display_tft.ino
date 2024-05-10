@@ -10,7 +10,6 @@
 // #define USE_SDCARD
 
 #define use9488
-
 //#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
 #define ARDUCAM_CAMERA_OV2640

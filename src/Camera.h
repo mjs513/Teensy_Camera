@@ -36,6 +36,7 @@ class ImageSensor : public FlexIOHandlerCallback {
     virtual uint8_t readRegister(uint8_t reg) { return (uint8_t)-1; }
     virtual bool writeRegister(uint8_t reg, uint8_t data) { return false; }
     virtual int setPixformat(pixformat_t pfmt) = 0;
+    virtual pixformat_t getPixformat() {return (pixformat_t)_format;}
     virtual uint8_t setFramesize(framesize_t framesize) = 0;
     virtual uint8_t setFramesize(int w, int h) {
         return 0;
@@ -90,6 +91,8 @@ class ImageSensor : public FlexIOHandlerCallback {
                              size_t cb2 = 0); // give default one for now
 
     virtual void *readFrameReturnBuffer() {return _dma_last_completed_frame; }
+    
+    virtual size_t readImageSizeBytes() {return _dma_last_completed_image_size; }
 
     virtual void useDMA(bool f) { _fuse_dma = f; }
     virtual bool useDMA() { return _fuse_dma; }
@@ -256,6 +259,7 @@ class ImageSensor : public FlexIOHandlerCallback {
     uint8_t _ftimer;
     uint8_t _dma_source;
     uint8_t _fshifter_jpeg = 0xff; // if jpeg have we claimed shifter? 
+    uint8_t _fshifter_jpeg_mask = 0;
     int _xclk_freq = 12;
 
     volatile uint32_t *_vsyncPort;
@@ -268,6 +272,7 @@ class ImageSensor : public FlexIOHandlerCallback {
     bool (*_callback)(void *frame_buffer) = nullptr;
     uint32_t _dma_frame_count;
     uint8_t *_dma_last_completed_frame;
+    size_t _dma_last_completed_image_size;
 
     enum {
         DMASTATE_INITIAL = 0,
@@ -352,7 +357,8 @@ class Camera {
      * The OV2640/5640 are the only cameras that support JPEG fromat.
      */
     int setPixformat(pixformat_t pfmt);
-
+    pixformat_t getPixformat();
+    
     /**
      * Set the resolution of the image sensor.
      *
@@ -661,6 +667,16 @@ class Camera {
      * return: pointer to last camera buffer that was completed
      */
     void *readFrameReturnBuffer();
+
+    
+    /**
+     * Return how many bytes were used in that last frame buffer. 
+     * Note: in most cases this will be width*hight*bytes_per_pixel.
+     * But: JPEG images are different.
+     * Inpute: <none>
+     * return: count of bytes to last image in the camera buffer
+     */
+    size_t readImageSizeBytes();
 
     /**
      * Tells some readFrameFlexIO implementions if they should use DMA

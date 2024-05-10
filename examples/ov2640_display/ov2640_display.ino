@@ -30,8 +30,8 @@ Camera camera(omni);
 #endif
 
 //set cam configuration - need to remember when saving jpeg
-framesize_t camera_framesize = FRAMESIZE_QVGA;
-pixformat_t camera_format = RGB565;
+framesize_t camera_framesize = FRAMESIZE_VGA;
+pixformat_t camera_format = JPEG; //RGB565;
 bool useGPIO = false;
 
 #define skipFrames 1
@@ -174,6 +174,7 @@ const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
 bool g_continuous_flex_mode = false;
 bool g_flex_dual_buffer_per_frame = false;
 void *volatile g_new_flexio_data = nullptr;
+size_t g_new_flexio_data_length = 0;
 void *volatile g_last_flexio_data = nullptr;
 uint32_t g_flexio_capture_count = 0;
 uint32_t g_flexio_redraw_count = 0;
@@ -230,6 +231,17 @@ void setup() {
 #ifdef USE_MMOD_ATP_ADAPTER
   pinMode(0, OUTPUT);
   pinMode(3, OUTPUT);
+  digitalWriteFast(3, HIGH);
+  delayMicroseconds(25);
+  digitalWriteFast(3, LOW);
+  delayMicroseconds(25);
+  digitalWriteFast(3, HIGH);
+  delayMicroseconds(25);
+  digitalWriteFast(3, LOW);
+  delayMicroseconds(25);
+  digitalWriteFast(3, HIGH);
+  delayMicroseconds(25);
+  digitalWriteFast(3, LOW);
   Serial.println("Using Micromod ATP Adapter");
 #elif defined(ARDUINO_TEENSY41)
   // CSI support
@@ -248,7 +260,7 @@ void setup() {
   //  FRAMESIZE_SVGA, //800, 600
   //  FRAMESIZE_UXGA, //1500, 1200
   uint8_t status = 0;
-  status = camera.begin(camera_framesize, camera_format, 15, CameraID, useGPIO);
+  status = camera.begin(camera_framesize, camera_format, 5, CameraID, useGPIO);
 
   Serial.printf("Begin status: %d\n", status);
   if (!status) {
@@ -319,9 +331,10 @@ void setup() {
   showCommandList();
 }
 
-bool hm0360_flexio_callback(void *pfb) {
-  //Serial.println("Flexio callback");
+bool camera_flexio_callback(void *pfb) {
   g_new_flexio_data = pfb;
+  g_new_flexio_data_length = camera.readImageSizeBytes();
+  Serial.printf("Flexio callback %p %u\n", pfb, g_new_flexio_data_length);
   return true;
 }
 
@@ -546,7 +559,7 @@ void loop() {
         read_display_multiple_frames(true);
         break;
       case 'x':
-        processJPGFile(true);
+        processJPGFile(nullptr, 0, true); // nullptr says to do the actual read from the camera
         break;
       case 't':
         test_display();
@@ -610,7 +623,7 @@ void loop() {
       case 'F':
         {
           if (!g_continuous_flex_mode) {
-            if (camera.readContinuous(&hm0360_flexio_callback, frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2)) {
+            if (camera.readContinuous(&camera_flexio_callback, frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2)) {
               Serial.println("* continuous mode started");
               g_flex_dual_buffer_per_frame = sizeof_framebuffer < (FRAME_WIDTH * FRAME_HEIGHT * sizeof(frameBuffer[0]));
               g_flexio_capture_count = 0;
@@ -730,7 +743,27 @@ void loop() {
   }
 
   
-  if (g_continuous_flex_mode && !tft.asyncUpdateActive()) {
+  if (g_new_flexio_data && g_continuous_flex_mode && !tft.asyncUpdateActive()) {
+    pixformat_t fmt = camera.getPixformat();
+    Serial.printf("FMT: %u\n", fmt);
+    if (fmt == pixformat_t::JPEG) {
+      static uint8_t debug_count = 5;
+      uint32_t image_size = g_new_flexio_data_length;
+      memset(frameBuffer2, 0, sizeof_framebuffer2);
+      memcpy(frameBuffer2, frameBuffer, min(sizeof_framebuffer2,  image_size));
+
+      if (debug_count) {
+        debug_count--;
+        MemoryHexDump(Serial, frameBuffer2, 256, true, "Start\n");
+        MemoryHexDump(Serial, (void*)((uint32_t)frameBuffer2+image_size-128), 256, true, "end\n");
+      }
+      
+      processJPGFile((uint8_t *)frameBuffer2, sizeof_framebuffer2, true);
+      tft.updateScreenAsync();
+
+      g_new_flexio_data = nullptr;
+
+    } else
     // try to make sure we alternate.
     if (g_new_flexio_data && (!g_flex_dual_buffer_per_frame || (g_new_flexio_data != g_last_flexio_data))) {
       //Serial.println("new FlexIO data");
