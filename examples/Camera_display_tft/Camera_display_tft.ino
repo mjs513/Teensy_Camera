@@ -10,13 +10,13 @@
 // #define USE_SDCARD
 
 //#define use9488
-#define ARDUCAM_CAMERA_HM01B0
+//#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV2640
 // #define ARDUCAM_CAMERA_OV7670
 //#define ARDUCAM_CAMERA_OV7675
 //#define ARDUCAM_CAMERA_GC2145
-//#define ARDUCAM_CAMERA_OV5640
+#define ARDUCAM_CAMERA_OV5640
 
 //set cam configuration - need to remember when saving jpeg
 framesize_t camera_framesize = FRAMESIZE_QVGA;
@@ -1281,7 +1281,7 @@ void read_display_multiple_frames(bool use_frame_buffer) {
     for (;;) {
 
         for (uint8_t i = 0; i < skipFrames; i++)
-            camera.readFrame(frameBuffer, sizeof(frameBuffer));
+            camera.readFrame(frameBuffer, sizeof(frameBuffer), frameBuffer2, sizeof(frameBuffer2));
 
         int numPixels = camera.width() * camera.height();
 
@@ -1289,17 +1289,22 @@ void read_display_multiple_frames(bool use_frame_buffer) {
 // for (int i = 0; i < numPixels; i++) frameBuffer[i] = (frameBuffer[i] >> 8) |
 // (((frameBuffer[i] & 0xff) << 8));
 #ifdef CAMERA_USES_MONO_PALETTE
+        uint8_t *frameBufferRead = (uint8_t*)camera.readFrameReturnBuffer();
+        if (frameBufferRead == nullptr) frameBufferRead = frameBuffer;
         Serial.printf("NP:%d W:%u H:%u %p\n", numPixels, FRAME_WIDTH,
-                      FRAME_HEIGHT, frameBuffer);
+                      FRAME_HEIGHT, frameBufferRead);
         if (use_frame_buffer)
             tft.waitUpdateAsyncComplete();
         tft.setOrigin(-2, -2);
-        tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBuffer,
+        tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBufferRead,
                           current_mono_palette);
         tft.setOrigin(0, 0);
 #else
+        uint16_t *frameBufferRead = (uint16_t*)camera.readFrameReturnBuffer();
+        if (frameBufferRead == nullptr) frameBufferRead = frameBuffer;
+
         for (int i = 0; i < numPixels; i++)
-            frameBuffer[i] = HTONS(frameBuffer[i]);
+            frameBufferRead[i] = HTONS(frameBufferRead[i]);
 
         if (use_frame_buffer)
             tft.waitUpdateAsyncComplete();
@@ -1310,12 +1315,12 @@ void read_display_multiple_frames(bool use_frame_buffer) {
                 (camera.height() != tft.height()))
                 tft.fillScreen(TFT_BLACK);
             tft.writeRect(CENTER, CENTER, camera.width(), camera.height(),
-                          frameBuffer);
+                          frameBufferRead);
         } else {
             tft.writeSubImageRect(0, 0, tft.width(), tft.height(),
                                   (camera.width() - tft.width()) / 2,
                                   (camera.height() - tft.height()),
-                                  camera.width(), camera.height(), frameBuffer);
+                                  camera.width(), camera.height(), frameBufferRead);
         }
 #endif
 
