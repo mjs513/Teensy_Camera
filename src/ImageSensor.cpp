@@ -1347,7 +1347,8 @@ size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2, size_t
     uint32_t csisr;
 
     CSI_CSIDMASA_FB1 = (uint32_t)buffer;
-    CSI_CSIDMASA_FB2 = (uint32_t)buffer2;
+    // If only one buffer passed in use it for both CSI buffers...
+    CSI_CSIDMASA_FB2 = buffer2? (uint32_t)buffer2 : (uint32_t)buffer;
 
     if (_dma_state == DMA_STATE_FRAME_ERROR) {
         if (_debug)debug.println("$$Reset DMA due to previous error");
