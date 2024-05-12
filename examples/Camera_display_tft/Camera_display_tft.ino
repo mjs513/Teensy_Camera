@@ -7,7 +7,7 @@
 #define USE_MMOD_ATP_ADAPTER
 
 #define TFT_ROTATION 3
-// #define USE_SDCARD
+ #define USE_SDCARD
 
 //#define use9488
 //#define ARDUCAM_CAMERA_HM01B0
