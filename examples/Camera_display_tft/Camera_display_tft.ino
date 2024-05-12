@@ -9,7 +9,7 @@
 #define TFT_ROTATION 3
 // #define USE_SDCARD
 
-//#define use9488
+#define use9488
 //#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV2640
@@ -19,7 +19,7 @@
 #define ARDUCAM_CAMERA_OV5640
 
 //set cam configuration - need to remember when saving jpeg
-framesize_t camera_framesize = FRAMESIZE_QVGA;
+framesize_t camera_framesize = FRAMESIZE_VGA;
 pixformat_t camera_format = RGB565;
 bool useGPIO = false;
 
@@ -255,14 +255,31 @@ const uint32_t sizeof_framebuffer = sizeof(frameBuffer);
 const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
 #else
 #if defined(USE_SDCARD)
-DMAMEM uint16_t frameBuffer[700 * 320] __attribute__((aligned(32)));
-uint16_t frameBuffer2[480 * 240] __attribute__((aligned(32)));
+  #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
+    defined(ARDUCAM_CAMERA_OV2640)  || defined(ARDUCAM_CAMERA_GC2145) ||        \
+    defined(ARDUCAM_CAMERA_OV5640))
+    DMAMEM uint16_t frameBuffer[700 * 320] __attribute__((aligned(32)));
+    uint16_t frameBuffer2[480 * 240] __attribute__((aligned(32)));
+    uint16_t *frameBufferRead;
+  #else
+    DMAMEM uint16_t frameBuffer[700 * 320] __attribute__((aligned(32)));
+    uint16_t frameBuffer2[480 * 240] __attribute__((aligned(32)));
+    uint16_t *frameBufferRead;
+  #endif
 #else
-DMAMEM uint16_t frameBuffer[640 * 240] __attribute__((aligned(32)));
-uint16_t frameBuffer2[640 * 240] __attribute__((aligned(32)));
+  #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
+    defined(ARDUCAM_CAMERA_OV2640)  || defined(ARDUCAM_CAMERA_GC2145) ||        \
+    defined(ARDUCAM_CAMERA_OV5640))
+    DMAMEM uint16_t frameBuffer[640 * 240] __attribute__((aligned(32)));
+    uint16_t frameBuffer2[640 * 240] __attribute__((aligned(32)));
+    uint16_t *frameBufferRead;
+  #else
+    DMAMEM uint8_t frameBuffer[640 * 240] __attribute__((aligned(32)));
+    uint8_t frameBuffer2[640 * 240] __attribute__((aligned(32)));
+    uint8_t *frameBufferRead;
+  #endif
 #endif
 //#define SCREEN_ROTATION 1
-uint16_t *frameBufferRead;
 const uint32_t sizeof_framebuffer = sizeof(frameBuffer);
 const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
 #endif
@@ -287,11 +304,13 @@ void setup() {
     SerialUSB1.begin(921600);
 #endif
 
-    if (CrashReport) {
-        Serial.print(CrashReport);
-        while (1)
-            ;
-    }
+  if (CrashReport) {
+    Serial.print(CrashReport);
+    Serial.println("Press any key to continue");
+    while (Serial.read() != -1) {}
+    while (Serial.read() == -1) {}
+    while (Serial.read() != -1) {}
+  }
 
     Serial.printf("Start Display CS:%u DC:%u RST:%u\n", TFT_CS, TFT_DC, TFT_RST);
     tft.begin(15000000);
