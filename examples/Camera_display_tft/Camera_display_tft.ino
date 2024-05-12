@@ -9,10 +9,10 @@
 #define TFT_ROTATION 3
 // #define USE_SDCARD
 
-#define use9488
-//#define ARDUCAM_CAMERA_HM01B0
+//#define use9488
+#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
-#define ARDUCAM_CAMERA_OV2640
+//#define ARDUCAM_CAMERA_OV2640
 // #define ARDUCAM_CAMERA_OV7670
 //#define ARDUCAM_CAMERA_OV7675
 //#define ARDUCAM_CAMERA_GC2145
@@ -25,6 +25,7 @@ bool useGPIO = false;
 
 
 #if defined(ARDUCAM_CAMERA_HM0360)
+#define CAMERA_USES_MONO_PALETTE
 #include "TMM_HM0360/HM0360.h"
 HM0360 himax;
 Camera camera(himax);
@@ -32,6 +33,7 @@ Camera camera(himax);
 #define MIRROR_FLIP_CAMERA
 
 #elif defined(ARDUCAM_CAMERA_HM01B0)
+#define CAMERA_USES_MONO_PALETTE
 #include "TMM_HM01B0/HM01B0.h"
 HM01B0 himax;
 Camera camera(himax);
@@ -134,6 +136,42 @@ static const uint16_t mono_palette[256] PROGMEM = {
     MCP(0xf5), MCP(0xf6), MCP(0xf7), MCP(0xf8), MCP(0xf9), MCP(0xfa), MCP(0xfb),
     MCP(0xfc), MCP(0xfd), MCP(0xfe), MCP(0xff)};
 
+static const uint16_t mono_palette_4bit_rev[256] PROGMEM = {
+	MCP(0x00), MCP(0x08), MCP(0x04), MCP(0x0C), MCP(0x02), MCP(0x0A), MCP(0x06), MCP(0x0E), 
+	MCP(0x01), MCP(0x09), MCP(0x05), MCP(0x0D), MCP(0x03), MCP(0x0B), MCP(0x07), MCP(0x0F), 
+	MCP(0x80), MCP(0x88), MCP(0x84), MCP(0x8C), MCP(0x82), MCP(0x8A), MCP(0x86), MCP(0x8E), 
+	MCP(0x81), MCP(0x89), MCP(0x85), MCP(0x8D), MCP(0x83), MCP(0x8B), MCP(0x87), MCP(0x8F), 
+	MCP(0x40), MCP(0x48), MCP(0x44), MCP(0x4C), MCP(0x42), MCP(0x4A), MCP(0x46), MCP(0x4E), 
+	MCP(0x41), MCP(0x49), MCP(0x45), MCP(0x4D), MCP(0x43), MCP(0x4B), MCP(0x47), MCP(0x4F), 
+	MCP(0xC0), MCP(0xC8), MCP(0xC4), MCP(0xCC), MCP(0xC2), MCP(0xCA), MCP(0xC6), MCP(0xCE), 
+	MCP(0xC1), MCP(0xC9), MCP(0xC5), MCP(0xCD), MCP(0xC3), MCP(0xCB), MCP(0xC7), MCP(0xCF), 
+	MCP(0x20), MCP(0x28), MCP(0x24), MCP(0x2C), MCP(0x22), MCP(0x2A), MCP(0x26), MCP(0x2E), 
+	MCP(0x21), MCP(0x29), MCP(0x25), MCP(0x2D), MCP(0x23), MCP(0x2B), MCP(0x27), MCP(0x2F), 
+	MCP(0xA0), MCP(0xA8), MCP(0xA4), MCP(0xAC), MCP(0xA2), MCP(0xAA), MCP(0xA6), MCP(0xAE), 
+	MCP(0xA1), MCP(0xA9), MCP(0xA5), MCP(0xAD), MCP(0xA3), MCP(0xAB), MCP(0xA7), MCP(0xAF), 
+	MCP(0x60), MCP(0x68), MCP(0x64), MCP(0x6C), MCP(0x62), MCP(0x6A), MCP(0x66), MCP(0x6E), 
+	MCP(0x61), MCP(0x69), MCP(0x65), MCP(0x6D), MCP(0x63), MCP(0x6B), MCP(0x67), MCP(0x6F), 
+	MCP(0xE0), MCP(0xE8), MCP(0xE4), MCP(0xEC), MCP(0xE2), MCP(0xEA), MCP(0xE6), MCP(0xEE), 
+	MCP(0xE1), MCP(0xE9), MCP(0xE5), MCP(0xED), MCP(0xE3), MCP(0xEB), MCP(0xE7), MCP(0xEF), 
+	MCP(0x10), MCP(0x18), MCP(0x14), MCP(0x1C), MCP(0x12), MCP(0x1A), MCP(0x16), MCP(0x1E), 
+	MCP(0x11), MCP(0x19), MCP(0x15), MCP(0x1D), MCP(0x13), MCP(0x1B), MCP(0x17), MCP(0x1F), 
+	MCP(0x90), MCP(0x98), MCP(0x94), MCP(0x9C), MCP(0x92), MCP(0x9A), MCP(0x96), MCP(0x9E), 
+	MCP(0x91), MCP(0x99), MCP(0x95), MCP(0x9D), MCP(0x93), MCP(0x9B), MCP(0x97), MCP(0x9F), 
+	MCP(0x50), MCP(0x58), MCP(0x54), MCP(0x5C), MCP(0x52), MCP(0x5A), MCP(0x56), MCP(0x5E), 
+	MCP(0x51), MCP(0x59), MCP(0x55), MCP(0x5D), MCP(0x53), MCP(0x5B), MCP(0x57), MCP(0x5F), 
+	MCP(0xD0), MCP(0xD8), MCP(0xD4), MCP(0xDC), MCP(0xD2), MCP(0xDA), MCP(0xD6), MCP(0xDE), 
+	MCP(0xD1), MCP(0xD9), MCP(0xD5), MCP(0xDD), MCP(0xD3), MCP(0xDB), MCP(0xD7), MCP(0xDF), 
+	MCP(0x30), MCP(0x38), MCP(0x34), MCP(0x3C), MCP(0x32), MCP(0x3A), MCP(0x36), MCP(0x3E), 
+	MCP(0x31), MCP(0x39), MCP(0x35), MCP(0x3D), MCP(0x33), MCP(0x3B), MCP(0x37), MCP(0x3F), 
+	MCP(0xB0), MCP(0xB8), MCP(0xB4), MCP(0xBC), MCP(0xB2), MCP(0xBA), MCP(0xB6), MCP(0xBE), 
+	MCP(0xB1), MCP(0xB9), MCP(0xB5), MCP(0xBD), MCP(0xB3), MCP(0xBB), MCP(0xB7), MCP(0xBF), 
+	MCP(0x70), MCP(0x78), MCP(0x74), MCP(0x7C), MCP(0x72), MCP(0x7A), MCP(0x76), MCP(0x7E), 
+	MCP(0x71), MCP(0x79), MCP(0x75), MCP(0x7D), MCP(0x73), MCP(0x7B), MCP(0x77), MCP(0x7F), 
+	MCP(0xF0), MCP(0xF8), MCP(0xF4), MCP(0xFC), MCP(0xF2), MCP(0xFA), MCP(0xF6), MCP(0xFE), 
+	MCP(0xF1), MCP(0xF9), MCP(0xF5), MCP(0xFD), MCP(0xF3), MCP(0xFB), MCP(0xF7), MCP(0xFF)
+	};    
+const uint16_t *current_mono_palette = mono_palette;
+
 #ifdef ARDUINO_TEENSY_DEVBRD4
 // Set up ILI9341
 #undef USE_MMOD_ATP_ADAPTER
@@ -142,10 +180,6 @@ static const uint16_t mono_palette[256] PROGMEM = {
 #define TFT_DC 25 // AD_B0_03
 #define TFT_RST 24
 
-#elif defined(USE_MMOD_ATP_ADAPTER)
-#define TFT_DC 4  // 0   // "TX1" on left side of Sparkfun ML Carrier
-#define TFT_CS 5  // 4   // "CS" on left side of Sparkfun ML Carrier
-#define TFT_RST 2 // 1  // "RX1" on left side of Sparkfun ML Carrier
 #elif defined(ARDUINO_TEENSY41)
 #undef USE_MMOD_ATP_ADAPTER
 
@@ -155,6 +189,12 @@ static const uint16_t mono_palette[256] PROGMEM = {
 #define TFT_DC 9
 #define TFT_CS 7
 #define TFT_RST 8 
+
+#elif defined(USE_MMOD_ATP_ADAPTER)
+#define TFT_DC 4  // 0   // "TX1" on left side of Sparkfun ML Carrier
+#define TFT_CS 5  // 4   // "CS" on left side of Sparkfun ML Carrier
+#define TFT_RST 2 // 1  // "RX1" on left side of Sparkfun ML Carrier
+
 #else
 #define TFT_DC 0  // 20   // "TX1" on left side of Sparkfun ML Carrier
 #define TFT_CS 4  // 5, 4   // "CS" on left side of Sparkfun ML Carrier
@@ -200,8 +240,17 @@ uint32_t sizeof_framebufferSDRAM = 0;
 // CSI - lets try to setup for PSRAM (EXTMEM)
 // only half buffer will fit in each of the two main memory regions
 // split into two parts, part dmamem and part fast mememory to fit 640x480x2
-EXTMEM uint16_t frameBuffer[800 * 600] __attribute__((aligned(32)));
-EXTMEM uint16_t frameBuffer2[800 * 600] __attribute__((aligned(32)));
+  #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
+    defined(ARDUCAM_CAMERA_OV2640)  || defined(ARDUCAM_CAMERA_GC2145) ||        \
+    defined(ARDUCAM_CAMERA_OV5640))
+    EXTMEM uint16_t frameBuffer[800 * 600] __attribute__((aligned(32)));
+    EXTMEM uint16_t frameBuffer2[800 * 600] __attribute__((aligned(32)));
+    uint16_t *frameBufferRead;
+  #else
+    EXTMEM uint8_t frameBuffer[800 * 600] __attribute__((aligned(32)));
+    EXTMEM uint8_t frameBuffer2[800 * 600] __attribute__((aligned(32)));
+    uint8_t *frameBufferRead;
+  #endif
 const uint32_t sizeof_framebuffer = sizeof(frameBuffer);
 const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
 #else
@@ -213,6 +262,7 @@ DMAMEM uint16_t frameBuffer[640 * 240] __attribute__((aligned(32)));
 uint16_t frameBuffer2[640 * 240] __attribute__((aligned(32)));
 #endif
 //#define SCREEN_ROTATION 1
+uint16_t *frameBufferRead;
 const uint32_t sizeof_framebuffer = sizeof(frameBuffer);
 const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
 #endif
@@ -243,6 +293,7 @@ void setup() {
             ;
     }
 
+    Serial.printf("Start Display CS:%u DC:%u RST:%u\n", TFT_CS, TFT_DC, TFT_RST);
     tft.begin(15000000);
 
     tft.setRotation(TFT_ROTATION);
@@ -346,6 +397,9 @@ void setup() {
     }
   }
 
+  if (camera.dataPinsReversed() && camera.data4BitMode()) {
+    current_mono_palette = mono_palette_4bit_rev; //mono_palette;
+  }
 
 
 #ifdef MIRROR_FLIP_CAMERA
@@ -529,7 +583,7 @@ bool camera_flexio_callback_video(void *pfb) {
         arm_dcache_delete(pfb_last_frame_returned, FRAME_WIDTH * FRAME_HEIGHT);
 
     tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT,
-                      (uint8_t *)pfb_last_frame_returned, mono_palette);
+                      (uint8_t *)pfb_last_frame_returned, current_mono_palette);
     pfb_last_frame_returned = nullptr;
     tft.setOrigin(0, 0);
     uint16_t *pframebuf = tft.getFrameBuffer();
@@ -550,7 +604,7 @@ void frame_complete_cb() {
         arm_dcache_delete(pfb_last_frame_returned, FRAME_WIDTH * FRAME_HEIGHT);
 
     tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT,
-                      (uint8_t *)pfb_last_frame_returned, mono_palette);
+                      (uint8_t *)pfb_last_frame_returned, current_mono_palette);
     pfb_last_frame_returned = nullptr;
     tft.setOrigin(0, 0);
     uint16_t *pfb = tft.getFrameBuffer();
@@ -663,12 +717,25 @@ void loop() {
 #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
     defined(ARDUCAM_CAMERA_OV2640)  || defined(ARDUCAM_CAMERA_GC2145) ||        \
     defined(ARDUCAM_CAMERA_OV5640))
-            for (volatile uint16_t *pfb = frameBuffer;
-                 pfb < (frameBuffer + 4 * camera.width());
+            #ifdef ARDUINO_TEENSY41
+            // See what which camera buffer was used.
+            frameBufferRead = (uint16_t*)camera.readFrameReturnBuffer();
+            #else 
+            frameBufferRead = frameBuffer;
+            #endif
+            for (volatile uint16_t *pfb = frameBufferRead;
+                 pfb < (frameBufferRead + 4 * camera.width());
                  pfb += camera.width()) {
 #else
-            for (volatile uint8_t *pfb = frameBuffer;
-                 pfb < (frameBuffer + 4 * camera.width());
+            #ifdef ARDUINO_TEENSY41
+            // See what which camera buffer was used.
+            frameBufferRead = (uint8_t*)camera.readFrameReturnBuffer();
+            if (frameBufferRead == nullptr) frameBufferRead = frameBuffer;
+            #else 
+            frameBufferRead = frameBuffer;
+            #endif
+            for (volatile uint8_t *pfb = frameBufferRead;
+                 pfb < (frameBufferRead + 4 * camera.width());
                  pfb += camera.width()) {
 #endif
                 Serial.printf("\n%08x: ", (uint32_t)pfb);
@@ -687,15 +754,15 @@ void loop() {
     defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145) ||         \
      defined(ARDUCAM_CAMERA_OV5640)
             for (volatile uint16_t *pfb =
-                     frameBuffer + camera.width() * ((camera.height() / 2) - 8);
+                     frameBufferRead + camera.width() * ((camera.height() / 2) - 8);
                  pfb <
-                 (frameBuffer + camera.width() * (camera.height() / 2 + 8));
+                 (frameBufferRead + camera.width() * (camera.height() / 2 + 8));
                  pfb += camera.width()) {
 #else
             for (volatile uint8_t *pfb =
-                     frameBuffer + camera.width() * ((camera.height() / 2) - 8);
+                     frameBufferRead + camera.width() * ((camera.height() / 2) - 8);
                  pfb <
-                 (frameBuffer + camera.width() * (camera.height() / 2 + 8));
+                 (frameBufferRead + camera.width() * (camera.height() / 2 + 8));
                  pfb += camera.width()) {
 #endif
                 Serial.printf("\n%08x: ", (uint32_t)pfb);
@@ -727,10 +794,10 @@ void loop() {
 // int camera_width = Camera.width();
 #if 1
             // byte swap
-            // for (int i = 0; i < numPixels; i++) frameBuffer[i] =
-            // (frameBuffer[i] >> 8) | (((frameBuffer[i] & 0xff) << 8));
+            // for (int i = 0; i < numPixels; i++) frameBufferRead[i] =
+            // (frameBufferRead[i] >> 8) | (((frameBufferRead[i] & 0xff) << 8));
             for (int i = 0; i < numPixels; i++)
-                frameBuffer[i] = HTONS(frameBuffer[i]);
+                frameBufferRead[i] = HTONS(frameBufferRead[i]);
 
             if ((camera.width() <= tft.width()) &&
                 (camera.height() <= tft.height())) {
@@ -738,14 +805,14 @@ void loop() {
                     (camera.height() != tft.height()))
                     tft.fillScreen(TFT_BLACK);
                 tft.writeRect(CENTER, CENTER, camera.width(), camera.height(),
-                              frameBuffer);
+                              frameBufferRead);
             } else {
                 Serial.println("sub image");
                 tft.writeSubImageRect(0, 0, tft.width(), tft.height(),
                                       (camera.width() - tft.width()) / 2,
                                       (camera.height() - tft.height()),
                                       camera.width(), camera.height(),
-                                      frameBuffer);
+                                      frameBufferRead);
             }
 #else
             Serial.println("sub image1");
@@ -753,8 +820,8 @@ void loop() {
                                   camera.width(), camera.height(), pixels);
 #endif
 #else
-            tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBuffer,
-                              mono_palette);
+            tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBufferRead,
+                              current_mono_palette);
 #endif
             tft.setOrigin(0, 0);
             ch = ' ';
@@ -849,7 +916,7 @@ void loop() {
 #else
             tft.setOrigin(-2, -2);
             tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT,
-                              (uint8_t *)g_new_flexio_data, mono_palette);
+                              (uint8_t *)g_new_flexio_data, current_mono_palette);
             tft.setOrigin(0, 0);
 #endif
             tft.updateScreenAsync();
@@ -1228,7 +1295,7 @@ void read_display_multiple_frames(bool use_frame_buffer) {
             tft.waitUpdateAsyncComplete();
         tft.setOrigin(-2, -2);
         tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBuffer,
-                          mono_palette);
+                          current_mono_palette);
         tft.setOrigin(0, 0);
 #else
         for (int i = 0; i < numPixels; i++)

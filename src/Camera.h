@@ -99,6 +99,7 @@ class ImageSensor : public FlexIOHandlerCallback {
 
     virtual void data4BitMode(bool f) { _fdata_4bit_mode = f; }
     virtual bool data4BitMode() { return _fdata_4bit_mode; }
+    virtual bool dataPinsReversed() { return _fshifter_pins_reversed; }
 
 
     // normal Read mode
@@ -174,7 +175,6 @@ class ImageSensor : public FlexIOHandlerCallback {
 
     // See which of these are used by which cameras.
     framesize_t framesize;
-    pixformat_t pixformat;
     camera_reg_settings_t settings;
     hw_config_t _hw_config;
     hw_carrier_t _hw_carrier;
@@ -239,7 +239,7 @@ class ImageSensor : public FlexIOHandlerCallback {
     int16_t _frame_height;
     int _bytesPerPixel;
     bool _grayscale = false;
-    int _format;
+    int _format = 0;
 
     TwoWire *_wire = &Wire;
 
@@ -260,6 +260,7 @@ class ImageSensor : public FlexIOHandlerCallback {
     uint8_t _dma_source;
     uint8_t _fshifter_jpeg = 0xff; // if jpeg have we claimed shifter? 
     uint8_t _fshifter_jpeg_mask = 0;
+    bool _fshifter_pins_reversed = false;
     int _xclk_freq = 12;
 
     volatile uint32_t *_vsyncPort;
@@ -710,7 +711,17 @@ class Camera {
      */
     bool data4BitMode();
 
-
+    /**
+     * Sometimes we run into FlexIO pins that are reversed
+     * That is instead of D1 == D0 + 1 and D2 == D0 + 2... 
+     * We have D1 == D0 - 1 and D23 == D0 - 2 ...
+     * Most likely case: use FlexIO on CSI pins.
+     * Sometimes the sketch needs to know this es for example
+     * 4 bit mode, the sketch may need to do something special.
+     * Inputs: None
+     * Returns: true if the flexio data pins are reversed.
+     */
+     bool dataPinsReversed();
 
     // normal Read mode
 

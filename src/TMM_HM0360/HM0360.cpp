@@ -106,13 +106,13 @@ int HM0360::setPixformat(pixformat_t pfmt) {
     int ret = 0;
     switch (pfmt) {
     case PIXFORMAT_BAYER:
-        pixformat = PIXFORMAT_BAYER;
+        _format = PIXFORMAT_BAYER;
         break;
     case PIXFORMAT_GRAYSCALE:
-        pixformat = PIXFORMAT_GRAYSCALE;
+        _format = PIXFORMAT_GRAYSCALE;
         break;
     default:
-        pixformat = PIXFORMAT_INVALID;
+        _format = PIXFORMAT_INVALID;
         return -1;
     }
 
@@ -917,7 +917,7 @@ void HM0360::processDMAInterrupt() {
 #ifdef DEBUG_CAMERA_VERBOSE
     if ((_dma_index < 3) || (buffer_size < DMABUFFER_SIZE)) {
         debug.printf("D(%d, %d, %lu) %u : ", _dma_index, buffer_size,
-                     _bytes_left_dma, pixformat);
+                     _bytes_left_dma, _format);
         for (uint16_t i = 0; i < 8; i++) {
             uint16_t b = buffer[i] >> 4;
             debug.printf(" %lx(%02x)", buffer[i], b);

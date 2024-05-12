@@ -161,19 +161,26 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
 
     elapsedMillis timeout = 0;
 
+    // see if we should reverse the bits in the bytes
+    // this only works if in 8 bit mode.
+    volatile uint32_t *flexio_shift_buffer = &_pflexio->SHIFTBUF[_fshifter];
+    if (_fshifter_pins_reversed && !_fdata_4bit_mode) {
+        if (_debug) debug.println("Using SHIFTBUFBBS");
+        flexio_shift_buffer = &_pflexio->SHIFTBUFBBS[_fshifter];
+    }
+
     // for flexIO will simply return the first buffer.
     //_dma_last_completed_frame = buffer;
 
     //----------------------------------------------------------------------
     // Polling FlexIO version
     //----------------------------------------------------------------------
-    if (!_fuse_dma) {
+    if (!_fuse_dma || (_dma_source == 0xff)) {
         if (_debug)
             debug.println("\tNot DMA");
         // lets try another version of this to see if cleaner.
         uint32_t *p_end = (uint32_t *)((uint8_t *)p + cb1);
         uint32_t max_time_to_wait = _timeout;
-
         uint32_t frame_bytes_received = 0;
         while (frame_bytes_received < frame_size_bytes) {
             while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
@@ -191,7 +198,8 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
             }
             // Lets simplify back to single shifter for now
             uint8_t *pu8 = (uint8_t *)p;
-            *p++ = _pflexio->SHIFTBUF[_fshifter];
+
+            *p++ = *flexio_shift_buffer;
             if ((_format == pixformat_t::JPEG) && (frame_bytes_received > 0)) {
                 // jpeg check for
                 for (int i = 0; i < 4; i++) {
@@ -248,11 +256,12 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
     uint8_t count_dma_settings = (cb_left / (32767 * 4)) + 1;
     uint32_t cb_per_setting = ((cb_left / count_dma_settings) + 3) &
                               0xfffffffc; // round up to next multiple of 4.
+
     if (_debug)
         debug.printf("frame size: %u, cb1:%u cnt dma: %u CB per: %u\n",
                      frame_size_bytes, cb1, count_dma_settings, cb_per_setting);
     if ((cb1 >= frame_size_bytes) && (count_dma_settings == 1)) {
-        _dmachannel.source(_pflexio->SHIFTBUF[_fshifter]);
+        _dmachannel.source(*flexio_shift_buffer);
         _dmachannel.destinationBuffer((uint32_t *)buffer, frame_size_bytes);
         _dmachannel.transferSize(4);
         _dmachannel.transferCount(frame_size_bytes / 4);
@@ -267,7 +276,7 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
     } else {
         for (; dmas_index < count_dma_settings; dmas_index++) {
             _dmasettings[dmas_index].TCD->CSR = 0;
-            _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
+            _dmasettings[dmas_index].source(*flexio_shift_buffer);
             _dmasettings[dmas_index].destinationBuffer(p, cb_per_setting);
             _dmasettings[dmas_index].replaceSettingsOnCompletion(
                 _dmasettings[dmas_index + 1]);
@@ -290,7 +299,7 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
 
             for (uint8_t i = 0; i < count_dma_settings; i++, dmas_index++) {
                 _dmasettings[dmas_index].TCD->CSR = 0;
-                _dmasettings[dmas_index].source(_pflexio->SHIFTBUF[_fshifter]);
+                _dmasettings[dmas_index].source(*flexio_shift_buffer);
                 _dmasettings[dmas_index].destinationBuffer(p, cb_per_setting);
                 _dmasettings[dmas_index].replaceSettingsOnCompletion(
                     _dmasettings[dmas_index + 1]);
@@ -820,14 +829,30 @@ void ImageSensor::setVSyncISRPriority(uint8_t priority) {
     }
 }
 
+struct pwm_pin_info_struct {
+    uint8_t type;    // 0=no pwm, 1=flexpwm, 2=quad
+    uint8_t module;  // 0-3, 0-3
+    uint8_t channel; // 0=X, 1=A, 2=B
+    uint8_t muxval;  //
+};
+extern const struct pwm_pin_info_struct pwm_pin_info[];
+
+bool checkIfPinSupportsPWM(uint8_t pin) {
+    if (pin >= CORE_NUM_DIGITAL) return false;
+    return (pwm_pin_info[pin].type != 0);
+}
+
 //=============================================================================
 // Begin the XCLK - this also needs to do quick test to see if we are running
 // CSI pins or not...
+//
+// If xclk is CSI we will use that by default.
 //=============================================================================
 void ImageSensor::beginXClk() {
     // Generates 8 MHz signal using PWM... Will speed up.
 
-    if (checkForCSIPins()) {
+
+    if (verifyCSIPin(_xclkPin, CSI_MCLK)) {
         if (_debug)debug.println("** beginXCLK CSI **");    
         configureCSIPin(_xclkPin);
 
@@ -896,7 +921,7 @@ bool ImageSensor::flexio_configure() {
     uint8_t tg1 = _pflex->mapIOPinToFlexPin(_dPins[1]);
     uint8_t tg2 = _pflex->mapIOPinToFlexPin(_dPins[2]);
     uint8_t tg3 = _pflex->mapIOPinToFlexPin(_dPins[3]);
-
+    uint8_t shiftctl_pinctl = tg0; // most cases it will be the first pin
     // make sure the minimum here is valid:
     if ((thsync_pin == 0xff) || (tg0 == 0xff) || (tg1 == 0xff) ||
         (tg2 == 0xff) || (tg3 == 0xff)) {
@@ -915,7 +940,12 @@ bool ImageSensor::flexio_configure() {
             debug.printf("    G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)",
                          _dPins[0], tg0, _dPins[1], tg1, _dPins[2], tg2,
                          _dPins[3], tg3);
-        return false;
+
+        if ((tg1 == (tg0 - 1)) && (tg2 == (tg0 - 2)) && (tg3 == (tg0 - 3))) {
+            if (_debug)debug.println("\tpins reversed");
+            _fshifter_pins_reversed = true;
+            shiftctl_pinctl = tg3; // but reversed so use this in 4 bit mode
+        } else return false;
     }
     // see if the caller set us explicitly into 4 bit mode
     if (!_fdata_4bit_mode && _dPins[4] != 0xff) {
@@ -923,21 +953,32 @@ bool ImageSensor::flexio_configure() {
         uint8_t tg5 = _pflex->mapIOPinToFlexPin(_dPins[5]);
         uint8_t tg6 = _pflex->mapIOPinToFlexPin(_dPins[6]);
         uint8_t tg7 = _pflex->mapIOPinToFlexPin(_dPins[7]);
-        if ((tg4 != (tg0 + 4)) || (tg5 != (tg0 + 5)) || (tg6 != (tg0 + 6)) ||
-            (tg7 != (tg0 + 7))) {
-            debug.printf(
-                "OV767X Flex IO pins G4-G7 are not consective with G0-3\n");
-            if (_debug)
+        if (!_fshifter_pins_reversed) {
+            if ((tg4 != (tg0 + 4)) || (tg5 != (tg0 + 5)) || (tg6 != (tg0 + 6)) ||
+                (tg7 != (tg0 + 7))) {
                 debug.printf(
-                    "    G0(%u %u) G4(%u %u) G5(%u %u) G6(%u %u) G7(%u %u)",
-                    _dPins[0], tg0, _dPins[4], tg4, _dPins[5], tg5, _dPins[6],
-                    tg6, _dPins[7], tg7);
-            return false;
+                    "OV767X Flex IO pins G4-G7 are not consective with G0-3\n");
+                if (_debug)
+                    debug.printf("    G0(%u %u) G4(%u %u) G5(%u %u) G6(%u %u) G7(%u %u)",
+                        _dPins[0], tg0, _dPins[4], tg4, _dPins[5], tg5, _dPins[6], tg6, _dPins[7], tg7);
+                return false;
+            }
+        } else {
+            if ((tg4 != (tg0 - 4)) || (tg5 != (tg0 - 5)) || (tg6 != (tg0 - 6)) || (tg7 != (tg0 - 7))) {
+                debug.printf(
+                    "OV767X Flex IO pins G4-G7 are not consective with G0-3\n");
+                if (_debug)
+                    debug.printf("    G0(%u %u) G4(%u %u) G5(%u %u) G6(%u %u) G7(%u %u)",
+                        _dPins[0], tg0, _dPins[4], tg4, _dPins[5], tg5, _dPins[6],
+                        tg6, _dPins[7], tg7);
+                return false;
+            }
+            shiftctl_pinctl = tg7; // but reversed so use this in 8 bit mode
         }
         if (_debug)
             debug.println("Custom - Flexio is 8 bit mode");
     } else {
-        // only 8 bit mode supported
+        // Fiexio in 4 bit mode.  
         _hw_config = TEENSY_MICROMOD_FLEXIO_4BIT;
         if (_debug)
             debug.println("Custom - Flexio is 4 bit mode");
@@ -969,7 +1010,7 @@ bool ImageSensor::flexio_configure() {
     _pflex->setIOPinToFlexMode(_dPins[1]);
     _pflex->setIOPinToFlexMode(_dPins[2]);
     _pflex->setIOPinToFlexMode(_dPins[3]);
-    if (_dPins[4] != 0xff) {
+    if (!_fdata_4bit_mode && (_dPins[4] != 0xff)) {
         _pflex->setIOPinToFlexMode(_dPins[4]);
         _pflex->setIOPinToFlexMode(_dPins[5]);
         _pflex->setIOPinToFlexMode(_dPins[6]);
@@ -1088,7 +1129,7 @@ bool ImageSensor::flexio_configure() {
     // 4 shifters
     _pflexio->SHIFTCTL[_fshifter] = FLEXIO_SHIFTCTL_TIMSEL(_ftimer) |
                                     FLEXIO_SHIFTCTL_SMOD(1) |
-                                    FLEXIO_SHIFTCTL_PINSEL(tg0);
+                                    FLEXIO_SHIFTCTL_PINSEL(shiftctl_pinctl);
 
     // TIMCFG, page 2935
     //  TIMOUT: Output
