@@ -8,14 +8,15 @@
  * details.
  *
  * OV5640 register definitions.
+ *
+ * Note: Some mods made to get JPEG working and other minor things, like
+ * special effects, white balance, night mode, hue, sharpness.
  */
 #ifndef __REG_REGS_H__
 #define __REG_REGS_H__
 
 // Image sensor drivers configuration.
-#define OMV_OV5640_ENABLE (1)
 #define OMV_OV5640_AF_ENABLE (0)
-#define OMV_OV5640_XCLK_FREQ (24000000)
 #define OMV_OV5640_PLL_CTRL2 (0x64)
 #define OMV_OV5640_PLL_CTRL3 (0x13)
 #define OMV_OV5640_REV_Y_CHECK (0)
@@ -135,6 +136,24 @@
 #define FORMAT_CONTROL_MUX 0x501F
 
 #define PRE_ISP_TEST 0x503D
+
+#define ISP_CONTROL_01 0x5001
+#define SDE_CTRL0 0x5580
+#define SDE_CTRL1 0x5581
+#define SDE_CTRL2 0x5582
+#define SDE_CTRL5 0x5585
+#define SDE_CTRL6 0x5586
+#define SDE_CTRL8 0x5588
+
+#define CIP_SHARPENMT_THRESH1 0x5300
+#define CIP_SHARPENMT_THRESH2 0x5301
+#define CIP_SHARPENMT_OFFSET1 0x5302
+#define CIP_SHARPENMT_OFFSET2 0x5303
+#define CIP_CTRL 0x5308
+#define CIP_SHARPENTH_THRESH1 0x5309
+#define CIP_SHARPENTH_THRESH2 0x530A
+#define CIP_SHARPENTH_OFFSET1 0x530B
+#define CIP_SHARPENTH_OFFSET2 0x530C
 
 #define MCU_FIRMWARE_BASE 0x8000
 

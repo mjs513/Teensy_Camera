@@ -113,6 +113,7 @@ class OV5640 : public ImageSensor {
     int getRGB_Gain_db(float *r_gain_db, float *g_gain_db, float *b_gain_db);
     int setHmirror(int enable);
     int setVflip(int enable);
+    void setHue(int hue);
 
     /**
      * Sets OV5640 Image Special Effects.
@@ -148,6 +149,8 @@ class OV5640 : public ImageSensor {
     int getBlcRegs(int *regs);
     int setLensCorrection(int enable);
     int setNightMode(int enable);
+    int setSharpness(int level);
+    int setAutoSharpness(int enable);
 
     void showRegisters();
 
@@ -155,7 +158,6 @@ class OV5640 : public ImageSensor {
     bool writeRegister(uint8_t reg, uint8_t data) { return false; }
 
     /*********************************************************/
-    void setHue(int hue) {}
     void setExposure(int exposure) {}
 
     bool begin(framesize_t framesize = FRAMESIZE_QVGA, int framerate = 30,
