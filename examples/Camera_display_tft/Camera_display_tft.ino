@@ -9,7 +9,7 @@
 #define TFT_ROTATION 3
  #define USE_SDCARD
 
-#define use9488
+//#define use9488
 //#define ARDUCAM_CAMERA_HM01B0
 //#define ARDUCAM_CAMERA_HM0360
 //#define ARDUCAM_CAMERA_OV2640
@@ -19,7 +19,7 @@
 #define ARDUCAM_CAMERA_OV5640
 
 //set cam configuration - need to remember when saving jpeg
-framesize_t camera_framesize = FRAMESIZE_VGA;
+framesize_t camera_framesize = FRAMESIZE_QVGA;
 pixformat_t camera_format = RGB565;
 bool useGPIO = false;
 
@@ -76,6 +76,12 @@ Camera camera(omni);
 #define skipFrames 1
 #else
 #define skipFrames 1
+#endif
+
+#ifdef CAMERA_USES_MONO_PALETTE
+typedef uint8_t PIXEL_TYPE;
+#else
+typedef uint16_t PIXEL_TYPE;
 #endif
 
 File file;
@@ -227,12 +233,12 @@ DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 #ifdef ARDUINO_TEENSY_DEVBRD4
 //#include "SDRAM_t4.h"
 //SDRAM_t4 sdram;
-uint16_t *frameBuffer = nullptr;
-uint16_t *frameBuffer2 = nullptr;
-uint16_t *frameBufferSDRAM = nullptr;
-uint16_t *frameBufferSDRAM2 = nullptr;
-DMAMEM uint16_t frameBufferM[640 * 240] __attribute__((aligned(32)));
-uint16_t frameBufferM2[640 * 240] __attribute__((aligned(32)));
+PIXEL_TYPE *frameBuffer = nullptr;
+PIXEL_TYPE *frameBuffer2 = nullptr;
+PIXEL_TYPE *frameBufferSDRAM = nullptr;
+PIXEL_TYPE *frameBufferSDRAM2 = nullptr;
+DMAMEM PIXEL_TYPE frameBufferM[640 * 240] __attribute__((aligned(32)));
+PIXEL_TYPE frameBufferM2[640 * 240] __attribute__((aligned(32)));
 uint32_t sizeof_framebuffer = 0;
 uint32_t sizeof_framebuffer2 = 0;
 uint32_t sizeof_framebufferSDRAM = 0;
@@ -243,13 +249,11 @@ uint32_t sizeof_framebufferSDRAM = 0;
   #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
     defined(ARDUCAM_CAMERA_OV2640)  || defined(ARDUCAM_CAMERA_GC2145) ||        \
     defined(ARDUCAM_CAMERA_OV5640))
-    EXTMEM uint16_t frameBuffer[800 * 600] __attribute__((aligned(32)));
-    EXTMEM uint16_t frameBuffer2[800 * 600] __attribute__((aligned(32)));
-    uint16_t *frameBufferRead;
+    EXTMEM PIXEL_TYPE frameBuffer[800 * 600] __attribute__((aligned(32)));
+    EXTMEM PIXEL_TYPE frameBuffer2[800 * 600] __attribute__((aligned(32)));
   #else
-    EXTMEM uint8_t frameBuffer[800 * 600] __attribute__((aligned(32)));
-    EXTMEM uint8_t frameBuffer2[800 * 600] __attribute__((aligned(32)));
-    uint8_t *frameBufferRead;
+    EXTMEM PIXEL_TYPE frameBuffer[800 * 600] __attribute__((aligned(32)));
+    EXTMEM PIXEL_TYPE frameBuffer2[800 * 600] __attribute__((aligned(32)));
   #endif
 const uint32_t sizeof_framebuffer = sizeof(frameBuffer);
 const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
@@ -258,25 +262,21 @@ const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
   #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
     defined(ARDUCAM_CAMERA_OV2640)  || defined(ARDUCAM_CAMERA_GC2145) ||        \
     defined(ARDUCAM_CAMERA_OV5640))
-    DMAMEM uint16_t frameBuffer[700 * 320] __attribute__((aligned(32)));
-    uint16_t frameBuffer2[480 * 240] __attribute__((aligned(32)));
-    uint16_t *frameBufferRead;
+    DMAMEM PIXEL_TYPE frameBuffer[700 * 320] __attribute__((aligned(32)));
+    PIXEL_TYPE frameBuffer2[480 * 240] __attribute__((aligned(32)));
   #else
-    DMAMEM uint16_t frameBuffer[700 * 320] __attribute__((aligned(32)));
-    uint16_t frameBuffer2[480 * 240] __attribute__((aligned(32)));
-    uint16_t *frameBufferRead;
+    DMAMEM PIXEL_TYPE frameBuffer[700 * 320] __attribute__((aligned(32)));
+    PIXEL_TYPE frameBuffer2[480 * 240] __attribute__((aligned(32)));
   #endif
 #else
   #if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
     defined(ARDUCAM_CAMERA_OV2640)  || defined(ARDUCAM_CAMERA_GC2145) ||        \
     defined(ARDUCAM_CAMERA_OV5640))
-    DMAMEM uint16_t frameBuffer[640 * 240] __attribute__((aligned(32)));
-    uint16_t frameBuffer2[640 * 240] __attribute__((aligned(32)));
-    uint16_t *frameBufferRead;
+    DMAMEM PIXEL_TYPE frameBuffer[640 * 240] __attribute__((aligned(32)));
+    PIXEL_TYPE frameBuffer2[640 * 240] __attribute__((aligned(32)));
   #else
-    DMAMEM uint8_t frameBuffer[640 * 240] __attribute__((aligned(32)));
-    uint8_t frameBuffer2[640 * 240] __attribute__((aligned(32)));
-    uint8_t *frameBufferRead;
+    DMAMEM PIXEL_TYPE frameBuffer[640 * 240] __attribute__((aligned(32)));
+    PIXEL_TYPE frameBuffer2[640 * 240] __attribute__((aligned(32)));
   #endif
 #endif
 //#define SCREEN_ROTATION 1
@@ -374,46 +374,22 @@ void setup() {
 #endif
 
     uint8_t status = 0;
-#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||      \
-     defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145) ||      \
-     defined(ARDUCAM_CAMERA_OV5640)) 
-    status = camera.begin(camera_framesize, camera_format, 15, CameraID, useGPIO);
-#else
+#if defined(CAMERA_USES_MONO_PALETTE)
     // HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
     // HM0360(8pin) 15/30/60/120 works :)
     #if defined(ARDUCAM_CAMERA_HM01B0)
     camera.data4BitMode(true);
     #endif
     status = camera.begin(camera_framesize, 15, useGPIO);
+#else
+    status = camera.begin(camera_framesize, camera_format, 15, CameraID, useGPIO);
 #endif
 
 
   Serial.printf("Begin status: %d\n", status);
   if (!status) {
-    Serial.println("Camera failed to start - try reset!!!");
-    //Serial.printf("\tPin 30:%u 31:%u\n", digitalReadFast(30), digitalReadFast(31));
-    Serial.printf("\tPin rst(%u):%u PowDn(%u):%u\n", reset_pin, digitalRead(reset_pin), powdwn_pin, digitalRead(powdwn_pin));
-    pinMode(reset_pin, OUTPUT);
-    digitalWriteFast(reset_pin, LOW);
-    delay(500);
-    pinMode(reset_pin, INPUT_PULLUP);
-    delay(500);
-#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||      \
-     defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145) ||      \
-     defined(ARDUCAM_CAMERA_OV5640)) 
-    status = camera.begin(FRAMESIZE_QVGA, RGB565, 12, CameraID, false);
-#else
-    // HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
-    // HM0360(8pin) 15/30/60/120 works :)
-    #if defined(ARDUCAM_CAMERA_HM01B0)
-    camera.data4BitMode(true);
-    #endif
-    status = camera.begin(camera_framesize, 15, false);
-#endif
-    if (!status) {
       Serial.println("Camera failed to start again program halted");
       while (1) {}
-    }
   }
 
   if (camera.dataPinsReversed() && camera.data4BitMode()) {
@@ -434,26 +410,8 @@ void setup() {
     //  while (1)
     //    ;
     //};
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
-    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145) ||         \
-    defined(ARDUCAM_CAMERA_OV5640)) 
-
-    frameBuffer = (uint16_t *)((
-        ((uint32_t)(sdram_malloc(camera.width() * camera.height() * 2 + 32)) +
-         32) &
-        0xffffffe0));
-    frameBuffer2 = (uint16_t *)((
-        ((uint32_t)(sdram_malloc(camera.width() * camera.height() * 2 + 32)) +
-         32) &
-        0xffffffe0));
-#else
-    frameBuffer = (uint8_t *)((
-        ((uint32_t)(sdram_malloc(camera.width() * camera.height() + 32)) + 32) &
-        0xffffffe0));
-    frameBuffer2 = (uint8_t *)((
-        ((uint32_t)(sdram_malloc(camera.width() * camera.height() + 32)) + 32) &
-        0xffffffe0));
-#endif
+    frameBuffer = (PIXEL_TYPE *)((((uint32_t)(sdram_malloc(camera.width() * camera.height()  * sizeof(PIXEL_TYPE) + 32)) + 32) & 0xffffffe0));
+    frameBuffer2 = (PIXEL_TYPE *)((((uint32_t)(sdram_malloc(camera.width() * camera.height() * sizeof(PIXEL_TYPE) + 32)) + 32) & 0xffffffe0));
     Serial.printf("Camera Buffers: %p %p\n", frameBuffer, frameBuffer2);
 #endif
 
@@ -536,7 +494,8 @@ bool hm0360_flexio_callback(void *pfb) {
 // Quick and Dirty
 #define UPDATE_ON_CAMERA_FRAMES
 
-inline uint16_t HTONS(uint16_t x) {
+
+inline PIXEL_TYPE HTONS(PIXEL_TYPE x) {
 #if defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640)
   return x;
 #else  //byte reverse
@@ -544,14 +503,23 @@ inline uint16_t HTONS(uint16_t x) {
 #endif
 }
 
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
-    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145) ||         \
-    defined(ARDUCAM_CAMERA_OV5640)
+//---------------------------------------------------------------
+// Some cameras return the frame contents with their bytes reversed
+//---------------------------------------------------------------
+inline void maybeFixFramePixels(PIXEL_TYPE *buffer) {
+  #if !defined(CAMERA_USES_MONO_PALETTE) && !defined(ARDUCAM_CAMERA_OV2640) && !defined(ARDUCAM_CAMERA_OV5640)
+  int numPixels = camera.width() * camera.height();
+  for (int i = 0; i < numPixels; i++) buffer[i] = HTONS(buffer[i]);
+  #endif
+}
 
-volatile uint16_t *pfb_last_frame_returned = nullptr;
+
+#if !defined(CAMERA_USES_MONO_PALETTE)
+
+volatile PIXEL_TYPE *pfb_last_frame_returned = nullptr;
 
 bool camera_flexio_callback_video(void *pfb) {
-    pfb_last_frame_returned = (uint16_t *)pfb;
+    pfb_last_frame_returned = (PIXEL_TYPE *)pfb;
 #ifdef UPDATE_ON_CAMERA_FRAMES
     if ((uint32_t)pfb_last_frame_returned >= 0x20200000u)
         arm_dcache_delete((void *)pfb_last_frame_returned,
@@ -562,10 +530,10 @@ bool camera_flexio_callback_video(void *pfb) {
         pfb_last_frame_returned[i] = HTONS(pfb_last_frame_returned[i]);
 
     tft.writeRect(0, 0, FRAME_WIDTH, FRAME_HEIGHT,
-                  (uint16_t *)pfb_last_frame_returned);
+                  (PIXEL_TYPE *)pfb_last_frame_returned);
     pfb_last_frame_returned = nullptr;
     tft.setOrigin(0, 0);
-    uint16_t *pframebuf = tft.getFrameBuffer();
+    PIXEL_TYPE *pframebuf = tft.getFrameBuffer();
     if ((uint32_t)pframebuf >= 0x20200000u)
         arm_dcache_flush(pframebuf, FRAME_WIDTH * FRAME_HEIGHT);
 #endif
@@ -585,27 +553,27 @@ void frame_complete_cb() {
                                        FRAME_WIDTH, FRAME_HEIGHT,
                                        pfb_last_frame_returned);
     pfb_last_frame_returned = nullptr;
-    uint16_t *pfb = tft.getFrameBuffer();
+    PIXEL_TYPE *pfb = tft.getFrameBuffer();
     if ((uint32_t)pfb >= 0x20200000u)
         arm_dcache_flush(pfb, FRAME_WIDTH * FRAME_HEIGHT);
 #endif
 }
 
 #else
-uint8_t *pfb_last_frame_returned = nullptr;
+PIXEL_TYPE *pfb_last_frame_returned = nullptr;
 
 bool camera_flexio_callback_video(void *pfb) {
-    pfb_last_frame_returned = (uint8_t *)pfb;
+    pfb_last_frame_returned = (PIXEL_TYPE *)pfb;
 #ifdef UPDATE_ON_CAMERA_FRAMES
     tft.setOrigin(-2, -2);
     if ((uint32_t)pfb_last_frame_returned >= 0x20200000u)
         arm_dcache_delete(pfb_last_frame_returned, FRAME_WIDTH * FRAME_HEIGHT);
 
     tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT,
-                      (uint8_t *)pfb_last_frame_returned, current_mono_palette);
+                      (PIXEL_TYPE *)pfb_last_frame_returned, current_mono_palette);
     pfb_last_frame_returned = nullptr;
     tft.setOrigin(0, 0);
-    uint16_t *pframebuf = tft.getFrameBuffer();
+    PIXEL_TYPE *pframebuf = tft.getFrameBuffer();
     if ((uint32_t)pframebuf >= 0x20200000u)
         arm_dcache_flush(pframebuf, FRAME_WIDTH * FRAME_HEIGHT);
 #endif
@@ -623,10 +591,10 @@ void frame_complete_cb() {
         arm_dcache_delete(pfb_last_frame_returned, FRAME_WIDTH * FRAME_HEIGHT);
 
     tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT,
-                      (uint8_t *)pfb_last_frame_returned, current_mono_palette);
+                      (PIXEL_TYPE *)pfb_last_frame_returned, current_mono_palette);
     pfb_last_frame_returned = nullptr;
     tft.setOrigin(0, 0);
-    uint16_t *pfb = tft.getFrameBuffer();
+    PIXEL_TYPE *pfb = tft.getFrameBuffer();
     if ((uint32_t)pfb >= 0x20200000u)
         arm_dcache_flush(pfb, FRAME_WIDTH * FRAME_HEIGHT);
 #endif
@@ -680,13 +648,7 @@ void loop() {
             memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
             camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
             camera.readFrame(frameBuffer, sizeof(frameBuffer));
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
-    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145) ||         \
-    defined(ARDUCAM_CAMERA_OV5640) 
-            int numPixels = camera.width() * camera.height();
-            for (int i = 0; i < numPixels; i++)
-                frameBuffer[i] = HTONS(frameBuffer[i]);
-#endif
+            maybeFixFramePixels(frameBuffer);
             save_image_SD();
             ch = ' ';
 #endif
@@ -728,35 +690,15 @@ void loop() {
                           &frameBuffer[camera.width() * camera.height()]);
             memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
             for (uint8_t i = 0; i < skipFrames; i++) {
-                camera.readFrame(frameBuffer, sizeof(frameBuffer), frameBuffer2, sizeof(frameBuffer2));
+                camera.readFrame(frameBuffer, sizeof(frameBuffer));
             }
+            maybeFixFramePixels(frameBuffer);
 
             Serial.println("Finished reading frame");
             Serial.flush();
-#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
-    defined(ARDUCAM_CAMERA_OV2640)  || defined(ARDUCAM_CAMERA_GC2145) ||        \
-    defined(ARDUCAM_CAMERA_OV5640))
-            #ifdef ARDUINO_TEENSY41
-            // See what which camera buffer was used.
-            frameBufferRead = (uint16_t*)camera.readFrameReturnBuffer();
-            #else 
-            frameBufferRead = frameBuffer;
-            #endif
-            for (volatile uint16_t *pfb = frameBufferRead;
-                 pfb < (frameBufferRead + 4 * camera.width());
+            for (volatile PIXEL_TYPE *pfb = frameBuffer;
+                 pfb < (frameBuffer + 4 * camera.width());
                  pfb += camera.width()) {
-#else
-            #ifdef ARDUINO_TEENSY41
-            // See what which camera buffer was used.
-            frameBufferRead = (uint8_t*)camera.readFrameReturnBuffer();
-            if (frameBufferRead == nullptr) frameBufferRead = frameBuffer;
-            #else 
-            frameBufferRead = frameBuffer;
-            #endif
-            for (volatile uint8_t *pfb = frameBufferRead;
-                 pfb < (frameBufferRead + 4 * camera.width());
-                 pfb += camera.width()) {
-#endif
                 Serial.printf("\n%08x: ", (uint32_t)pfb);
                 for (uint16_t i = 0; i < 8; i++)
                     Serial.printf("%02x ", pfb[i]);
@@ -769,21 +711,8 @@ void loop() {
 
             // Lets dump out some of center of image.
             Serial.println("Show Center pixels\n");
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
-    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145) ||         \
-     defined(ARDUCAM_CAMERA_OV5640)
-            for (volatile uint16_t *pfb =
-                     frameBufferRead + camera.width() * ((camera.height() / 2) - 8);
-                 pfb <
-                 (frameBufferRead + camera.width() * (camera.height() / 2 + 8));
-                 pfb += camera.width()) {
-#else
-            for (volatile uint8_t *pfb =
-                     frameBufferRead + camera.width() * ((camera.height() / 2) - 8);
-                 pfb <
-                 (frameBufferRead + camera.width() * (camera.height() / 2 + 8));
-                 pfb += camera.width()) {
-#endif
+            for (volatile PIXEL_TYPE *pfb = frameBuffer + camera.width() * ((camera.height() / 2) - 8);
+                 pfb < (frameBuffer + camera.width() * (camera.height() / 2 + 8)); pfb += camera.width()) {
                 Serial.printf("\n%08x: ", (uint32_t)pfb);
                 for (uint16_t i = 0; i < 8; i++)
                     Serial.printf("%02x ", pfb[i]);
@@ -803,20 +732,12 @@ void loop() {
             // int camera_width = Camera.width();
 
             tft.setOrigin(-2, -2);
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) ||        \
-    defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145) ||         \
-     defined(ARDUCAM_CAMERA_OV5640)
+#if !defined(CAMERA_USES_MONO_PALETTE)
             int numPixels = camera.width() * camera.height();
             Serial.printf("TFT(%u, %u) Camera(%u, %u)\n", tft.width(),
                           tft.height(), camera.width(), camera.height());
 
-// int camera_width = Camera.width();
-#if 1
-            // byte swap
-            // for (int i = 0; i < numPixels; i++) frameBufferRead[i] =
-            // (frameBufferRead[i] >> 8) | (((frameBufferRead[i] & 0xff) << 8));
-            for (int i = 0; i < numPixels; i++)
-                frameBufferRead[i] = HTONS(frameBufferRead[i]);
+            maybeFixFramePixels(frameBuffer);
 
             if ((camera.width() <= tft.width()) &&
                 (camera.height() <= tft.height())) {
@@ -824,22 +745,17 @@ void loop() {
                     (camera.height() != tft.height()))
                     tft.fillScreen(TFT_BLACK);
                 tft.writeRect(CENTER, CENTER, camera.width(), camera.height(),
-                              frameBufferRead);
+                              frameBuffer);
             } else {
                 Serial.println("sub image");
                 tft.writeSubImageRect(0, 0, tft.width(), tft.height(),
                                       (camera.width() - tft.width()) / 2,
                                       (camera.height() - tft.height()),
                                       camera.width(), camera.height(),
-                                      frameBufferRead);
+                                      frameBuffer);
             }
 #else
-            Serial.println("sub image1");
-            tft.writeSubImageRect(0, 0, tft.width(), tft.height(), 0, 0,
-                                  camera.width(), camera.height(), pixels);
-#endif
-#else
-            tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBufferRead,
+            tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBuffer,
                               current_mono_palette);
 #endif
             tft.setOrigin(0, 0);
@@ -926,16 +842,15 @@ void loop() {
         if (g_new_flexio_data) {
             // Serial.println("new FlexIO data");
 #ifndef CAMERA_USES_MONO_PALETTE
-            uint16_t *pframe = (uint16_t *)g_new_flexio_data;
-            for (int i = 0; i < (FRAME_WIDTH * FRAME_HEIGHT); i++)
-                pframe[i] = HTONS(pframe[i]);
+            PIXEL_TYPE *pframe = (PIXEL_TYPE *)g_new_flexio_data;
+            maybeFixFramePixels(pframe);
             tft.writeRect(CENTER, CENTER, camera.width(), camera.height(),
                           pframe);
 
 #else
             tft.setOrigin(-2, -2);
             tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT,
-                              (uint8_t *)g_new_flexio_data, current_mono_palette);
+                              (PIXEL_TYPE *)g_new_flexio_data, current_mono_palette);
             tft.setOrigin(0, 0);
 #endif
             tft.updateScreenAsync();
@@ -1003,7 +918,7 @@ void send_image(Stream *imgSerial) {
 
     uint32_t idx = 0;
 #ifdef CAMERA_USES_MONO_PALETTE
-    uint8_t *pfb = frameBuffer;
+    PIXEL_TYPE *pfb = frameBuffer;
     uint32_t count_y_first_buffer = sizeof(frameBuffer) / FRAME_WIDTH;
     uint8_t img[3];
     for (int y = FRAME_HEIGHT - 1; y >= 0; y--) { // iterate image array
@@ -1023,7 +938,7 @@ void send_image(Stream *imgSerial) {
                              4); // and padding as needed
     }
 #else
-    uint16_t *pfb = frameBuffer;
+    PIXEL_TYPE *pfb = frameBuffer;
     uint8_t img[3];
     uint32_t count_y_first_buffer = sizeof(frameBuffer) / (FRAME_WIDTH * 2);
     for (int y = FRAME_HEIGHT - 1; y >= 0; y--) { // iterate image array
@@ -1147,7 +1062,7 @@ void save_image_SD() {
 
 // try to compute and output one row at a time.
 #ifdef CAMERA_USES_MONO_PALETTE
-    uint8_t *pfb = frameBuffer;
+    PIXEL_TYPE *pfb = frameBuffer;
     uint8_t img[3];
     for (int y = h - 1; y >= 0; y--) { // iterate image array
         pfb = &frameBuffer[y * w];
@@ -1160,7 +1075,7 @@ void save_image_SD() {
             pfb++;
         }
 #else
-    uint16_t *pfb = frameBuffer;
+    PIXEL_TYPE *pfb = frameBuffer;
     uint8_t img[3];
     for (int y = h - 1; y >= 0; y--) { // iterate image array
         pfb = &frameBuffer[y * w];
@@ -1204,7 +1119,7 @@ bool save_jpg_SD() {
     uint16_t eop = 0;
     uint8_t eoi = 0;
 
-    uint16_t *pfb = frameBuffer;
+    PIXEL_TYPE *pfb = frameBuffer;
     Serial.printf("jpeg size: %d\n", (w * h / 5));
 
     for (uint32_t i = 0; i < (w * h / 5); i++) {
@@ -1299,8 +1214,8 @@ void read_display_multiple_frames(bool use_frame_buffer) {
 
     for (;;) {
 
-        for (uint8_t i = 0; i < skipFrames; i++)
-            camera.readFrame(frameBuffer, sizeof(frameBuffer), frameBuffer2, sizeof(frameBuffer2));
+        for (uint8_t i = 0; i < skipFrames; i++) camera.readFrame(frameBuffer, sizeof(frameBuffer));
+        maybeFixFramePixels(frameBuffer);
 
         int numPixels = camera.width() * camera.height();
 
@@ -1308,23 +1223,13 @@ void read_display_multiple_frames(bool use_frame_buffer) {
 // for (int i = 0; i < numPixels; i++) frameBuffer[i] = (frameBuffer[i] >> 8) |
 // (((frameBuffer[i] & 0xff) << 8));
 #ifdef CAMERA_USES_MONO_PALETTE
-        uint8_t *frameBufferRead = (uint8_t*)camera.readFrameReturnBuffer();
-        if (frameBufferRead == nullptr) frameBufferRead = frameBuffer;
-        Serial.printf("NP:%d W:%u H:%u %p\n", numPixels, FRAME_WIDTH,
-                      FRAME_HEIGHT, frameBufferRead);
+        Serial.printf("NP:%d W:%u H:%u %p\n", numPixels, FRAME_WIDTH, FRAME_HEIGHT, frameBuffer);
         if (use_frame_buffer)
             tft.waitUpdateAsyncComplete();
         tft.setOrigin(-2, -2);
-        tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBufferRead,
-                          current_mono_palette);
+        tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, frameBuffe, current_mono_palette);
         tft.setOrigin(0, 0);
 #else
-        uint16_t *frameBufferRead = (uint16_t*)camera.readFrameReturnBuffer();
-        if (frameBufferRead == nullptr) frameBufferRead = frameBuffer;
-
-        for (int i = 0; i < numPixels; i++)
-            frameBufferRead[i] = HTONS(frameBufferRead[i]);
-
         if (use_frame_buffer)
             tft.waitUpdateAsyncComplete();
 
@@ -1333,13 +1238,12 @@ void read_display_multiple_frames(bool use_frame_buffer) {
             if ((camera.width() != tft.width()) ||
                 (camera.height() != tft.height()))
                 tft.fillScreen(TFT_BLACK);
-            tft.writeRect(CENTER, CENTER, camera.width(), camera.height(),
-                          frameBufferRead);
+            tft.writeRect(CENTER, CENTER, camera.width(), camera.height(), frameBuffer);
         } else {
             tft.writeSubImageRect(0, 0, tft.width(), tft.height(),
                                   (camera.width() - tft.width()) / 2,
                                   (camera.height() - tft.height()),
-                                  camera.width(), camera.height(), frameBufferRead);
+                                  camera.width(), camera.height(), frameBuffer);
         }
 #endif
 
