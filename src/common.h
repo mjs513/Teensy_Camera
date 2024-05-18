@@ -50,7 +50,7 @@ typedef enum {
     CAMERA_INPUT_FLEXIO,
     CAMERA_INPUT_CSI,
     CAMERA_INPUT_GPIO,
-    CAMERA_INPUT_CPIO4
+    CAMERA_INPUT_GPIO4
 } camera_input_t;
 
 typedef enum {

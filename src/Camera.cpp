@@ -32,6 +32,8 @@ bool Camera::debug() { return sensor->debug(); }
 
 bool Camera::usingGPIO() { return sensor->usingGPIO(); }
 
+camera_input_t Camera::cameraInput() { return sensor->cameraInput(); }
+
 uint8_t Camera::readRegister(uint8_t reg) { return sensor->readRegister(reg); }
 bool Camera::writeRegister(uint8_t reg, uint8_t data) {
     return sensor->writeRegister(reg, data);

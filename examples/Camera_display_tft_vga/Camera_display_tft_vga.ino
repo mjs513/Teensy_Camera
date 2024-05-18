@@ -8,8 +8,8 @@
 #define USE_SDCARD
 
 //#define ARDUCAM_CAMERA_HM01B0
-//#define ARDUCAM_CAMERA_HM0360
-#define ARDUCAM_CAMERA_OV2640
+#define ARDUCAM_CAMERA_HM0360
+//#define ARDUCAM_CAMERA_OV2640
 //#define ARDUCAM_CAMERA_OV5640
 //#define ARDUCAM_CAMERA_OV7670
 //#define ARDUCAM_CAMERA_OV7675
@@ -375,7 +375,7 @@ void setup() {
       status = camera.begin(FRAMESIZE_VGA, RGB565, 15, false);
   #endif
 #elif defined(ARDUCAM_CAMERA_HM0360)
-    status = camera.begin(FRAMESIZE_VGA, 5);
+    status = camera.begin(FRAMESIZE_VGA, 5, false);
 #else
     // 1b0 defaults to qvga 4 bit
     // HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)

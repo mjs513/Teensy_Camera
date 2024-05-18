@@ -7,9 +7,9 @@
 
 #define debug Serial
 
-#define DEBUG_CAMERA
+//#define DEBUG_CAMERA
 // #define DEBUG_CAMERA_VERBOSE
- #define DEBUG_FLEXIO
+#define DEBUG_FLEXIO
 // #define USE_DEBUG_PINS
 
 ImageSensor *ImageSensor::active_dma_camera = nullptr;
@@ -400,7 +400,7 @@ void ImageSensor::processFrameStartInterruptFlexIO() {
 #ifdef USE_DEBUG_PINS
     digitalWriteFast(5, HIGH);
 #endif
-    debug.println("VSYNC");
+//    debug.println("VSYNC");
     // See if we read the state of it a few times if the pin stays high...
     if (digitalReadFast(_vsyncPin) && digitalReadFast(_vsyncPin) &&
         digitalReadFast(_vsyncPin) && digitalReadFast(_vsyncPin)) {
@@ -438,7 +438,7 @@ void ImageSensor::dmaInterruptFlexIO() {
 }
 
 void ImageSensor::processDMAInterruptFlexIO() {
-    if (_debug) debug.println("PDMAI");
+//    if (_debug) debug.println("PDMAI");
     _dmachannel.clearInterrupt();
 #ifdef USE_DEBUG_PINS
     //  digitalToggleFast(2);
@@ -628,6 +628,7 @@ bool ImageSensor::startReadFlexIO(bool (*callback)(void *frame_buffer),
         _dmasettings[dmas_index - 1].disableOnCompletion(); // full frame
         if (fb2 && (cb2 >= frame_size_bytes))
             cb_left = min(frame_size_bytes, cb2);
+        else cb_left = 0; // We don't have second buffer to use.
     } else
         cb_left =
             frame_size_bytes - cb1; // need second buffer to complete one frame.
@@ -1172,7 +1173,7 @@ bool ImageSensor::flexio_configure() {
     //  either TSTART: Start bit, 0 = disabled, 1 = enabled
     _pflexio->TIMCFG[_ftimer] =
         FLEXIO_TIMCFG_TIMOUT(1) | FLEXIO_TIMCFG_TIMDEC(2) |
-        FLEXIO_TIMCFG_TIMENA(6) | FLEXIO_TIMCFG_TIMDIS(3/*6*/);
+        FLEXIO_TIMCFG_TIMENA(6) | FLEXIO_TIMCFG_TIMDIS(6/*tried 3*/);
 
     // CTRL, page 2916
     _pflexio->CTRL = FLEXIO_CTRL_FLEXEN; // enable after everything configured

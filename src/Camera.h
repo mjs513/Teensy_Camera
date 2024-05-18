@@ -32,6 +32,8 @@ class ImageSensor : public FlexIOHandlerCallback {
     virtual void debug(bool debug_on) { _debug = debug_on; }
     virtual bool debug() { return _debug; }
     bool usingGPIO() { return _use_gpio; }
+    camera_input_t cameraInput() { return _cameraInput; }
+
     // debug and experimenting support
     virtual uint8_t readRegister(uint8_t reg) { return (uint8_t)-1; }
     virtual bool writeRegister(uint8_t reg, uint8_t data) { return false; }
@@ -350,6 +352,19 @@ class Camera {
      * GPIO or FLEXIO
      */
     bool usingGPIO();
+
+    /**
+     * Returns if GPIO or FlexIO or CSI is being used by the camera
+     * Note: we should probably combine the usage of using GPIO...
+     * inputs: <none>
+     * returns: 
+     *   CAMERA_INPUT_DEFAULT = 0,
+     *   CAMERA_INPUT_FLEXIO,
+     *   CAMERA_INPUT_CSI,
+     *   CAMERA_INPUT_GPIO,
+     *   CAMERA_INPUT_GPIO4
+     */
+    camera_input_t cameraInput();
 
     /**
      * Sets pixel format for the camera using the camera format enumerator.
