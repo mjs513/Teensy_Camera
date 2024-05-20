@@ -10,8 +10,8 @@
 //#define USE_SDCARD
 //#define useILI9341
 
-//#define ARDUCAM_CAMERA_OV2640
-#define ARDUCAM_CAMERA_OV5640
+#define ARDUCAM_CAMERA_OV2640
+//#define ARDUCAM_CAMERA_OV5640
 
 #if defined(ARDUCAM_CAMERA_OV2640)
 #include "TMM_OV2640/OV2640.h"
@@ -278,6 +278,7 @@ void setup() {
       while (1) {}
     }
   }
+
 
 #ifdef MIRROR_FLIP_CAMERA
   camera.setHmirror(true);
@@ -914,7 +915,7 @@ bool send_jpeg() {
   uint8_t eoi = 0;
   uint32_t eop = 0;
 
-  uint8_t status = 0;
+  uint32_t status = 0;
   status = readJPG(eoi, eop, false);
   if (status == 0) return false;
 
@@ -1065,7 +1066,7 @@ bool save_jpg_SD() {
   uint8_t eoi = 0;
   uint32_t eop = 0;
 
-  uint8_t status = 0;
+  uint32_t status = 0;
   status = readJPG(eoi, eop, false);
   if (status == 0) return false;
 
@@ -1491,7 +1492,7 @@ void show_change_jpeq_quality(int ch) {
   }
 }
 
-bool readJPG(uint8_t &eoi_jpg, uint32_t &eop_jpg, bool debug_on) {
+uint32_t readJPG(uint8_t &eoi_jpg, uint32_t &eop_jpg, bool debug_on) {
   if (camera_format != JPEG) {
     camera.setPixformat(JPEG);
     delay(1000);
@@ -1615,10 +1616,10 @@ bool readJPG(uint8_t &eoi_jpg, uint32_t &eop_jpg, bool debug_on) {
 
   // verify that the start of data returned has valid marker... assumes always in first buffer
   uint8_t *pfb = (uint8_t *)frameBuffer;
-  if (debug_on) MemoryHexDump(Serial, frameBuffer, 128, true, "SOF:\n");
+  if (debug_on) MemoryHexDump(Serial, pfb, 128, true, "SOF:\n");
   if ((pfb[0] != 0xff) || (pfb[1] != 0xd8) || (pfb[2] != 0xff)) {
     if (debug_on) Serial.printf("begining of frame not found at position 0\n");
-    return false;
+    return 0;
   }
   eoi_jpg = 0;
 
@@ -1627,7 +1628,7 @@ bool readJPG(uint8_t &eoi_jpg, uint32_t &eop_jpg, bool debug_on) {
     if (debug_on) MemoryHexDump(Serial, pfb + bytes_read - 63, 64, true, "\nEOF:\n");
     if ((pfb[bytes_read - 2] != 0xFF) || (pfb[bytes_read - 1] != 0xd9)) {
       if (debug_on) Serial.printf("Invalid frame ending: %02x %02x\n", pfb[bytes_read - 2], pfb[bytes_read - 1]);
-      return false;
+      return 0;
     }
   } else {
     uint8_t *pfb2 = (uint8_t *)frameBuffer2;
@@ -1636,7 +1637,7 @@ bool readJPG(uint8_t &eoi_jpg, uint32_t &eop_jpg, bool debug_on) {
     if (debug_on) MemoryHexDump(Serial, pfb2 + bytes_read_in_2 - bytes_dump + 1, bytes_dump, true);
     if ((pfb2[bytes_read_in_2 - 2] != 0xFF) || (pfb2[bytes_read_in_2 - 1] != 0xd9)) {
       if (debug_on) Serial.printf("Invalid frame ending(2): %02x %02x\n", pfb[bytes_read_in_2 - 2], pfb[bytes_read_in_2 - 1]);
-      return false;
+      return 0;
     }
   }
 
@@ -1648,5 +1649,6 @@ bool readJPG(uint8_t &eoi_jpg, uint32_t &eop_jpg, bool debug_on) {
   }
 
   camera.useDMA(true);
-  return true;
+  return bytes_read;
 }
+

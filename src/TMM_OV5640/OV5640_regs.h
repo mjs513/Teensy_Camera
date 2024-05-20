@@ -12,6 +12,7 @@
  * Note: Some mods made to get JPEG working and other minor things, like
  * special effects, white balance, night mode, hue, sharpness.
  */
+
 #ifndef __REG_REGS_H__
 #define __REG_REGS_H__
 
