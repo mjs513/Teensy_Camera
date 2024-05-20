@@ -1,35 +1,16 @@
 
-#ifndef _OV5640_H_
-#define _OV5640_H_
+#ifndef _OV2640_H_
+#define _OV2640_H_
 
-#include "OV5640_regs.h"
+#include "OV2640_regs.h"
 #include <Arduino.h>
 // Teensy 4.1 default to CSI pisn
-#ifdef ARDUINO_TEENSY41
-#define USE_CSI_PINS
-//#warning "Use CSI Pins"
-#endif
-#include <Camera.h>
 #include "teensy_csi_support.h"
+#include <Teensy_Camera.h>
 #if defined(__IMXRT1062__) // Teensy 4.x
 #include <DMAChannel.h>
 #include <FlexIO_t4.h>
 #include <Wire.h>
-
-// #define OV5640_VSYNC 2    // Lets setup for T4.1 CSI pins
-// #define USE_CSI_PINS
-
-// #define OV5640_USE_DEBUG_PINS
-#ifdef OV5640_USE_DEBUG_PINS
-#define OV5640_DEBUG_PIN_1 14
-#define OV5640_DEBUG_PIN_2 15
-#define OV5640_DEBUG_PIN_3 3
-#define DebugDigitalWrite(pin, val) digitalWriteFast(pin, val)
-#define DebugDigitalToggle(pin) digitalToggleFast(pin)
-#else
-#define DebugDigitalWrite(pin, val)
-#define DebugDigitalToggle(pin)
-#endif
 
 #endif
 
@@ -37,9 +18,9 @@
 #define HIMAX_MODE_STREAMING 0x01         // I2C triggered streaming enable
 #define HIMAX_MODE_STREAMING_NFRAMES 0x03 // Output N frames
 
-class OV5640 : public ImageSensor {
+class OV2640 : public ImageSensor {
   public:
-    OV5640();
+    OV2640();
 
     /********************************************************************************************/
     //-------------------------------------------------------
@@ -66,9 +47,6 @@ class OV5640 : public ImageSensor {
     inline void *frameBuffer() { return _dma_last_completed_frame; }
     void captureFrameStatistics();
 
-    void setVSyncISRPriority(uint8_t priority) {
-        NVIC_SET_PRIORITY(IRQ_GPIO6789, priority);
-    }
     void setDMACompleteISRPriority(uint8_t priority) {
         NVIC_SET_PRIORITY(_dmachannel.channel & 0xf, priority);
     }
@@ -85,15 +63,17 @@ class OV5640 : public ImageSensor {
 
     bool begin_omnivision(framesize_t resolution, pixformat_t format, int fps,
                           int camera_name, bool use_gpio);
+    // void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin,
+    // uint8_t hsync_pin, uint8_t en_pin,
+    //                   uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t
+    //                   g4, uint8_t g5, uint8_t g6, uint8_t g7, TwoWire &wire);
 
     int reset();
     uint16_t getModelid();
     int setPixformat(pixformat_t pixformat);
     uint8_t setFramesize(framesize_t framesize);
     uint8_t setFramesize(int w, int h);
-    bool setZoomWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
-        return false;
-    };
+    bool setZoomWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
     void setContrast(int level);
     int setBrightness(int level);
     void setSaturation(int level);
@@ -102,9 +82,9 @@ class OV5640 : public ImageSensor {
     uint8_t getQuality();
     int setColorbar(int enable);
     int setAutoGain(int enable, float gain_db, float gain_db_ceiling);
-    void setGain(int gain) {};
+    void setGain(int gain);
     int getGain_db(float *gain_db);
-    void autoExposure(int enable) {};
+    void autoExposure(int enable);
     int setAutoExposure(int enable, int exposure_us);
     int getExposure_us(int *exposure_us);
     int setAutoWhitebal(int enable, float r_gain_db, float g_gain_db,
@@ -112,27 +92,24 @@ class OV5640 : public ImageSensor {
     int getRGB_Gain_db(float *r_gain_db, float *g_gain_db, float *b_gain_db);
     int setHmirror(int enable);
     int setVflip(int enable);
-    void setHue(int hue);
 
     /**
-     * Sets OV5640 Image Special Effects.
+     * Sets OV2640 Image Special Effects.
      *
      * Input: Enumerated
-     * 0. NOEFFECT.
-     * 1. NEGATIVE.
-     * 2. BW.
-     * 3. REDDISH.
-     * 4. GREENISH.
-     * 5. BLUEISH.
-     * 6. RETRO.
-     * 7. OVEREXPOSURE (5640 only).
-     * 8. SOLARIZE (5640 only).
+     * 1. NOEFFECT.
+     * 2. NEGATIVE.
+     * 3. BW.
+     * 4. REDDISH.
+     * 5. GREENISH.
+     * 6. BLUEISH.
+     * 7. RETRO.
      * RETURNS:  Non-zero if it fails.
      */
     int setSpecialEffect(sde_t sde);
 
     /**
-     * Sets Whitebalance mode for OV5640 camera Only.
+     * Sets Whitebalance mode for OV2640 camera Only.
      *
      * INPUT: integer.
      *   0 - Auto white balance.
@@ -144,12 +121,6 @@ class OV5640 : public ImageSensor {
      * RETURNS:   Non-zero if it fails.
      */
     int setWBmode(int mode);
-    int setAutoBlc(int enable, int *regs);
-    int getBlcRegs(int *regs);
-    int setLensCorrection(int enable);
-    int setNightMode(int enable);
-    int setSharpness(int level);
-    int setAutoSharpness(int enable);
 
     void showRegisters();
 
@@ -157,6 +128,7 @@ class OV5640 : public ImageSensor {
     bool writeRegister(uint8_t reg, uint8_t data) { return false; }
 
     /*********************************************************/
+    void setHue(int hue) {}
     void setExposure(int exposure) {}
 
     bool begin(framesize_t framesize = FRAMESIZE_QVGA, int framerate = 30,
@@ -184,22 +156,16 @@ class OV5640 : public ImageSensor {
     void autoGain(int enable, float gain_db, float gain_db_ceiling) {}
 
   private:
-    uint8_t cameraReadRegister(uint16_t reg_addr, uint8_t &reg_data);
-    uint8_t cameraWriteRegister(uint16_t reg, uint8_t data);
-    int calculate_vts(uint16_t readout_height);
-    int calculate_hts(uint16_t width);
-    int calc_pclk_freq(uint8_t sc_pll_ctrl_0, uint8_t sc_pll_ctrl_1,
-                       uint8_t sc_pll_ctrl_2, uint8_t sc_pll_ctrl_3,
-                       uint8_t sys_root_div);
+    //    void beginXClk();
+    //    void endXClk();
+    uint8_t cameraReadRegister(uint8_t reg);
+    uint8_t cameraWriteRegister(uint8_t reg, uint8_t data);
 
   private:
-    int _xclk_freq = 8;
-
     bool _grayscale;
     int _framesize = FRAMESIZE_QVGA;
-    uint8_t aecCtrl00_old = 0x78;
 
-    void *_OV5640;
+    void *_OV2640;
 
     int _saturation;
     int _hue;

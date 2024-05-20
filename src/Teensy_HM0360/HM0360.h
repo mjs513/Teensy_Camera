@@ -39,7 +39,7 @@ SOFTWARE.
 #define __HM0360_H__
 
 // #include "../common.h"
-#include "Camera.h"
+#include "Teensy_Camera.h"
 #include <DMAChannel.h>
 #include <FlexIO_t4.h>
 #include <Wire.h>
@@ -139,7 +139,6 @@ class HM0360 : public ImageSensor {
     int16_t mode(void) { return _hw_config; }
 
   private:
-
     uint8_t cameraReadRegister(uint16_t reg);
     uint8_t cameraWriteRegister(uint16_t reg, uint8_t data);
 

@@ -2,7 +2,7 @@
 #include <SPI.h>
 #include <stdint.h>
 
-#include "Camera.h"
+#include "Teensy_Camera.h"
 
 #define USE_MMOD_ATP_ADAPTER
 
@@ -10,13 +10,13 @@
 #define USE_SDCARD
 
 //#define use9488
-//#define ARDUCAM_CAMERA_HM01B0
-//#define ARDUCAM_CAMERA_HM0360
-//#define ARDUCAM_CAMERA_OV2640
-// #define ARDUCAM_CAMERA_OV7670
-//#define ARDUCAM_CAMERA_OV7675
-//#define ARDUCAM_CAMERA_GC2145
-#define ARDUCAM_CAMERA_OV5640
+//#define DVP_CAMERA_HM01B0
+//#define DVP_CAMERA_HM0360
+//#define DVP_CAMERA_OV2640
+// #define DVP_CAMERA_OV7670
+//#define DVP_CAMERA_OV7675
+//#define DVP_CAMERA_GC2145
+#define DVP_CAMERA_OV5640
 
 //set cam configuration - need to remember when saving jpeg
 framesize_t camera_framesize = FRAMESIZE_QVGA;
@@ -26,56 +26,56 @@ bool useGPIO = false;
 bool show_debug_output = true;
 
 
-#if defined(ARDUCAM_CAMERA_HM0360)
+#if defined(DVP_CAMERA_HM0360)
 #define CAMERA_USES_MONO_PALETTE
-#include "TMM_HM0360/HM0360.h"
+#include "Teensy_HM0360/HM0360.h"
 HM0360 himax;
 Camera camera(himax);
 #define CameraID 0x0360
 #define MIRROR_FLIP_CAMERA
 
-#elif defined(ARDUCAM_CAMERA_HM01B0)
+#elif defined(DVP_CAMERA_HM01B0)
 #define CAMERA_USES_MONO_PALETTE
-#include "TMM_HM01B0/HM01B0.h"
+#include "Teensy_HM01B0/HM01B0.h"
 HM01B0 himax;
 Camera camera(himax);
 #define CameraID 0x01B0
 #define MIRROR_FLIP_CAMERA
 
-#elif defined(ARDUCAM_CAMERA_OV2640)
-#include "TMM_OV2640/OV2640.h"
+#elif defined(DVP_CAMERA_OV2640)
+#include "Teensy_OV2640/OV2640.h"
 OV2640 omni;
 Camera camera(omni);
 #define CameraID OV2640a
 #define MIRROR_FLIP_CAMERA
 
-#elif defined(ARDUCAM_CAMERA_OV7670)
-#include "TMM_OV767X/OV767X.h"
+#elif defined(DVP_CAMERA_OV7670)
+#include "Teensy_OV767X/OV767X.h"
 OV767X omni;
 Camera camera(omni);
 #define CameraID OV7670
 
-#elif defined(ARDUCAM_CAMERA_OV7675)
-#include "TMM_OV767X/OV767X.h"
+#elif defined(DVP_CAMERA_OV7675)
+#include "Teensy_OV767X/OV767X.h"
 OV767X omni;
 Camera camera(omni);
 #define CameraID OV7675
 
-#elif defined(ARDUCAM_CAMERA_GC2145)
-#include "TMM_GC2145/GC2145.h"
+#elif defined(DVP_CAMERA_GC2145)
+#include "Teensy_GC2145/GC2145.h"
 GC2145 galaxycore;
 Camera camera(galaxycore);
 #define CameraID GC2145a
 
-#elif defined(ARDUCAM_CAMERA_OV5640)
-#include "TMM_OV5640/OV5640.h"
+#elif defined(DVP_CAMERA_OV5640)
+#include "Teensy_OV5640/OV5640.h"
 OV5640 omni;
 Camera camera(omni);
 #define CameraID OV5640a
 //#define MIRROR_FLIP_CAMERA
 #endif
 
-#if defined(ARDUCAM_CAMERA_OV2640)
+#if defined(DVP_CAMERA_OV2640)
 #define skipFrames 1
 #else
 #define skipFrames 1
@@ -94,7 +94,7 @@ File file;
  * does not work.  Arduino breakout only brings out  *
  * the lower 4 bits.                                 *
  ****************************************************/
-#if defined(ARDUCAM_CAMERA_HM01B0)
+#if defined(DVP_CAMERA_HM01B0)
 #define _hmConfig 1  // note HM0360 can operater in 4 bit mode as well
 #else
 #define _hmConfig 0  // select mode string below
@@ -177,7 +177,7 @@ uint32_t sizeof_framebufferSDRAM = 0;
 // CSI - lets try to setup for PSRAM (EXTMEM)
 // only half buffer will fit in each of the two main memory regions
 // split into two parts, part dmamem and part fast mememory to fit 640x480x2
-#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145) || defined(ARDUCAM_CAMERA_OV5640))
+#if (defined(DVP_CAMERA_OV7675) || defined(DVP_CAMERA_OV7670) || defined(DVP_CAMERA_OV2640) || defined(DVP_CAMERA_GC2145) || defined(DVP_CAMERA_OV5640))
 EXTMEM PIXEL_TYPE frameBuffer[800 * 600] __attribute__((aligned(32)));
 EXTMEM PIXEL_TYPE frameBuffer2[800 * 600] __attribute__((aligned(32)));
 #else
@@ -191,7 +191,7 @@ const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
 // Other: in our case Micromod
 #else
 #if defined(USE_SDCARD)
-#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145) || defined(ARDUCAM_CAMERA_OV5640))
+#if (defined(DVP_CAMERA_OV7675) || defined(DVP_CAMERA_OV7670) || defined(DVP_CAMERA_OV2640) || defined(DVP_CAMERA_GC2145) || defined(DVP_CAMERA_OV5640))
 DMAMEM PIXEL_TYPE frameBuffer[324 * 244] __attribute__((aligned(32)));
 PIXEL_TYPE frameBuffer2[324 * 244] __attribute__((aligned(32)));
 #else
@@ -199,7 +199,7 @@ DMAMEM PIXEL_TYPE frameBuffer[700 * 320] __attribute__((aligned(32)));
 PIXEL_TYPE frameBuffer2[480 * 240] __attribute__((aligned(32)));
 #endif
 #else
-#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145) || defined(ARDUCAM_CAMERA_OV5640))
+#if (defined(DVP_CAMERA_OV7675) || defined(DVP_CAMERA_OV7670) || defined(DVP_CAMERA_OV2640) || defined(DVP_CAMERA_GC2145) || defined(DVP_CAMERA_OV5640))
 DMAMEM PIXEL_TYPE frameBuffer[640 * 240] __attribute__((aligned(32)));
 PIXEL_TYPE frameBuffer2[640 * 240] __attribute__((aligned(32)));
 #else
@@ -328,7 +328,7 @@ void setup() {
 #if defined(CAMERA_USES_MONO_PALETTE)
 // HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
 // HM0360(8pin) 15/30/60/120 works :)
-#if defined(ARDUCAM_CAMERA_HM01B0)
+#if defined(DVP_CAMERA_HM01B0)
   camera.data4BitMode(true);
 #endif
   status = camera.begin(camera_framesize, 15, useGPIO);
@@ -365,18 +365,18 @@ void setup() {
   Serial.printf("Camera Buffers: %p %p\n", frameBuffer, frameBuffer2);
 #endif
 
-#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670))
+#if (defined(DVP_CAMERA_OV7675) || defined(DVP_CAMERA_OV7670))
   camera.setContrast(0x30);
   camera.setBrightness(0x80);
   camera.autoExposure(1);
-#elif defined(ARDUCAM_CAMERA_OV2640)
+#elif defined(DVP_CAMERA_OV2640)
   // camera.setBrightness(0);          // -2 to +2
   // camera.setContrast(0);            // -2 to +2
   // camera.setSaturation(0);          // -2 to +2
   // omni.setSpecialEffect(RETRO);  // NOEFFECT, NEGATIVE, BW, REDDISH,
   // GREEISH, BLUEISH, RETRO
   omni.setWBmode(0);  // AWB ON, 1 - Sunny, 2 - Cloudy, 3 - Office, 4 - Home
-#elif !defined(ARDUCAM_CAMERA_OV5640)
+#elif !defined(DVP_CAMERA_OV5640)
   camera.setGainceiling(GAINCEILING_2X);
   camera.setBrightness(3);
   camera.setAutoExposure(
@@ -404,7 +404,7 @@ void setup() {
   // camera.setVSyncISRPriority(102); // higher priority than default
   camera.setDMACompleteISRPriority(192);  // lower than default
 
-#if defined(ARDUCAM_CAMERA_GC2145)
+#if defined(DVP_CAMERA_GC2145)
   /***************note for the GC2145 the following is supported
     ************** GC2145_DISABLED = 0, GC2145_COLOR_BARS,
       GC2145_UXGA_COLOR_BARS,
@@ -507,7 +507,7 @@ void loop() {
         }
       case 'j':
         {
-#if (defined(USE_SDCARD) && (defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640)))
+#if (defined(USE_SDCARD) && (defined(DVP_CAMERA_OV2640) || defined(DVP_CAMERA_OV5640)))
           bool error = false;
           error = save_jpg_SD();
           if (!error)
@@ -858,7 +858,7 @@ bool hm0360_flexio_callback(void *pfb) {
 
 
 inline PIXEL_TYPE HTONS(PIXEL_TYPE x) {
-#if defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640)
+#if defined(DVP_CAMERA_OV2640) || defined(DVP_CAMERA_OV5640)
   return x;
 #else  //byte reverse
   return ((x >> 8) & 0x00FF) | ((x << 8) & 0xFF00);
@@ -869,7 +869,7 @@ inline PIXEL_TYPE HTONS(PIXEL_TYPE x) {
 // Some cameras return the frame contents with their bytes reversed
 //---------------------------------------------------------------
 inline void maybeFixFramePixels(PIXEL_TYPE *buffer) {
-#if !defined(CAMERA_USES_MONO_PALETTE) && !defined(ARDUCAM_CAMERA_OV2640) && !defined(ARDUCAM_CAMERA_OV5640)
+#if !defined(CAMERA_USES_MONO_PALETTE) && !defined(DVP_CAMERA_OV2640) && !defined(DVP_CAMERA_OV5640)
   int numPixels = camera.width() * camera.height();
   for (int i = 0; i < numPixels; i++) buffer[i] = HTONS(buffer[i]);
 #endif
@@ -1196,7 +1196,7 @@ bool save_jpg_SD() {
 
   memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
   if (camera.usingGPIO()) {
-#if defined(ARDUCAM_CAMERA_OV5640) || defined(ARDUCAM_CAMERA_OV2640)
+#if defined(DVP_CAMERA_OV5640) || defined(DVP_CAMERA_OV2640)
     omni.readFrameGPIO_JPEG(frameBuffer, sizeof(frameBuffer));
     delay(100);
     omni.readFrameGPIO_JPEG(frameBuffer, sizeof(frameBuffer));

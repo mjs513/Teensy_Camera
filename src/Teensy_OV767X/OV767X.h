@@ -11,10 +11,10 @@
 // Teensy 4.1 default to CSI pisn
 #ifdef ARDUINO_TEENSY41
 #define USE_CSI_PINS
-//#warning "Use CSI Pins"
+// #warning "Use CSI Pins"
 #endif
-#include <Camera.h>
 #include "teensy_csi_support.h"
+#include <Teensy_Camera.h>
 #if defined(__IMXRT1062__) // Teensy 4.x
 #include <DMAChannel.h>
 #include <FlexIO_t4.h>
@@ -34,8 +34,6 @@
 #define DebugDigitalWrite(pin, val)
 #define DebugDigitalToggle(pin)
 #endif
-
-
 
 #endif
 

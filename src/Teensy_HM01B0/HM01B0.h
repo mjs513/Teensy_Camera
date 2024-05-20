@@ -43,8 +43,8 @@ SOFTWARE.
 #include <FlexIO_t4.h>
 #include <Wire.h>
 
-#include "Camera.h"
 #include "HM01B0_regs.h"
+#include "Teensy_Camera.h"
 
 // Do not touch this define
 #define SensorMonochrome 1

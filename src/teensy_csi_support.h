@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Camera.h"
+#include "Teensy_Camera.h"
 #include <Arduino.h>
 
 enum {
