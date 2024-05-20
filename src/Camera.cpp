@@ -23,10 +23,16 @@ int Camera::setPixformat(pixformat_t pfmt) {
     return sensor->setPixformat(pfmt);
 }
 
+pixformat_t Camera::getPixformat() {
+    return sensor->getPixformat();
+}
+
 void Camera::debug(bool debug_on) { sensor->debug(debug_on); }
 bool Camera::debug() { return sensor->debug(); }
 
 bool Camera::usingGPIO() { return sensor->usingGPIO(); }
+
+camera_input_t Camera::cameraInput() { return sensor->cameraInput(); }
 
 uint8_t Camera::readRegister(uint8_t reg) { return sensor->readRegister(reg); }
 bool Camera::writeRegister(uint8_t reg, uint8_t data) {
@@ -108,9 +114,24 @@ size_t Camera::readFrame(void *buffer1, size_t cb1, void *buffer2, size_t cb2) {
     return sensor->readFrame(buffer1, cb1, buffer2, cb2);
 }
 
+void *Camera::readFrameReturnBuffer() {
+    return sensor->readFrameReturnBuffer();
+}
+
+size_t Camera::readImageSizeBytes() {
+    return sensor->readImageSizeBytes();
+}
+
 void Camera::useDMA(bool f) { sensor->useDMA(f); }
 
 bool Camera::useDMA() { return sensor->useDMA(); }
+
+void Camera::data4BitMode(bool f) { sensor->data4BitMode(f); }
+
+bool Camera::data4BitMode() { return sensor->data4BitMode(); }
+
+bool Camera::dataPinsReversed() { return sensor->dataPinsReversed(); }
+
 
 // normal Read mode
 size_t Camera::readFrameGPIO(void *buffer, size_t cb1, void *buffer2,
@@ -143,6 +164,18 @@ bool Camera::startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1,
 
 bool Camera::stopReadFlexIO() { return sensor->stopReadFlexIO(); }
 
+
+size_t Camera::readFrameCSI(void *buffer, size_t cb1, void *buffer2, size_t cb2) {
+   return sensor->readFrameCSI(buffer, cb1, buffer2, cb2);
+}
+
+bool Camera::startReadCSI(bool (*callback)(void *frame_buffer), void *fb1, size_t cb1, void *fb2, size_t cb2) {
+   return sensor->startReadCSI(callback, fb1, cb1, fb1, cb2);
+}
+
+bool Camera::stopReadCSI() {
+   return sensor->stopReadCSI();
+}
 // Lets try a dma version.  Doing one DMA that is synchronous does not gain
 // anything So lets have a start, stop... Have it allocate 2 frame buffers and
 // it's own DMA buffers, with the option of setting your own buffers if desired.

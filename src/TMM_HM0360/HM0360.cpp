@@ -106,13 +106,13 @@ int HM0360::setPixformat(pixformat_t pfmt) {
     int ret = 0;
     switch (pfmt) {
     case PIXFORMAT_BAYER:
-        pixformat = PIXFORMAT_BAYER;
+        _format = PIXFORMAT_BAYER;
         break;
     case PIXFORMAT_GRAYSCALE:
-        pixformat = PIXFORMAT_GRAYSCALE;
+        _format = PIXFORMAT_GRAYSCALE;
         break;
     default:
-        pixformat = PIXFORMAT_INVALID;
+        _format = PIXFORMAT_INVALID;
         return -1;
     }
 
@@ -466,6 +466,29 @@ uint16_t HM0360::getModelid() {
 bool HM0360::begin(framesize_t framesize, int framerate, bool use_gpio) {
     _use_gpio = use_gpio;
 
+    // WIP - Need set functions:
+    if (_rst != 0xff) {
+        if (_rst_init >= 0) {
+            pinMode(_rst, OUTPUT);
+            digitalWrite(_rst, _rst_init);            
+        } 
+        else if (_rst_init == -1) pinMode(_rst, INPUT);
+        else if (_rst_init == -2) pinMode(_rst, INPUT_PULLUP);
+        else if (_rst_init == -3) pinMode(_rst, INPUT_PULLDOWN);
+        delay(5);
+    }
+
+    if (_pwdn != 0xff) {
+        if (_pwdn_init >= 0) {
+            pinMode(_pwdn, OUTPUT);
+            digitalWrite(_pwdn, _pwdn_init);            
+        } 
+        else if (_pwdn_init == -1) pinMode(_pwdn, INPUT);
+        else if (_pwdn_init == -2) pinMode(_pwdn, INPUT_PULLUP);
+        else if (_pwdn_init == -3) pinMode(_pwdn, INPUT_PULLDOWN);
+        delay(5);
+    }
+
     _wire->begin();
 
     pinMode(_vsyncPin, INPUT_PULLDOWN); // VSYNC Pin
@@ -526,7 +549,7 @@ bool HM0360::begin(framesize_t framesize, int framerate, bool use_gpio) {
     debug.printf("SENSOR ID :-) MODEL HM0%X\n", getModelid());
 
     if (!_use_gpio) {
-        flexio_configure();
+        hardware_configure();
     }
     setVSyncISRPriority(102);
     setDMACompleteISRPriority(192);
@@ -551,15 +574,6 @@ void HM0360::end() {
 
     Wire.end();
 }
-
-void HM0360::beginXClk() {
-    // Generates MCLK clock
-    analogWriteFrequency(_xclkPin, XCLK_FREQUENCY);
-    analogWrite(_xclkPin, 128);
-    delay(100);
-}
-
-void HM0360::endXClk() { analogWrite(XCLK_FREQUENCY, 0); }
 
 #define FLEXIO_USE_DMA
 
@@ -903,7 +917,7 @@ void HM0360::processDMAInterrupt() {
 #ifdef DEBUG_CAMERA_VERBOSE
     if ((_dma_index < 3) || (buffer_size < DMABUFFER_SIZE)) {
         debug.printf("D(%d, %d, %lu) %u : ", _dma_index, buffer_size,
-                     _bytes_left_dma, pixformat);
+                     _bytes_left_dma, _format);
         for (uint16_t i = 0; i < 8; i++) {
             uint16_t b = buffer[i] >> 4;
             debug.printf(" %lx(%02x)", buffer[i], b);

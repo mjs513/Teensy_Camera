@@ -20,7 +20,7 @@ Camera camera(omni);
 
 
 //set cam configuration - need to remember when saving jpeg
-framesize_t camera_framesize = FRAMESIZE_VGA;
+framesize_t camera_framesize = FRAMESIZE_QQVGA;
 pixformat_t camera_format = RGB565;
 bool useGPIO = false;
 
@@ -192,38 +192,19 @@ void setup() {
   tft.fillScreen(TFT_BLACK);
 
 /***************************************************************/
-//    setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, en_pin,
-//    uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3,
-//    uint8_t g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
-uint8_t reset_pin = 31;
+//    setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t
+//    hsync_pin, en_pin, uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3, uint8_t
+//    g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
+  uint8_t reset_pin = 31;
+  uint8_t powdwn_pin = 30;
 #ifdef USE_MMOD_ATP_ADAPTER
-  pinMode(30, INPUT);
-  pinMode(31, INPUT_PULLUP);
   pinMode(0, OUTPUT);
-  if ((_hmConfig == 0) || (_hmConfig == 2)) {
-    camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
-  } else if (_hmConfig == 1) {
-    //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
-    camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
-  }
-#elif defined(ARDUINO_TEENSY_DEVBRD4)
-  pinMode(23, INPUT_PULLUP);
-  if ((_hmConfig == 0) || (_hmConfig == 2)) {
-    camera.setPins(7, 8, 21, 46, 23, 40, 41, 42, 43, 44, 45, 6, 9);
-  } else if (_hmConfig == 1) {
-    //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
-    camera.setPins(7, 8, 21, 46, 31, 40, 41, 42, 43);
-  }
-  reset_pin = 23;
-
-#else
-  if (_hmConfig == 0) {
-    //camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
-    camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43, 44, 45, 6, 9);
-  } else if (_hmConfig == 1) {
-    camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
-  }
-  reset_pin = 17;
+  pinMode(3, OUTPUT);
+  Serial.println("Using Micromod ATP Adapter");
+#elif defined(ARDUINO_TEENSY41)
+  // CSI support
+  pinMode(2, OUTPUT);
+  pinMode(3, OUTPUT);
 #endif
 
   //  FRAMESIZE_VGA = 0,

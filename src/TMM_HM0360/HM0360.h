@@ -139,8 +139,6 @@ class HM0360 : public ImageSensor {
     int16_t mode(void) { return _hw_config; }
 
   private:
-    void beginXClk();
-    void endXClk();
 
     uint8_t cameraReadRegister(uint16_t reg);
     uint8_t cameraWriteRegister(uint16_t reg, uint8_t data);

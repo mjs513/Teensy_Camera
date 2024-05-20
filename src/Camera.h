@@ -7,8 +7,15 @@
 #include <FlexIO_t4.h>
 #include <Wire.h>
 
-class ImageSensor {
+#if __has_include("user_camera_pins.h")
+#include "user_camera_pins.h"
+#else
+#include "default_camera_pins.h"
+#endif
+
+class ImageSensor : public FlexIOHandlerCallback {
   public:
+    //ImageSensor();
     virtual ~ImageSensor() {}
 
     // must be called before Camera.begin()
@@ -25,10 +32,13 @@ class ImageSensor {
     virtual void debug(bool debug_on) { _debug = debug_on; }
     virtual bool debug() { return _debug; }
     bool usingGPIO() { return _use_gpio; }
+    camera_input_t cameraInput() { return _cameraInput; }
+
     // debug and experimenting support
     virtual uint8_t readRegister(uint8_t reg) { return (uint8_t)-1; }
     virtual bool writeRegister(uint8_t reg, uint8_t data) { return false; }
     virtual int setPixformat(pixformat_t pfmt) = 0;
+    virtual pixformat_t getPixformat() {return (pixformat_t)_format;}
     virtual uint8_t setFramesize(framesize_t framesize) = 0;
     virtual uint8_t setFramesize(int w, int h) {
         return 0;
@@ -82,8 +92,17 @@ class ImageSensor {
     virtual size_t readFrame(void *buffer1, size_t cb1, void *buffer2 = nullptr,
                              size_t cb2 = 0); // give default one for now
 
+    virtual void *readFrameReturnBuffer() {return _dma_last_completed_frame; }
+    
+    virtual size_t readImageSizeBytes() {return _dma_last_completed_image_size; }
+
     virtual void useDMA(bool f) { _fuse_dma = f; }
     virtual bool useDMA() { return _fuse_dma; }
+
+    virtual void data4BitMode(bool f) { _fdata_4bit_mode = f; }
+    virtual bool data4BitMode() { return _fdata_4bit_mode; }
+    virtual bool dataPinsReversed() { return _fshifter_pins_reversed; }
+
 
     // normal Read mode
     // We will include default implementation, used by some/all of the current
@@ -105,6 +124,25 @@ class ImageSensor {
                                  void *fb1, size_t cb1, void *fb2, size_t cb2);
     virtual bool stopReadFlexIO();
 
+
+    // start off 
+    virtual size_t readFrameCSI(void *buffer, size_t cb1 = (uint32_t)-1,
+                           void *buffer2 = nullptr, size_t cb2 = 0);
+
+    virtual bool startReadCSI(bool (*callback)(void *frame_buffer), void *fb1,
+                         size_t cb1, void *fb2, size_t cb2);
+
+    virtual bool stopReadCSI();
+
+    // helper function, that if you ask the CSI to not use DMA, may have
+    // issues, so will convert over to use FlexIO3 to do this.
+    // not sure if it needs to be virtual, but...
+    virtual size_t readFrameCSI_use_FlexIO(void *buffer, size_t cb1 = (uint32_t)-1,
+                           void *buffer2 = nullptr, size_t cb2 = 0);
+
+    // checks and if necessary changes the mode to either CSI or FlexIO
+    bool changeCSIReadToFlexIOMode(bool flexio_mode);
+
     // Lets try a dma version.  Doing one DMA that is synchronous does not gain
     // anything So lets have a start, stop... Have it allocate 2 frame buffers
     // and it's own DMA buffers, with the option of setting your own buffers if
@@ -117,7 +155,7 @@ class ImageSensor {
 
     virtual bool stopReadFrameDMA() = 0;
 
-    virtual void setVSyncISRPriority(uint8_t priority) = 0;
+    virtual void setVSyncISRPriority(uint8_t priority);
     virtual void setDMACompleteISRPriority(uint8_t priority) = 0;
 
     virtual uint32_t frameCount() = 0; //{return _dma_frame_count;}
@@ -139,7 +177,6 @@ class ImageSensor {
 
     // See which of these are used by which cameras.
     framesize_t framesize;
-    pixformat_t pixformat;
     camera_reg_settings_t settings;
     hw_config_t _hw_config;
     hw_carrier_t _hw_carrier;
@@ -150,7 +187,28 @@ class ImageSensor {
     static void frameStartInterruptFlexIO();
     virtual void processFrameStartInterruptFlexIO();
     virtual void processDMAInterrupt() {}
+
+    // Callback function for flexio
+    bool call_back(FlexIOHandler *pflex);
+
+    // default for Micromod
+    // The hardware configure will replace both
+    // the CSI and flexio configure.
+    // it will check what the pins belong to...
+    virtual bool hardware_configure();
     virtual bool flexio_configure();
+    virtual bool csi_configure();
+    bool checkForCSIPins();
+
+    // move a few more methods here:
+    virtual void beginXClk();
+    virtual void endXClk();
+
+    virtual void processCSIInterrupt();
+    static void CSIInterrupt();
+
+    // default for Teensy 4.1
+    virtual bool csi_reset_dma(); // needed if something goes wrong.
     virtual void processFrameStartInterrupt() {};
     virtual bool supports4BitMode() { return false; }
 
@@ -158,17 +216,24 @@ class ImageSensor {
 
   protected:
     bool _debug = true; // Should the camera code print out debug information?
-    bool _fuse_dma =
-        true; // in some cameras should we use DMA or do the Io directly
+    bool _fuse_dma = true; // in some cameras should we use DMA or do the Io directly
+    bool _fdata_4bit_mode = false; // Some cameras only support 4 bit mode
     bool _use_gpio = false;   // set in the begin of some cameras
+    bool _csi_in_flexio_mode = false; // should combine some of these. 
+    camera_input_t _cameraInput = CAMERA_INPUT_DEFAULT;
     uint32_t _timeout = 2000; // timeout in ms for a read
 
-    int _vsyncPin;
-    int _hrefPin;
-    int _pclkPin;
-    int _xclkPin;
-    int _rst;
-    int _dPins[8];
+    // Note this all could be uint8_t..
+    int _vsyncPin = CAMERAPIN_VSYNC;
+    int _hrefPin = CAMERAPIN_HREF;
+    int _pclkPin = CAMERAPIN_PLK;
+    int _xclkPin = CAMERAPIN_XCLK;
+    int _rst = CAMERAPIN_RST;
+    int _rst_init = CAMERAPIN_RST_INIT;
+    int _pwdn = CAMERAPIN_PWDN;
+    int _pwdn_init = CAMERAPIN_PWDN_INIT;
+    int _dPins[8] = {CAMERAPIN_D0, CAMERAPIN_D1, CAMERAPIN_D2, CAMERAPIN_D3,
+                    CAMERAPIN_D4, CAMERAPIN_D5, CAMERAPIN_D6, CAMERAPIN_D7};
 
     int16_t _width;
     int16_t _height;
@@ -176,9 +241,9 @@ class ImageSensor {
     int16_t _frame_height;
     int _bytesPerPixel;
     bool _grayscale = false;
-    int _format;
+    int _format = 0;
 
-    TwoWire *_wire;
+    TwoWire *_wire = &Wire;
 
     static DMAChannel _dmachannel;
     static DMASetting _dmasettings[10]; // For now lets have enough for two full
@@ -188,12 +253,17 @@ class ImageSensor {
     size_t _frame_buffer_1_size = 0;
     uint8_t *_frame_buffer_2 = nullptr;
     size_t _frame_buffer_2_size = 0;
+    //void* _last_frame_buffer_returned = nullptr;
     FlexIOHandler *_pflex;
     IMXRT_FLEXIO_t *_pflexio;
     uint8_t _fshifter;
     uint8_t _fshifter_mask;
     uint8_t _ftimer;
     uint8_t _dma_source;
+    uint8_t _fshifter_jpeg = 0xff; // if jpeg have we claimed shifter? 
+    uint8_t _fshifter_jpeg_mask = 0;
+    bool _fshifter_pins_reversed = false;
+    int _xclk_freq = 12;
 
     volatile uint32_t *_vsyncPort;
     uint32_t _vsyncMask;
@@ -205,12 +275,14 @@ class ImageSensor {
     bool (*_callback)(void *frame_buffer) = nullptr;
     uint32_t _dma_frame_count;
     uint8_t *_dma_last_completed_frame;
+    size_t _dma_last_completed_image_size;
 
     enum {
         DMASTATE_INITIAL = 0,
         DMASTATE_RUNNING,
         DMASTATE_STOP_REQUESTED,
         DMA_STATE_STOPPED,
+        DMA_STATE_FRAME_ERROR,
         DMA_STATE_ONE_FRAME
     };
     volatile uint8_t _dma_state = DMASTATE_INITIAL;
@@ -282,13 +354,27 @@ class Camera {
     bool usingGPIO();
 
     /**
+     * Returns if GPIO or FlexIO or CSI is being used by the camera
+     * Note: we should probably combine the usage of using GPIO...
+     * inputs: <none>
+     * returns: 
+     *   CAMERA_INPUT_DEFAULT = 0,
+     *   CAMERA_INPUT_FLEXIO,
+     *   CAMERA_INPUT_CSI,
+     *   CAMERA_INPUT_GPIO,
+     *   CAMERA_INPUT_GPIO4
+     */
+    camera_input_t cameraInput();
+
+    /**
      * Sets pixel format for the camera using the camera format enumerator.
      * HIMAX Cameras: Only GRAYSCALE IS SUPPORTED.
      * For other cameras RGB565 is typically used for displaying images.
      * The OV2640/5640 are the only cameras that support JPEG fromat.
      */
     int setPixformat(pixformat_t pfmt);
-
+    pixformat_t getPixformat();
+    
     /**
      * Set the resolution of the image sensor.
      *
@@ -590,6 +676,25 @@ class Camera {
                      size_t cb2 = 0);
 
     /**
+     * Return which frame buffer was used in the last read.  This is 
+     * mostly important with the CSI setup as CSI wants to alternate
+     * from buffer 1 to buffer 2
+     * Inpute: <none>
+     * return: pointer to last camera buffer that was completed
+     */
+    void *readFrameReturnBuffer();
+
+    
+    /**
+     * Return how many bytes were used in that last frame buffer. 
+     * Note: in most cases this will be width*hight*bytes_per_pixel.
+     * But: JPEG images are different.
+     * Inpute: <none>
+     * return: count of bytes to last image in the camera buffer
+     */
+    size_t readImageSizeBytes();
+
+    /**
      * Tells some readFrameFlexIO implementions if they should use DMA
      * or not.
      * Input: bool - yes or no
@@ -603,6 +708,35 @@ class Camera {
      * Returns: true (default) if they are configured to use DMA
      */
     bool useDMA();
+
+
+/**
+     * Some cameras support 4 data bit mode.  Some like
+     * the Arduino HM01b0 only supports 4 bit mode.
+     * or not.
+     * Input: bool - yes or no
+     * Returns: none
+     */ 
+    void data4BitMode(bool f);
+
+    /**
+     * Returns True if we are in 4 bit mode.
+     * use DMA or not.
+     * Returns: true (default) if they are configured to use DMA
+     */
+    bool data4BitMode();
+
+    /**
+     * Sometimes we run into FlexIO pins that are reversed
+     * That is instead of D1 == D0 + 1 and D2 == D0 + 2... 
+     * We have D1 == D0 - 1 and D23 == D0 - 2 ...
+     * Most likely case: use FlexIO on CSI pins.
+     * Sometimes the sketch needs to know this es for example
+     * 4 bit mode, the sketch may need to do something special.
+     * Inputs: None
+     * Returns: true if the flexio data pins are reversed.
+     */
+     bool dataPinsReversed();
 
     // normal Read mode
 
@@ -689,6 +823,35 @@ class Camera {
     bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1,
                          size_t cb1, void *fb2, size_t cb2);
     bool stopReadFlexIO();
+
+    // CSI may be default on some cameras
+    /**
+     * Read one Frame using CSI from the camera using the current settings
+     * This method allows you to pass in two buffers and size of
+     * buffers. This can be important when it is very possible that
+     * you do not have enough room in either DTCM or DMAMEM to hold
+     * one whole frame.  For example: OV2640, OV7670, OV7675 or GC2145
+     * cameras allow you to read in a VGA size (640 by 480) with 2 bytes
+     * per pixel this requires a buffer size of at least: 614400 bytes
+     * which is larger than either memory region.
+     *
+     * Inputs:
+     *     buffer1 - pointer to first buffer
+     *     cb1 - size of buffer 1 in bytes
+     *     buffer2 - pointer to optional second buffer
+     *     cb2 - size of second optional buffer
+     *
+     * Returns: count of bytes returned from the camera, 0 if error    size_t
+     * readFrameGPIO(void *buffer, size_t cb1 = (uint32_t)-1, void *buffer2 =
+     * nullptr, size_t cb2 = 0);
+     */
+    size_t readFrameCSI(void *buffer, size_t cb1 = (uint32_t)-1,
+                           void *buffer2 = nullptr, size_t cb2 = 0);
+
+    bool startReadCSI(bool (*callback)(void *frame_buffer), void *fb1,
+                         size_t cb1, void *fb2, size_t cb2);
+    bool stopReadCSI();
+
 
     // Lets try a dma version.  Doing one DMA that is synchronous does not gain
     // anything So lets have a start, stop... Have it allocate 2 frame buffers

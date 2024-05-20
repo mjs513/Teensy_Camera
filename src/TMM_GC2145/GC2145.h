@@ -4,6 +4,13 @@
 #define _GC2145_H_
 
 #include <Arduino.h>
+// Teensy 4.1 default to CSI pisn
+#ifdef ARDUINO_TEENSY41
+#define USE_CSI_PINS
+//#warning "Use CSI Pins"
+#endif
+#include <Camera.h>
+#include "teensy_csi_support.h"
 #if defined(__IMXRT1062__) // Teensy 4.x
 #include <DMAChannel.h>
 #include <FlexIO_t4.h>
@@ -29,98 +36,6 @@
 
 #define CNT_SHIFTERS 1
 
-#ifdef ARDUINO_TEENSY_MICROMOD
-/*
-HM01B0 pin      pin#    NXP     Usage
-----------      ----    ---     -----
-FVLD/VSYNC      33      EMC_07  GPIO
-LVLD/HSYNC      32      B0_12   FlexIO2:12
-MCLK            7       B1_01   PWM
-PCLK            8       B1_00   FlexIO2:16
-D0              40      B0_04   FlexIO2:4
-D1              41      B0_05   FlexIO2:5
-D2              42      B0_06   FlexIO2:6
-D3              43      B0_07   FlexIO2:7
-D4              44      B0_08   FlexIO2:8  - probably not needed, use 4 bit mode
-D5              45      B0_09   FlexIO2:9  - probably not needed, use 4 bit mode
-D6              6       B0_10   FlexIO2:10 - probably not needed, use 4 bit mode
-D7              9       B0_11   FlexIO2:11 - probably not needed, use 4 bit mode
-TRIG            5       EMC_08  ???
-INT             29      EMC_31  ???
-SCL             19      AD_B1_0 I2C
-SDA             18      AD_B1_1 I2C
-*/
-
-#define GC2145_PLK 8    // 8       B1_00   FlexIO2:16
-#define GC2145_XCLK 7   // 7       B1_01   PWM
-#define GC2145_HREF 32  // 32      B0_12   FlexIO2:12, pin 46 on sdram board
-#define GC2145_VSYNC 33 // 33      EMC_07  GPIO, 21 pon sdram board
-#define GC2145_RST 17   // reset pin
-
-#define GC2145_D0 40 // 40      B0_04   FlexIO2:4
-#define GC2145_D1 41 // 41      B0_05   FlexIO2:5
-#define GC2145_D2 42 // 42      B0_06   FlexIO2:6
-#define GC2145_D3 43 // 43      B0_07   FlexIO2:7
-#define GC2145_D4                                                              \
-    44 // 44      B0_08   FlexIO2:8  - probably not needed, use 4 bit mode
-#define GC2145_D5                                                              \
-    45 // 45      B0_09   FlexIO2:9  - probably not needed, use 4 bit mode
-#define GC2145_D6                                                              \
-    6 // 6       B0_10   FlexIO2:10 - probably not needed, use 4 bit mode
-#define GC2145_D7                                                              \
-    9 // 9       B0_11   FlexIO2:11 - probably not needed, use 4 bit mode
-
-#elif defined USE_CSI_PINS
-#define GC2145_PLK 40 // 40 // AD_B1_04 CSI_PIXCLK
-#define GC2145_XCLK_JUMPER                                                     \
-    41                  // BUGBUG CSI 41 is NOT a PWM pin so we jumper to it...
-#define GC2145_XCLK 37  // 41 // AD_B1_05 CSI_MCLK
-#define GC2145_HREF 16  // AD_B1_07 CSI_HSYNC
-#define GC2145_VSYNC 17 // AD_B1_06 CSI_VSYNC
-
-#define GC2145_D0 27 // AD_B1_15 CSI_D2
-#define GC2145_D1 26 // AD_B1_14 CSI_D3
-#define GC2145_D2 39 // AD_B1_13 CSI_D4
-#define GC2145_D3 38 // AD_B1_12 CSI_D5
-#define GC2145_D4 21 // AD_B1_11 CSI_D6
-#define GC2145_D5 20 // AD_B1_10 CSI_D7
-#define GC2145_D6 23 // AD_B1_09 CSI_D8
-#define GC2145_D7 22 // AD_B1_08 CSI_D9
-#elif 1
-#define GC2145_PLK 4    // 40 // AD_B1_04 CSI_PIXCLK
-#define GC2145_XCLK 5   // 41 // AD_B1_05 CSI_MCLK
-#define GC2145_HREF 40  // AD_B1_07 CSI_HSYNC
-#define GC2145_VSYNC 41 // AD_B1_06 CSI_VSYNC
-
-#define GC2145_D0 27 // AD_B1_02 1.18
-#define GC2145_D1 15 // AD_B1_03 1.19
-#define GC2145_D2 17 // AD_B1_06 1.22
-#define GC2145_D3 16 // AD_B1_07 1.23
-#define GC2145_D4 22 // AD_B1_08 1.24
-#define GC2145_D5 23 // AD_B1_09 1.25
-#define GC2145_D6 20 // AD_B1_10 1.26
-#define GC2145_D7 21 // AD_B1_11 1.27
-
-#else
-// For T4.1 can choose same or could choose a contiguous set of pins only one
-// shift required. Like:  Note was going to try GPI pins 1.24-21 but save SPI1
-// pins 26,27 as no ...
-#define GC2145_PLK 4
-#define GC2145_XCLK 5
-#define GC2145_HREF 40  // AD_B1_04 1.20 T4.1...
-#define GC2145_VSYNC 41 // AD_B1_05 1.21 T4.1...
-
-#define GC2145_D0 17 // AD_B1_06 1.22
-#define GC2145_D1 16 // AD_B1_07 1.23
-#define GC2145_D2 22 // AD_B1_08 1.24
-#define GC2145_D3 23 // AD_B1_09 1.25
-#define GC2145_D4 20 // AD_B1_10 1.26
-#define GC2145_D5 21 // AD_B1_11 1.27
-#define GC2145_D6 38 // AD_B1_12 1.28
-#define GC2145_D7 39 // AD_B1_13 1.29
-#endif
-//      #define GC2145_D6    26 // AD_B1_14 1.30
-//      #define GC2145_D7    27 // AD_B1_15 1.31
 #endif
 
 // dummy defines for camera class
@@ -281,7 +196,7 @@ class GC2145 : public ImageSensor {
 
     // quick and dirty attempt to read in images larger than can fit into one
     // region of memory...
-    //	void readFrameMultiBuffer(void* buffer1, size_t size1, void* buffer2,
+    //  void readFrameMultiBuffer(void* buffer1, size_t size1, void* buffer2,
     // size_t size2);
 
     // normal Read mode
@@ -327,9 +242,6 @@ class GC2145 : public ImageSensor {
     void readFrameDMA(void *buffer);
 
   private:
-    void beginXClk();
-    void endXClk();
-
     uint8_t cameraReadRegister(uint8_t reg);
     uint8_t cameraWriteRegister(uint8_t reg, uint8_t data);
 
@@ -346,14 +258,14 @@ class GC2145 : public ImageSensor {
     enum {
         DMABUFFER_SIZE = 1296
     }; // 640x480  so 640*2*2
-       //	static DMAChannel _dmachannel;
-    //	static DMASetting _dmasettings[10];  // maybe handle up to 800x600
+       //   static DMAChannel _dmachannel;
+    //  static DMASetting _dmasettings[10];  // maybe handle up to 800x600
     static uint32_t _dmaBuffer1[DMABUFFER_SIZE];
     static uint32_t _dmaBuffer2[DMABUFFER_SIZE];
 
-    //	bool (*_callback)(void *frame_buffer) = nullptr ;
-    //	uint32_t  _dma_frame_count;
-    //	uint8_t *_dma_last_completed_frame;
+    //  bool (*_callback)(void *frame_buffer) = nullptr ;
+    //  uint32_t  _dma_frame_count;
+    //  uint8_t *_dma_last_completed_frame;
     // TBD Allow user to set all of the buffers...
 
 #if defined(ARDUINO_TEENSY_MICROMOD)
@@ -388,8 +300,8 @@ class GC2145 : public ImageSensor {
     static void dmaInterrupt();
     void processDMAInterrupt();
 #if 0
-	static void frameStartInterrupt();
-	void processFrameStartInterrupt();
+    static void frameStartInterrupt();
+    void processFrameStartInterrupt();
 #endif
 
     inline int fast_floorf(float x) {

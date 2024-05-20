@@ -464,16 +464,9 @@ const uint8_t agc_gain_tbl[31] = {
     0x78, 0x7A, 0x7C, 0x7E, 0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6,
     0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF};
 
-const int OV2640_D[8] = {OV2640_D0, OV2640_D1, OV2640_D2, OV2640_D3,
-                         OV2640_D4, OV2640_D5, OV2640_D6, OV2640_D7};
 
 OV2640::OV2640()
     : _OV2640(NULL), _saturation(3), _hue(0), _frame_buffer_pointer(NULL) {
-    // setPins(OV2640_VSYNC, OV2640_HREF, OV2640_PLK, OV2640_XCLK, OV2640_RST,
-    // OV2640_D);
-    setPins(OV2640_XCLK, OV2640_PLK, OV2640_VSYNC, OV2640_HREF, OV2640_RST,
-            OV2640_D0, OV2640_D1, OV2640_D2, OV2640_D3, OV2640_D4, OV2640_D5,
-            OV2640_D6, OV2640_D7, Wire);
 }
 
 // Read a single uint8_t from address and return it as a uint8_t
@@ -516,6 +509,7 @@ uint16_t OV2640::getModelid() {
     Data = cameraReadRegister(0x0B);
     MID |= Data;
 
+    if (_debug)debug.printf("getModelID: return: %x\n", MID);
     return MID;
 }
 
@@ -525,6 +519,30 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format,
                               int fps, int camera_name, bool use_gpio) {
 
     _use_gpio = use_gpio;
+
+    // WIP - Need set functions:
+    if (_rst != 0xff) {
+        if (_rst_init >= 0) {
+            pinMode(_rst, OUTPUT);
+            digitalWrite(_rst, _rst_init);            
+        } 
+        else if (_rst_init == -1) pinMode(_rst, INPUT);
+        else if (_rst_init == -2) pinMode(_rst, INPUT_PULLUP);
+        else if (_rst_init == -3) pinMode(_rst, INPUT_PULLDOWN);
+        delay(5);
+    }
+
+    if (_pwdn != 0xff) {
+        if (_pwdn_init >= 0) {
+            pinMode(_pwdn, OUTPUT);
+            digitalWrite(_pwdn, _pwdn_init);            
+        } 
+        else if (_pwdn_init == -1) pinMode(_pwdn, INPUT);
+        else if (_pwdn_init == -2) pinMode(_pwdn, INPUT_PULLUP);
+        else if (_pwdn_init == -3) pinMode(_pwdn, INPUT_PULLDOWN);
+        delay(5);
+    }
+
 // BUGBUG::: see where frame is
 #ifdef USE_DEBUG_PINS
     pinMode(49, OUTPUT);
@@ -620,7 +638,7 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format,
 #ifdef DEBUG_CAMERA
     debug.printf("  VS=%d, HR=%d, PC=%d XC=%d\n", _vsyncPin, _hrefPin, _pclkPin,
                  _xclkPin);
-    debug.printf("  RST=%d\n", _rst);
+    debug.printf("  RST=%d(%d), PWDN=%d(%d)\n", _rst, _rst_init, _pwdn, _pwdn_init);
 
     for (int i = 0; i < 8; i++) {
         pinMode(_dPins[i], INPUT);
@@ -679,7 +697,7 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format,
 
     // flexIO/DMA
     if (!_use_gpio) {
-        flexio_configure();
+        hardware_configure();
         setVSyncISRPriority(102);
         setDMACompleteISRPriority(192);
     } else {
@@ -717,21 +735,6 @@ int OV2640::reset() {
     return ret;
 }
 
-void OV2640::beginXClk() {
-    // Generates 8 MHz signal using PWM... Will speed up.
-    analogWriteFrequency(_xclkPin, _xclk_freq * 1000000);
-    analogWrite(_xclkPin, 127);
-    delay(100); // 9mhz works, but try to reduce to debug timings with logic
-                // analyzer
-}
-
-void OV2640::endXClk() {
-#if defined(__IMXRT1062__) // Teensy 4.x
-    analogWrite(OV2640_XCLK, 0);
-#else
-    NRF_I2S->TASKS_STOP = 1;
-#endif
-}
 
 void OV2640::end() {
     endXClk();
@@ -1139,7 +1142,7 @@ int OV2640::setQuality(int qs) {
 }
 
 uint8_t OV2640::getQuality() {
-    int ret = 0;
+    //int ret = 0;
 
     /* Switch to DSP register bank */
     cameraWriteRegister(BANK_SEL, BANK_SEL_DSP);

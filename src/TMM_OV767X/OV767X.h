@@ -8,7 +8,13 @@
 #define _OV767X_H_
 
 #include <Arduino.h>
+// Teensy 4.1 default to CSI pisn
+#ifdef ARDUINO_TEENSY41
+#define USE_CSI_PINS
+//#warning "Use CSI Pins"
+#endif
 #include <Camera.h>
+#include "teensy_csi_support.h"
 #if defined(__IMXRT1062__) // Teensy 4.x
 #include <DMAChannel.h>
 #include <FlexIO_t4.h>
@@ -29,94 +35,7 @@
 #define DebugDigitalToggle(pin)
 #endif
 
-#ifdef ARDUINO_TEENSY_MICROMOD
-/*
-HM01B0 pin      pin#    NXP     Usage
-----------      ----    ---     -----
-FVLD/VSYNC      33      EMC_07  GPIO
-LVLD/HSYNC      32      B0_12   FlexIO2:12
-MCLK            7       B1_01   PWM
-PCLK            8       B1_00   FlexIO2:16
-D0              40      B0_04   FlexIO2:4
-D1              41      B0_05   FlexIO2:5
-D2              42      B0_06   FlexIO2:6
-D3              43      B0_07   FlexIO2:7
-D4              44      B0_08   FlexIO2:8  - probably not needed, use 4 bit mode
-D5              45      B0_09   FlexIO2:9  - probably not needed, use 4 bit mode
-D6              6       B0_10   FlexIO2:10 - probably not needed, use 4 bit mode
-D7              9       B0_11   FlexIO2:11 - probably not needed, use 4 bit mode
-TRIG            5       EMC_08  ???
-INT             29      EMC_31  ???
-SCL             19      AD_B1_0 I2C
-SDA             18      AD_B1_1 I2C
-*/
 
-#define OV7670_PLK 8    // 8       B1_00   FlexIO2:16
-#define OV7670_XCLK 7   // 7       B1_01   PWM
-#define OV7670_HREF 32  // 32      B0_12   FlexIO2:12, pin 46 on sdram board
-#define OV7670_VSYNC 33 // 33      EMC_07  GPIO, 21 pon sdram board
-#define OV7670_RST 17   // reset pin
-
-#define OV7670_D0 40 // 40      B0_04   FlexIO2:4
-#define OV7670_D1 41 // 41      B0_05   FlexIO2:5
-#define OV7670_D2 42 // 42      B0_06   FlexIO2:6
-#define OV7670_D3 43 // 43      B0_07   FlexIO2:7
-#define OV7670_D4 44 // 44      B0_08   FlexIO2:8
-#define OV7670_D5 45 // 45      B0_09   FlexIO2:9
-#define OV7670_D6 6  // 6       B0_10   FlexIO2:10
-#define OV7670_D7 9  // 9       B0_11   FlexIO2:11
-
-#elif defined USE_CSI_PINS
-#define OV7670_PLK 40 // 40 // AD_B1_04 CSI_PIXCLK
-#define OV7670_XCLK_JUMPER                                                     \
-    41                  // BUGBUG CSI 41 is NOT a PWM pin so we jumper to it...
-#define OV7670_XCLK 37  // 41 // AD_B1_05 CSI_MCLK
-#define OV7670_HREF 16  // AD_B1_07 CSI_HSYNC
-#define OV7670_VSYNC 17 // AD_B1_06 CSI_VSYNC
-
-#define OV7670_D0 27 // AD_B1_15 CSI_D2
-#define OV7670_D1 26 // AD_B1_14 CSI_D3
-#define OV7670_D2 39 // AD_B1_13 CSI_D4
-#define OV7670_D3 38 // AD_B1_12 CSI_D5
-#define OV7670_D4 21 // AD_B1_11 CSI_D6
-#define OV7670_D5 20 // AD_B1_10 CSI_D7
-#define OV7670_D6 23 // AD_B1_09 CSI_D8
-#define OV7670_D7 22 // AD_B1_08 CSI_D9
-#elif 1
-#define OV7670_PLK 4    // 40 // AD_B1_04 CSI_PIXCLK
-#define OV7670_XCLK 5   // 41 // AD_B1_05 CSI_MCLK
-#define OV7670_HREF 40  // AD_B1_07 CSI_HSYNC
-#define OV7670_VSYNC 41 // AD_B1_06 CSI_VSYNC
-
-#define OV7670_D0 27 // AD_B1_02 1.18
-#define OV7670_D1 15 // AD_B1_03 1.19
-#define OV7670_D2 17 // AD_B1_06 1.22
-#define OV7670_D3 16 // AD_B1_07 1.23
-#define OV7670_D4 22 // AD_B1_08 1.24
-#define OV7670_D5 23 // AD_B1_09 1.25
-#define OV7670_D6 20 // AD_B1_10 1.26
-#define OV7670_D7 21 // AD_B1_11 1.27
-
-#else
-// For T4.1 can choose same or could choose a contiguous set of pins only one
-// shift required. Like:  Note was going to try GPI pins 1.24-21 but save SPI1
-// pins 26,27 as no ...
-#define OV7670_PLK 4
-#define OV7670_XCLK 5
-#define OV7670_HREF 40  // AD_B1_04 1.20 T4.1...
-#define OV7670_VSYNC 41 // AD_B1_05 1.21 T4.1...
-
-#define OV7670_D0 17 // AD_B1_06 1.22
-#define OV7670_D1 16 // AD_B1_07 1.23
-#define OV7670_D2 22 // AD_B1_08 1.24
-#define OV7670_D3 23 // AD_B1_09 1.25
-#define OV7670_D4 20 // AD_B1_10 1.26
-#define OV7670_D5 21 // AD_B1_11 1.27
-#define OV7670_D6 38 // AD_B1_12 1.28
-#define OV7670_D7 39 // AD_B1_13 1.29
-#endif
-//      #define OV7670_D6    26 // AD_B1_14 1.30
-//      #define OV7670_D7    27 // AD_B1_15 1.31
 
 #endif
 
@@ -191,9 +110,6 @@ class OV767X : public ImageSensor {
     inline void *frameBuffer() { return _dma_last_completed_frame; }
     void captureFrameStatistics();
 
-    void setVSyncISRPriority(uint8_t priority) {
-        NVIC_SET_PRIORITY(IRQ_GPIO6789, priority);
-    }
     void setDMACompleteISRPriority(uint8_t priority) {
         NVIC_SET_PRIORITY(_dmachannel.channel & 0xf, priority);
     }
@@ -342,8 +258,6 @@ class OV767X : public ImageSensor {
     };
 
   private:
-    void beginXClk();
-    void endXClk();
     uint8_t cameraReadRegister(uint8_t reg);
 
   private:
