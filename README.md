@@ -21,7 +21,7 @@ The driver is primarily based on the Arduino Giga, OpenMV, ESP32_camera Sensor d
 >
 
 ## CAMERA COMMAND SET
-https://github.com/mjs513/TeensyMM_Camera/blob/main/docs/Camera_sensors.xlsx
+https://github.com/mjs513/Teensy_Camera/blob/main/docs/Camera_sensors.xlsx
 
 
 Notes on camera commands:
@@ -74,37 +74,37 @@ This follows the method used by the arduino giga camera library:
 //#define ARDUCAM_CAMERA_GC2145
 
 #if defined(ARDUCAM_CAMERA_HM0360)
-#include "TMM_HM0360/HM0360.h"
+#include "Teensy_HM0360/HM0360.h"
 HM0360 himax;
 Camera camera(himax);
 #define CameraID 0x0360
 
 #elif defined(ARDUCAM_CAMERA_HM01B0)
-#include "TMM_HM01B0/HM01B0.h"
+#include "Teensy_HM01B0/HM01B0.h"
 HM01B0 himax;
 Camera camera(himax);
 #define CameraID 0x01B0
 
 #elif defined(ARDUCAM_CAMERA_OV2640)
-#include "TMM_OV2640/OV2640.h"
+#include "Teensy_OV2640/OV2640.h"
 OV2640 omni;
 Camera camera(omni);
 #define CameraID 0x2642
 
 #elif defined(ARDUCAM_CAMERA_OV7670)
-#include "TMM_OV767X/OV767X.h"
+#include "Teensy_OV767X/OV767X.h"
 OV767X omni;
 Camera camera(omni);
 #define CameraID 0x7676
 
 #elif defined(ARDUCAM_CAMERA_OV7675)
-#include "TMM_OV767X/OV767X.h"
+#include "Teensy_OV767X/OV767X.h"
 OV767X omni;
 Camera camera(omni);
 #define CameraID 0x7673
 
 #elif defined(ARDUCAM_CAMERA_GC2145)
-#include "TMM_GC2145/GC2145.h"
+#include "Teensy_GC2145/GC2145.h"
 GC2145 galaxycore;
 Camera camera(galaxycore);
 #define CameraID 0x2145
@@ -116,7 +116,7 @@ Camera camera(galaxycore);
 Arducam Windows App: https://docs.arducam.com/Arduino-SPI-camera/Legacy-SPI-camera/Software/Host-Debug-Tools/
 This is primarily used for the OV2640 which supports these commands.  See the OV2640_display example.
 
-![image](https://github.com/mjs513/TeensyMM_Camera/assets/5366213/1a47f1f6-d65f-4d1d-9d19-ce5a6f507a92)
+![image](https://github.com/mjs513/Teensy_Camera/assets/5366213/1a47f1f6-d65f-4d1d-9d19-ce5a6f507a92)
 
 Processing App:
 
