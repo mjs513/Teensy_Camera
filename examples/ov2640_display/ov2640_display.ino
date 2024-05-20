@@ -4,23 +4,23 @@
 #include <JPEGDEC.h>
 #include <MemoryHexDump.h>
 
-#include "Camera.h"
+#include "Teensy_Camera.h"
 
 #define USE_MMOD_ATP_ADAPTER
 //#define USE_SDCARD
 //#define useILI9341
 
-#define ARDUCAM_CAMERA_OV2640
-//#define ARDUCAM_CAMERA_OV5640
+#define DVP_CAMERA_OV2640
+//#define DVP_CAMERA_OV5640
 
-#if defined(ARDUCAM_CAMERA_OV2640)
-#include "TMM_OV2640/OV2640.h"
+#if defined(DVP_CAMERA_OV2640)
+#include "Teensy_OV2640/OV2640.h"
 OV2640 omni;
 Camera camera(omni);
 #define CameraID OV2640a
 #define MIRROR_FLIP_CAMERA
-#elif defined(ARDUCAM_CAMERA_OV5640)
-#include "TMM_OV5640/OV5640.h"
+#elif defined(DVP_CAMERA_OV5640)
+#include "Teensy_OV5640/OV5640.h"
 OV5640 omni;
 Camera camera(omni);
 #define CameraID OV5640a
@@ -344,7 +344,7 @@ bool camera_flexio_callback(void *pfb) {
 #define UPDATE_ON_CAMERA_FRAMES
 
 inline uint16_t HTONS(uint16_t x) {
-#if defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640)
+#if defined(DVP_CAMERA_OV2640) || defined(DVP_CAMERA_OV5640)
   return x;
 #else  //byte reverse
   return ((x >> 8) & 0x00FF) | ((x << 8) & 0xFF00);
@@ -524,7 +524,7 @@ void loop() {
         }
       case 'j':
         {
-#if (defined(USE_SDCARD) && (defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_OV5640)))
+#if (defined(USE_SDCARD) && (defined(DVP_CAMERA_OV2640) || defined(DVP_CAMERA_OV5640)))
           bool error = false;
           error = save_jpg_SD();
           if (!error) Serial.println("ERROR reading JPEG.  Try again....");
@@ -1153,7 +1153,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
   if (show_debug_info) {
     Serial.printf("Finished reading frame(%u)\n", cbRead);
     Serial.flush();
-#if (defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670) || defined(ARDUCAM_CAMERA_OV2640) || defined(ARDUCAM_CAMERA_GC2145) || defined(ARDUCAM_CAMERA_OV5640))
+#if (defined(DVP_CAMERA_OV7675) || defined(DVP_CAMERA_OV7670) || defined(DVP_CAMERA_OV2640) || defined(DVP_CAMERA_GC2145) || defined(DVP_CAMERA_OV5640))
     for (volatile uint16_t *pfb = frameBuffer; pfb < (frameBuffer + 4 * camera.width()); pfb += camera.width()) {
 #else
     for (volatile uint8_t *pfb = frameBuffer; pfb < (frameBuffer + 4 * camera.width()); pfb += camera.width()) {
@@ -1168,7 +1168,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
 #if 0  // Figure this out later...
        // Lets dump out some of center of image.
             Serial.println("Show Center pixels\n");
-#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+#if defined(DVP_CAMERA_OV7675) || defined(DVP_CAMERA_OV7670)
             for (volatile uint16_t *pfb = frameBuffer + camera.width() * ((camera.height() / 2) - 8); pfb < (frameBuffer + camera.width() * (camera.height() / 2 + 8)); pfb += camera.width()) {
 #else
             for (volatile uint8_t *pfb = frameBuffer + camera.width() * ((camera.height() / 2) - 8); pfb < (frameBuffer + camera.width() * (camera.height() / 2 + 8)); pfb += camera.width()) {
@@ -1203,7 +1203,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
 #else
 
 #ifndef CAMERA_USES_MONO_PALETTE
-//#if defined(ARDUCAM_CAMERA_OV7675) || defined(ARDUCAM_CAMERA_OV7670)
+//#if defined(DVP_CAMERA_OV7675) || defined(DVP_CAMERA_OV7670)
 
 //int camera_width = Camera.width();
 #if 0  //def ARDUINO_TEENSY_DEVBRD4

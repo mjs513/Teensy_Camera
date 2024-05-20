@@ -4,14 +4,14 @@
 #include <JPEGDEC.h>
 #include <MemoryHexDump.h>
 
-#include "Camera.h"
+#include "Teensy_Camera.h"
 
 #define USE_MMOD_ATP_ADAPTER
 #define useRA9976
 //#define USE_SDCARD
 
-#define ARDUCAM_CAMERA_OV2640
-#include "TMM_OV2640/OV2640.h"
+#define DVP_CAMERA_OV2640
+#include "Teensy_OV2640/OV2640.h"
 OV2640 omni;
 Camera camera(omni);
 #define CameraID OV2640a

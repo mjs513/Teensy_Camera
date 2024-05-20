@@ -9,14 +9,14 @@
 #define TFT_ROTATION 3
 #define USE_SDCARD
 
-//#define use9488
+#define use9488
 //#define DVP_CAMERA_HM01B0
 //#define DVP_CAMERA_HM0360
 //#define DVP_CAMERA_OV2640
-// #define DVP_CAMERA_OV7670
+ #define DVP_CAMERA_OV7670
 //#define DVP_CAMERA_OV7675
 //#define DVP_CAMERA_GC2145
-#define DVP_CAMERA_OV5640
+//#define DVP_CAMERA_OV5640
 
 //set cam configuration - need to remember when saving jpeg
 framesize_t camera_framesize = FRAMESIZE_QVGA;
