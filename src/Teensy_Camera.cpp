@@ -149,6 +149,11 @@ bool Camera::readContinuous(bool (*callback)(void *frame_buffer), void *fb1,
 
 void Camera::stopReadContinuous() { return sensor->stopReadContinuous(); }
 
+
+bool Camera::ChangeContinuousBuffers(void *fbFrom, size_t cbFrom, void *fbTo, size_t cbTo) {
+    return sensor->ChangeContinuousBuffers(fbFrom, cbFrom, fbTo, cbTo);
+}
+
 // FlexIO is default mode for the camera
 
 size_t Camera::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
