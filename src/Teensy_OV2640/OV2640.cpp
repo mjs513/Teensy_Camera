@@ -515,7 +515,7 @@ uint16_t OV2640::getModelid() {
 
 // int OV2640::begin(int resolution, int format, int fps,  int camera_name, bool
 // use_gpio)
-bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format,
+bool OV2640::begin_omnivision(framesize_t framesize, pixformat_t format,
                               int fps, int camera_name, bool use_gpio) {
 
     _use_gpio = use_gpio;
@@ -551,51 +551,17 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format,
     //_wire = &Wire;
     _wire->begin();
 
-    switch (resolution) {
-    case FRAMESIZE_VGA:
-        _width = 640;
-        _height = 480;
-        _framesize = 0;
-        break;
+    if (framesize >= (sizeof(resolution) / sizeof(resolution[0])))
+        return 1; // error
 
-    case FRAMESIZE_CIF:
-        _width = 352;
-        _height = 240;
-        _framesize = 1;
-        break;
-
-    case FRAMESIZE_QVGA:
-        _width = 320;
-        _height = 240;
-        _framesize = 2;
-        break;
-
-    case FRAMESIZE_QCIF:
-        _width = 176;
-        _height = 144;
-        _framesize = 3;
-        break;
-
-    case FRAMESIZE_QQVGA:
-        _width = 160;
-        _height = 120;
-        _framesize = 4;
-        break;
-
-    case FRAMESIZE_SVGA:
-        _width = 800;
-        _height = 600;
-        _framesize = 8;
-        break;
-    case FRAMESIZE_UXGA:
-        _width = 1600;
-        _height = 1200;
-        _framesize = 9;
-        break;
-
-    default:
+    _width = resolution[framesize][0];
+    if (_width == 0) {
+        if (_debug)
+            debug.println("Frame Size Invalid!!!");
         return false;
     }
+    _height = resolution[framesize][1];
+    _framesize = (uint8_t)framesize;
 
     _grayscale = false;
     switch (format) {
@@ -711,7 +677,7 @@ bool OV2640::begin_omnivision(framesize_t resolution, pixformat_t format,
             debug.println("Error: setPixformat failed");
         return false;
     }
-    if (setFramesize(resolution) != 0) {
+    if (setFramesize(framesize) != 0) {
         if (_debug)
             debug.println("Error: setFramesize failed");
         return false; // failed to set resolution
