@@ -136,7 +136,7 @@ class OV767X : public ImageSensor {
     bool writeRegister(uint8_t reg, uint8_t data);
 
     // If you are using different pin numbers other than those defined
-    // in default_camera_pins.h - you can call Camera.setPins(...) 
+    // in default_camera_pins.h - you can call Camera.setPins(...)
     // before calling Camera.begin()
     /****************** covers non supported virtual funcs in OV class
      * *****************/

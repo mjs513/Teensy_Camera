@@ -2,11 +2,11 @@
 
 Camera::Camera(ImageSensor &sensor) : sensor(&sensor) {}
 
-void Camera::setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, uint8_t en_pin, 
-                     uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, 
-                     uint8_t g4, uint8_t g5, uint8_t g6, uint8_t g7, 
+void Camera::setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, uint8_t en_pin,
+                     uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3,
+                     uint8_t g4, uint8_t g5, uint8_t g6, uint8_t g7,
                      uint8_t shutdn_pin, TwoWire &wire) {
-    sensor->setPins(mclk_pin, pclk_pin, vsync_pin, hsync_pin, en_pin, 
+    sensor->setPins(mclk_pin, pclk_pin, vsync_pin, hsync_pin, en_pin,
                     g0, g1, g2, g3, g4, g5, g6, g7, shutdn_pin, wire);
 }
 
@@ -148,7 +148,6 @@ bool Camera::readContinuous(bool (*callback)(void *frame_buffer), void *fb1,
 }
 
 void Camera::stopReadContinuous() { return sensor->stopReadContinuous(); }
-
 
 // FlexIO is default mode for the camera
 

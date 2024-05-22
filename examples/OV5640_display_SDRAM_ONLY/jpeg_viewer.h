@@ -1,5 +1,5 @@
 // Options file information
-    static const PROGMEM char options_file_name[] = "PictureViewOptions.ini";
+static const PROGMEM char options_file_name[] = "PictureViewOptions.ini";
 int g_debug_output = 0;
 int g_stepMode = 0;
 int g_BMPScale = -1;
@@ -11,7 +11,10 @@ int g_background_color = TFT_BLACK;
 int g_max_scale_up = 4;
 
 // scale boundaries {2, 4, 8, 16<maybe>}
-enum { SCL_HALF = 0, SCL_QUARTER, SCL_EIGHTH, SCL_16TH };
+enum { SCL_HALF = 0,
+       SCL_QUARTER,
+       SCL_EIGHTH,
+       SCL_16TH };
 int g_jpg_scale_x_above[4];
 int g_jpg_scale_y_above[4];
 

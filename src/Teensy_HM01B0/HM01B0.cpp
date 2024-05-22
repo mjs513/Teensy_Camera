@@ -88,7 +88,7 @@ const uint16_t default_regs[][2] = {
     {0x1003, 0x00}, //  BLI Target [Def: 0x20]
 
     {DPC_CTRL,
-     0x01}, //  DPC option 0: DPC off   1 : mono   3 : bayer1   5 : bayer2
+     0x01},                  //  DPC option 0: DPC off   1 : mono   3 : bayer1   5 : bayer2
     {0x1009, 0xA0},          //  cluster hot pixel th
     {0x100A, 0x60},          //  cluster cold pixel th
     {SINGLE_THR_HOT, 0x90},  //  single hot pixel th
@@ -984,7 +984,8 @@ uint16_t HM01B0::getModelid() {
     Data = cameraReadRegister(MODEL_ID_L);
     MID |= Data;
 
-    if (_debug)debug.printf("Camera Model ID: %x\n", MID);
+    if (_debug)
+        debug.printf("Camera Model ID: %x\n", MID);
 
     return MID;
 }
@@ -1095,22 +1096,26 @@ bool HM01B0::begin(framesize_t framesize, int framerate, bool use_gpio) {
     if (_rst != 0xff) {
         if (_rst_init >= 0) {
             pinMode(_rst, OUTPUT);
-            digitalWrite(_rst, _rst_init);            
-        } 
-        else if (_rst_init == -1) pinMode(_rst, INPUT);
-        else if (_rst_init == -2) pinMode(_rst, INPUT_PULLUP);
-        else if (_rst_init == -3) pinMode(_rst, INPUT_PULLDOWN);
+            digitalWrite(_rst, _rst_init);
+        } else if (_rst_init == -1)
+            pinMode(_rst, INPUT);
+        else if (_rst_init == -2)
+            pinMode(_rst, INPUT_PULLUP);
+        else if (_rst_init == -3)
+            pinMode(_rst, INPUT_PULLDOWN);
         delay(5);
     }
 
     if (_pwdn != 0xff) {
         if (_pwdn_init >= 0) {
             pinMode(_pwdn, OUTPUT);
-            digitalWrite(_pwdn, _pwdn_init);            
-        } 
-        else if (_pwdn_init == -1) pinMode(_pwdn, INPUT);
-        else if (_pwdn_init == -2) pinMode(_pwdn, INPUT_PULLUP);
-        else if (_pwdn_init == -3) pinMode(_pwdn, INPUT_PULLDOWN);
+            digitalWrite(_pwdn, _pwdn_init);
+        } else if (_pwdn_init == -1)
+            pinMode(_pwdn, INPUT);
+        else if (_pwdn_init == -2)
+            pinMode(_pwdn, INPUT_PULLUP);
+        else if (_pwdn_init == -3)
+            pinMode(_pwdn, INPUT_PULLDOWN);
         delay(5);
     }
 
@@ -1204,7 +1209,6 @@ void HM01B0::end() {
 
     Wire.end();
 }
-
 
 #define FLEXIO_USE_DMA
 
