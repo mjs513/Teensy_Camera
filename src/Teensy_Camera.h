@@ -20,10 +20,12 @@ class ImageSensor : public FlexIOHandlerCallback {
 
     // must be called before Camera.begin()
     virtual void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin,
-                         uint8_t hsync_pin, uint8_t en_pin, uint8_t g0,
-                         uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4 = 0xff,
-                         uint8_t g5 = 0xff, uint8_t g6 = 0xff,
-                         uint8_t g7 = 0xff, TwoWire &wire = Wire);
+                 uint8_t hsync_pin, uint8_t en_pin, 
+                 uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, 
+                 uint8_t g4 = 0xff, uint8_t g5 = 0xff,
+                 uint8_t g6 = 0xff, uint8_t g7 = 0xff, 
+                 uint8_t shutdn_pin=0xff,
+                 TwoWire &wire = Wire);
     virtual bool begin(framesize_t framesize = FRAMESIZE_QVGA,
                        int framerate = 30, bool use_gpio = false) = 0;
     virtual void end() = 0;
@@ -115,8 +117,6 @@ class ImageSensor : public FlexIOHandlerCallback {
     virtual bool readContinuous(bool (*callback)(void *frame_buffer), void *fb1,
                                 size_t cb1, void *fb2, size_t cb2);
     virtual void stopReadContinuous();
-
-    virtual bool ChangeContinuousBuffers(void *fbFrom, size_t cbFrom, void *fbTo, size_t cbTo);
 
     // FlexIO is default mode for the camera
     virtual size_t readFrameFlexIO(void *buffer, size_t cb1 = (uint32_t)-1,
@@ -300,8 +300,11 @@ class Camera {
     /**
      * Configures Teensy pins to use for device and must be called
      * camera.begin(...).
-     * Pin order: XCLK (MCLK), PCLK, VSYNCH, HSYNC, ENABLE,
+     * 
+     * Note: Pin number: 0xff means not used, 0xfe says don't change
+     * Pin order: XCLK (MCLK), PCLK, VSYNCH, HSYNC,  ENABLE, 
      *            Data Pins(D0 - D8)
+     *           SHUTDN,
      *            I2C bus (Wire used by Default)
      * 1. FLEXIO pins are used for data pins (consectutive), PCLK,
      *    and HSYNCH.
@@ -309,9 +312,12 @@ class Camera {
      *
      */
     void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin,
-                 uint8_t hsync_pin, uint8_t en_pin, uint8_t g0, uint8_t g1,
-                 uint8_t g2, uint8_t g3, uint8_t g4 = 0xff, uint8_t g5 = 0xff,
-                 uint8_t g6 = 0xff, uint8_t g7 = 0xff, TwoWire &wire = Wire);
+                 uint8_t hsync_pin, uint8_t en_pin, 
+                 uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, 
+                 uint8_t g4 = 0xff, uint8_t g5 = 0xff,
+                 uint8_t g6 = 0xff, uint8_t g7 = 0xff, 
+                 uint8_t shutdn_pin=0xff,
+                 TwoWire &wire = Wire);
 
     /**
      * For HIMAX camers, begin(...).
@@ -797,12 +803,6 @@ class Camera {
      * call.  There are no inputs or return values.
      */
     void stopReadContinuous();
-
-    /**
-     * Change frame buffer address
-     */
-    bool ChangeContinuousBuffers(void *fbFrom, size_t cbFrom, void *fbTo, size_t cbTo);
-
 
     // FlexIO is default mode for the camera
     /**

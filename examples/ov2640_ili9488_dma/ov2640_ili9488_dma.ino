@@ -7,9 +7,10 @@
 #include "Teensy_Camera.h"
 
 #define USE_MMOD_ATP_ADAPTER
+#define USE_T4_PXP
 
 // just a test
-#define USE_HX8357D
+//#define USE_HX8357D
 
 //#define DVP_CAMERA_OV2640
 #define DVP_CAMERA_OV5640
@@ -59,6 +60,12 @@ bool useGPIO = false;
 #define TFT_RST 1  // 2, 1  // "RX1" on left side of Sparkfun ML Carrier
 #endif
 
+#ifdef ARDUINO_TEENSY41
+#define TFT_ROTATION 1
+#else
+#define TFT_ROTATION 3
+#endif
+
 
 #ifdef USE_HX8357D
 #include <HX8357_t3n.h>
@@ -97,6 +104,10 @@ const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
 DMAMEM uint16_t frameBuffer[480 * 320] __attribute__((aligned(32)));
 uint16_t frameBuffer2[480 * 320] __attribute__((aligned(32)));
 
+#ifdef USE_T4_PXP
+#include <T4_PXP.h>
+#endif
+
 // #define SCREEN_ROTATION 1
 const uint32_t sizeof_framebuffer = sizeof(frameBuffer);
 const uint32_t sizeof_framebuffer2 = sizeof(frameBuffer2);
@@ -121,7 +132,14 @@ void setup() {
     }
   }
 
-  tft.begin(30000000);
+  tft.begin(20000000);
+#ifdef USE_T4_PXP
+  Serial.println("Starting T4 PXP library");
+  PXP_init();
+  tft.setRotation(0);
+#else  
+  tft.setRotation(TFT_ROTATION);
+#endif
   test_display();
 
   tft.fillScreen(TFT_BLACK);
@@ -138,9 +156,9 @@ void setup() {
   tft.fillScreen(TFT_BLACK);
 
   /***************************************************************/
-  //    setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, en_pin,
-  //    uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3,
-  //    uint8_t g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
+  //  If: not using default pins you may need to setup which pins are used using:
+  //    camera.setPins(...) See the header file Teensy_Camera.h for details
+  //          for the different pins
   uint8_t reset_pin = 31;
   uint8_t powdwn_pin = 30;
 #ifdef USE_MMOD_ATP_ADAPTER
@@ -167,24 +185,61 @@ void setup() {
 
   Serial.printf("Begin status: %d\n", status);
   if (!status) {
+    Serial.println("Camera failed to start - try floating both reset and powndn!!!");
+    // Serial.printf("\tPin 30:%u 31:%u\n", digitalReadFast(30), digitalReadFast(31));
+    Serial.printf("\tPin rst(%u):%u PowDn(%u):%u\n", reset_pin, digitalRead(reset_pin), powdwn_pin, digitalRead(powdwn_pin));
+    pinMode(reset_pin, INPUT);
+    pinMode(powdwn_pin, INPUT);
+
+    status = camera.begin(camera_framesize, camera_format, 15, CameraID, useGPIO);
+  }
+  if (!status) {
+    // lets try to tell the camera code to disregard the enable and shutdown pin
+    #define NOCHANGE 0xfe
+    camera.setPins(NOCHANGE,NOCHANGE,NOCHANGE,NOCHANGE, 0xff, 
+          NOCHANGE,NOCHANGE,NOCHANGE,NOCHANGE,NOCHANGE,NOCHANGE,NOCHANGE,NOCHANGE, 
+          0xff);
     Serial.println("Camera failed to start - try reset!!!");
     // Serial.printf("\tPin 30:%u 31:%u\n", digitalReadFast(30), digitalReadFast(31));
     Serial.printf("\tPin rst(%u):%u PowDn(%u):%u\n", reset_pin, digitalRead(reset_pin), powdwn_pin, digitalRead(powdwn_pin));
     pinMode(reset_pin, OUTPUT);
     digitalWriteFast(reset_pin, LOW);
     delay(500);
-    pinMode(reset_pin, INPUT_PULLUP);
+    digitalWriteFast(reset_pin, HIGH);
     delay(500);
     status = camera.begin(camera_framesize, camera_format, 15, CameraID, useGPIO);
-    if (!status) {
-      Serial.println("Camera failed to start again program halted");
-      while (1) {
-      }
+  }
+  if (!status) {
+    // Lets try setting the power down pin
+    Serial.println("Try Powdn line HIGH");
+    pinMode(powdwn_pin, OUTPUT);
+    digitalWrite(powdwn_pin, HIGH);
+
+    digitalWriteFast(reset_pin, LOW);
+    delay(100);
+    digitalWriteFast(reset_pin, HIGH);
+    delay(100);
+    status = camera.begin(camera_framesize, camera_format, 15, CameraID, useGPIO);
+  }
+  if (!status) {
+    Serial.println("Try powdn line Low");
+    digitalWrite(powdwn_pin, LOW);
+
+    digitalWriteFast(reset_pin, LOW);
+    delay(100);
+    digitalWriteFast(reset_pin, HIGH);
+    delay(100);
+    status = camera.begin(camera_framesize, camera_format, 15, CameraID, useGPIO);
+  }
+  if (!status) {
+    Serial.println("Camera failed to start again program halted");
+    while (1) {
     }
   }
 
+
   //
-//  if (!camera.setZoomWindow(80, 80, 480, 320)) Serial.println("$$$camera.setZoomWindow failed");
+  //  if (!camera.setZoomWindow(80, 80, 480, 320)) Serial.println("$$$camera.setZoomWindow failed");
 
 
 #ifdef MIRROR_FLIP_CAMERA
@@ -220,14 +275,38 @@ void setup() {
   for (uint8_t i = 0; i < 5; i++) {
     Serial.printf("Couple of Quick frames: %u\n", i);
     camera.readFrame(frameBuffer, sizeof(frameBuffer));
+    #ifdef USE_T4_PXP
+    uint16_t outputWidth, outputHeight;
+    PXP_ps_output(tft.width(), tft.height(),      /* Display width and height */
+                camera.width(),camera.height(),      /* Image width and height */
+                frameBuffer, PXP_RGB565, 2, 0,         /* Input buffer configuration */
+                frameBuffer2, PXP_RGB565, 2, 0,         /* Output buffer configuration */ 
+                TFT_ROTATION, 0, 0.0,        /* Rotation, flip, scaling */
+                &outputWidth, &outputHeight);   /* Frame Out size for drawing */
+
+    tft.writeRect(0, 0, outputWidth, outputHeight, frameBuffer2);
+    #else
     tft.writeRect(0, 0, camera.width(), camera.height(), frameBuffer);
+    #endif
+
     delay(500);
   }
 
   Serial.println("Now try to async ");
   delay(1000);
+  #ifdef USE_T4_PXP
+  uint16_t outputWidth, outputHeight;
   camera.readFrame(frameBuffer, sizeof(frameBuffer));
-  tft.setFrameBuffer((RAFB *)frameBuffer);
+  PXP_ps_output(tft.width(), tft.height(),      /* Display width and height */
+              camera.width(),camera.height(),      /* Image width and height */
+              frameBuffer, PXP_RGB565, 2, 0,         /* Input buffer configuration */
+              frameBuffer2, PXP_RGB565, 2, 0,         /* Output buffer configuration */ 
+              TFT_ROTATION, 0, 0.0,        /* Rotation, flip, scaling */
+              &outputWidth, &outputHeight);   /* Frame Out size for drawing */
+  #else
+  camera.readFrame(frameBuffer2, sizeof(frameBuffer2));
+  #endif
+  tft.setFrameBuffer((RAFB *)frameBuffer2);
   tft.useFrameBuffer(true);
   tft.updateScreenAsync();
 
@@ -238,7 +317,6 @@ void setup() {
   camera.debug(false);
   camera.readContinuous(&camera_read_callback, frameBuffer, sizeof(frameBuffer), nullptr, 0);
   tft.setFrameBuffer((RAFB *)frameBuffer2);
-
 }
 
 
@@ -248,17 +326,19 @@ bool camera_read_callback(void *pfb) {
   if (tft.asyncUpdateActive()) return true;
   frame_count_tft++;
 
-  uint16_t *pframe = (uint16_t*)pfb;
-#if 1
+  #ifdef USE_T4_PXP
+  uint16_t outputWidth, outputHeight;
+  PXP_ps_output(tft.width(), tft.height(),      /* Display width and height */
+              camera.width(),camera.height(),      /* Image width and height */
+              frameBuffer, PXP_RGB565, 2, 0,         /* Input buffer configuration */
+              frameBuffer2, PXP_RGB565, 2, 0,         /* Output buffer configuration */ 
+              TFT_ROTATION, 0, 0.0,        /* Rotation, flip, scaling */
+              &outputWidth, &outputHeight);   /* Frame Out size for drawing */
+  #else
   // not sure if I can update the CSI buffers without stopping camera and restarting the dma..
   // so first try copy memory
   memcpy(frameBuffer2, frameBuffer, sizeof(frameBuffer));
-#else
-  if (pframe == frameBuffer) camera.ChangeContinuousBuffers(frameBuffer, sizeof(frameBuffer), frameBuffer2, sizeof(frameBuffer2));
-  else camera.ChangeContinuousBuffers(frameBuffer2, sizeof(frameBuffer2), frameBuffer, sizeof(frameBuffer));
-  
-  tft.setFrameBuffer((RAFB *)pfb);
-#endif  
+  #endif
   tft.updateScreenAsync();
   return true;
 }
@@ -273,11 +353,6 @@ void loop() {
 /***********************************************************/
 
 void test_display() {
-#ifdef ARDUINO_TEENSY41
-  tft.setRotation(1);
-#else
-  tft.setRotation(3);
-#endif
   tft.fillScreen(TFT_RED);
   delay(500);
   tft.fillScreen(TFT_GREEN);
@@ -287,5 +362,3 @@ void test_display() {
   tft.fillScreen(TFT_BLACK);
   delay(500);
 }
-
-

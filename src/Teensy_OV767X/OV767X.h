@@ -135,13 +135,9 @@ class OV767X : public ImageSensor {
     uint8_t readRegister(uint8_t reg) { return cameraReadRegister(reg); }
     bool writeRegister(uint8_t reg, uint8_t data);
 
-    // must be called before Camera.begin()
-    // void setPins(int vsync, int href, int pclk, int xclk, int rst, const int
-    // dpins[8]); void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t
-    // vsync_pin, uint8_t hsync_pin, uint8_t en_pin,
-    //                   uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t
-    //                   g4, uint8_t g5, uint8_t g6, uint8_t g7, TwoWire &wire);
-
+    // If you are using different pin numbers other than those defined
+    // in default_camera_pins.h - you can call Camera.setPins(...) 
+    // before calling Camera.begin()
     /****************** covers non supported virtual funcs in OV class
      * *****************/
     bool begin(framesize_t framesize = FRAMESIZE_QVGA, int framerate = 30,

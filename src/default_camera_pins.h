@@ -2,11 +2,14 @@
 // Default camera pins - we will define by Teensy type
 // Note: These pins can be overrided in a sketch by first calling
 // Set pins before the begin
-//    virtual void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin,
-//                         uint8_t hsync_pin, uint8_t en_pin, uint8_t g0,
-//                         uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4 = 0xff,
-//                         uint8_t g5 = 0xff, uint8_t g6 = 0xff,
-//                         uint8_t g7 = 0xff, TwoWire &wire = Wire);
+//    void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin,
+//                 uint8_t hsync_pin, uint8_t en_pin, 
+//                 uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, 
+//                 uint8_t g4 = 0xff, uint8_t g5 = 0xff,
+//                 uint8_t g6 = 0xff, uint8_t g7 = 0xff, 
+//                 uint8_t shutdn_pin=0xff,
+//                 TwoWire &wire = Wire);
+//
 //=============================================================================
 #pragma once
 
@@ -52,9 +55,6 @@ INT             29      EMC_31  ???
 SCL             19      AD_B1_0 I2C
 SDA             18      AD_B1_1 I2C
 */
-
-// camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
-
 
 #define CAMERAPIN_XCLK 29   // 7       B1_01   PWM
 #define CAMERAPIN_PLK 10    // 8       B1_00   FlexIO2:16

@@ -372,10 +372,6 @@ void OV767X::autoExposure(int enable) {
     delay(10);
 }
 
-// void OV767X::setPins(int vsync, int href, int pclk, int xclk, int rst, const
-// int dpins[8])
-
-
 #define FLEXIO_USE_DMA
 
 //======================================== DMA JUNK

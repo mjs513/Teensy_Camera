@@ -7,7 +7,7 @@
 
 #define debug Serial
 
-// #define DEBUG_CAMERA
+#define DEBUG_CAMERA
 //  #define DEBUG_CAMERA_VERBOSE
 #define DEBUG_FLEXIO
 // #define USE_DEBUG_PINS
@@ -36,29 +36,40 @@ static inline void DBGdigitalToggleFast(uint8_t pin)
 static inline void DBGdigitalToggleFast(uint8_t pin) {}
 #endif
 
-void ImageSensor::setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin,
-                          uint8_t hsync_pin, uint8_t en_pin, uint8_t g0,
-                          uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4,
-                          uint8_t g5, uint8_t g6, uint8_t g7, TwoWire &wire) {
+void ImageSensor::setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin,  
+                        uint8_t en_pin, 
+                        uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4,
+                        uint8_t g5, uint8_t g6, uint8_t g7, 
+                       uint8_t shutdn_pin, TwoWire &wire) {
 #ifdef DEBUG_CAMERA
     debug.printf("void ImageSensor::setPins(MC:%u PC:%u vs:%u hr:%u en:%u, DP: "
-                 "%u %u %u %u %u %u %u %u W:%p)\n",
-                 mclk_pin, pclk_pin, vsync_pin, hsync_pin, en_pin, g0, g1, g2,
-                 g3, g4, g5, g6, g7, &wire);
+                 "%u %u %u %u %u %u %u %u sd:%u W:%p)\n",
+                 mclk_pin, pclk_pin, vsync_pin, hsync_pin, en_pin, 
+                 g0, g1, g2, g3, g4, g5, g6, g7, shutdn_pin, &wire);
 #endif
-    _vsyncPin = vsync_pin;
-    _hrefPin = hsync_pin;
-    _pclkPin = pclk_pin;
-    _xclkPin = mclk_pin;
-    _rst = en_pin;
-    _dPins[0] = g0;
-    _dPins[1] = g1;
-    _dPins[2] = g2;
-    _dPins[3] = g3;
-    _dPins[4] = g4;
-    _dPins[5] = g5;
-    _dPins[6] = g6;
-    _dPins[7] = g7;
+    #define NOCHANGE_PIN 0xfe
+
+    if (mclk_pin != NOCHANGE_PIN) _xclkPin = mclk_pin;
+    if (pclk_pin != NOCHANGE_PIN) _pclkPin = pclk_pin;
+    if (vsync_pin != NOCHANGE_PIN) _vsyncPin = vsync_pin;
+    if (hsync_pin != NOCHANGE_PIN) _hrefPin = hsync_pin;
+    if (en_pin != NOCHANGE_PIN) _rst = en_pin;
+    if (g0 != NOCHANGE_PIN) _dPins[0] = g0;
+    if (g1 != NOCHANGE_PIN) _dPins[1] = g1;
+    if (g2 != NOCHANGE_PIN) _dPins[2] = g2;
+    if (g3 != NOCHANGE_PIN) _dPins[3] = g3;
+    if (g4 != NOCHANGE_PIN) _dPins[4] = g4;
+    if (g5 != NOCHANGE_PIN) _dPins[5] = g5;
+    if (g6 != NOCHANGE_PIN) _dPins[6] = g6;
+    if (g7 != NOCHANGE_PIN) _dPins[7] = g7;
+    if (shutdn_pin != NOCHANGE_PIN) _pwdn = shutdn_pin;
+#ifdef DEBUG_CAMERA
+    debug.printf("updated pins (MC:%u PC:%u vs:%u hr:%u en:%u DP: "
+                 "%u %u %u %u %u %u %u %u sd:%u W:%p)\n",
+                 _xclkPin, _pclkPin, _vsyncPin, _hrefPin,  _rst, _dPins[0],  _dPins[1],  _dPins[2],
+                  _dPins[3],  _dPins[4],  _dPins[5],  _dPins[6],  _dPins[7], 
+                  _pwdn, &wire);
+#endif
 
     _wire = &wire;
 
@@ -101,29 +112,6 @@ void ImageSensor::stopReadContinuous() {
     else
         stopReadFlexIO();
 }
-
-
-bool ImageSensor::ChangeContinuousBuffers(void *fbFrom, size_t cbFrom, void *fbTo, size_t cbTo) {
-    // quick and dirty version.
-
-    if (_cameraInput == CAMERA_INPUT_CSI) {
-        if (_frame_buffer_1 == fbFrom) {            
-            _frame_buffer_1 = (uint8_t *)fbTo;
-            _frame_buffer_1_size = cbTo;
-        }
-
-        if (_frame_buffer_2 == fbFrom) {            
-            _frame_buffer_2 = (uint8_t *)fbTo;
-            _frame_buffer_2_size = cbTo;
-        }
-
-        CSI_CSIDMASA_FB1 = (uint32_t)_frame_buffer_1;
-        CSI_CSIDMASA_FB2 = (uint32_t)_frame_buffer_2;
-    } else {
-        // need to update the FlexIO version.
-    }
-}
-
 
 
 

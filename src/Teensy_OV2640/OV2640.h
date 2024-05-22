@@ -63,11 +63,6 @@ class OV2640 : public ImageSensor {
 
     bool begin_omnivision(framesize_t resolution, pixformat_t format, int fps,
                           int camera_name, bool use_gpio);
-    // void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin,
-    // uint8_t hsync_pin, uint8_t en_pin,
-    //                   uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t
-    //                   g4, uint8_t g5, uint8_t g6, uint8_t g7, TwoWire &wire);
-
     int reset();
     uint16_t getModelid();
     int setPixformat(pixformat_t pixformat);
