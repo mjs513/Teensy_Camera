@@ -116,6 +116,8 @@ class ImageSensor : public FlexIOHandlerCallback {
                                 size_t cb1, void *fb2, size_t cb2);
     virtual void stopReadContinuous();
 
+    virtual bool ChangeContinuousBuffers(void *fbFrom, size_t cbFrom, void *fbTo, size_t cbTo);
+
     // FlexIO is default mode for the camera
     virtual size_t readFrameFlexIO(void *buffer, size_t cb1 = (uint32_t)-1,
                                    void *buffer2 = nullptr, size_t cb2 = 0);
@@ -795,6 +797,12 @@ class Camera {
      * call.  There are no inputs or return values.
      */
     void stopReadContinuous();
+
+    /**
+     * Change frame buffer address
+     */
+    bool ChangeContinuousBuffers(void *fbFrom, size_t cbFrom, void *fbTo, size_t cbTo);
+
 
     // FlexIO is default mode for the camera
     /**

@@ -88,7 +88,7 @@ size_t ImageSensor::readFrame(void *buffer1, size_t cb1, void *buffer2,
 // The read and stop continuous typically just call off to the FlexIO
 bool ImageSensor::readContinuous(bool (*callback)(void *frame_buffer),
                                  void *fb1, size_t cb1, void *fb2, size_t cb2) {
-    Serial.printf("readContinuous called(%p, %p, %u, %p, %u): %u\n", callback, fb1, cb1, fb2, cb2, _cameraInput);
+    if (_debug)debug.printf("readContinuous called(%p, %p, %u, %p, %u): %u\n", callback, fb1, cb1, fb2, cb2, _cameraInput);
     if (_cameraInput == CAMERA_INPUT_CSI)
         return startReadCSI(callback, fb1, cb1, fb2, cb2);
     else
@@ -101,6 +101,31 @@ void ImageSensor::stopReadContinuous() {
     else
         stopReadFlexIO();
 }
+
+
+bool ImageSensor::ChangeContinuousBuffers(void *fbFrom, size_t cbFrom, void *fbTo, size_t cbTo) {
+    // quick and dirty version.
+
+    if (_cameraInput == CAMERA_INPUT_CSI) {
+        if (_frame_buffer_1 == fbFrom) {            
+            _frame_buffer_1 = (uint8_t *)fbTo;
+            _frame_buffer_1_size = cbTo;
+        }
+
+        if (_frame_buffer_2 == fbFrom) {            
+            _frame_buffer_2 = (uint8_t *)fbTo;
+            _frame_buffer_2_size = cbTo;
+        }
+
+        CSI_CSIDMASA_FB1 = (uint32_t)_frame_buffer_1;
+        CSI_CSIDMASA_FB2 = (uint32_t)_frame_buffer_2;
+    } else {
+        // need to update the FlexIO version.
+    }
+}
+
+
+
 
 //=============================================================================
 // FlexIO support
@@ -1704,7 +1729,7 @@ bool ImageSensor::startReadCSI(bool (*callback)(void *frame_buffer), void *fb1,
     active_dma_camera = this;
 
     CSI_CSIDMASA_FB1 = (uint32_t)fb1;
-    CSI_CSIDMASA_FB2 = (uint32_t)fb2;
+    CSI_CSIDMASA_FB2 = fb2? (uint32_t)fb2 : (uint32_t)fb1;
     // Set Image Parameters--width in bytes and height
     CSI_CSIIMAG_PARA = CSI_CSIIMAG_PARA_IMAGE_WIDTH(2 * _width) |
                        CSI_CSIIMAG_PARA_IMAGE_HEIGHT(_height);
