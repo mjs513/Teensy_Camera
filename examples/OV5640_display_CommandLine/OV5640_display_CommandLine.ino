@@ -20,9 +20,10 @@ Camera camera(omni);
 
 
 //set cam configuration - need to remember when saving jpeg
-framesize_t camera_framesize = FRAMESIZE_QQVGA;
+framesize_t camera_framesize = FRAMESIZE_QVGA;
 pixformat_t camera_format = RGB565;
 bool useGPIO = false;
+bool useAutoFocus = false;
 
 #define skipFrames 1
 
@@ -218,6 +219,8 @@ void setup() {
   //  FRAMESIZE_SVGA, //800, 600
   //  FRAMESIZE_UXGA, //1500, 1200
   uint8_t status = 0;
+  if(useAutoFocus)
+    omni.enableAutoFocus(true);
   status = camera.begin(camera_framesize, camera_format, 15, CameraID, useGPIO);
 
   Serial.printf("Begin status: %d\n", status);
@@ -822,9 +825,13 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
     memset((uint8_t *)frameBuffer2, 0, sizeof_framebuffer2);
   }
   //  digitalWriteFast(24, HIGH);
-  camera.useDMA(use_dma);
-  camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
-  //  digitalWriteFast(24, LOW);
+  omni.useDMA(use_dma);
+  if(useAutoFocus) {
+    omni.readFrameAF(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+  } else {
+    camera.readFrameAF(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
+  }
+  //digitalWriteFast(24, LOW);
 
   if (show_debug_info) {
     Serial.println("Finished reading frame");
@@ -990,7 +997,11 @@ void read_display_multiple_frames(bool use_frame_buffer) {
 /***********************************************************/
 
 void test_display() {
+  #if defined(USE_MMOD_ATP_ADAPTER)
+  tft.setRotation(1);
+  #else
   tft.setRotation(3);
+  #endif
   tft.fillScreen(TFT_RED);
   delay(500);
   tft.fillScreen(TFT_GREEN);

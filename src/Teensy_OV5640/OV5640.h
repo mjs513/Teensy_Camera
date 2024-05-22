@@ -46,6 +46,9 @@ class OV5640 : public ImageSensor {
     // normal Read mode
     // size_t readFrameGPIO(void* buffer, size_t cb1=(uint32_t)-1, void*
     // buffer2=nullptr, size_t cb2=0);
+    size_t readFrameAF(void *buffer1, size_t cb1, void *buffer2 = nullptr,
+                       size_t cb2 = 0); // Autofocus
+
     size_t readFrameGPIO_JPEG(void *buffer, size_t cb1 = (uint32_t)-1,
                               void *buffer2 = nullptr, size_t cb2 = 0);
 
@@ -183,9 +186,16 @@ class OV5640 : public ImageSensor {
     void printRegisters(bool only_ones_set = true) {};
     void autoGain(int enable, float gain_db, float gain_db_ceiling) {}
 
+    // Autofocus
+    void enableAutoFocus(bool useAF);
+    int setAutofocusMode();
+    int checkAFCmdStatus(uint16_t reg, uint8_t value);
+
   private:
     uint8_t cameraReadRegister(uint16_t reg_addr, uint8_t &reg_data);
     uint8_t cameraWriteRegister(uint16_t reg, uint8_t data);
+    uint8_t cameraWriteFirmware();
+
     int calculate_vts(uint16_t readout_height);
     int calculate_hts(uint16_t width);
     int calc_pclk_freq(uint8_t sc_pll_ctrl_0, uint8_t sc_pll_ctrl_1,
@@ -200,6 +210,8 @@ class OV5640 : public ImageSensor {
     uint8_t aecCtrl00_old = 0x78;
 
     void *_OV5640;
+
+    bool _useAF = false;
 
     int _saturation;
     int _hue;
