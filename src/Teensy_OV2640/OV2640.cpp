@@ -67,17 +67,17 @@ static inline void DBGdigitalToggleFast(uint8_t pin){}
 #endif /*!M_LN2 */
 
 #define LOG2_2(x) (((x) & 0x2ULL) ? (2) : 1) // NO ({ ... }) !
-#define LOG2_4(x)                                                              \
+#define LOG2_4(x) \
     (((x) & 0xCULL) ? (2 + LOG2_2((x) >> 2)) : LOG2_2(x)) // NO ({ ... }) !
-#define LOG2_8(x)                                                              \
+#define LOG2_8(x) \
     (((x) & 0xF0ULL) ? (4 + LOG2_4((x) >> 4)) : LOG2_4(x)) // NO ({ ... }) !
-#define LOG2_16(x)                                                             \
+#define LOG2_16(x) \
     (((x) & 0xFF00ULL) ? (8 + LOG2_8((x) >> 8)) : LOG2_8(x)) // NO ({ ... }) !
-#define LOG2_32(x)                                                             \
-    (((x) & 0xFFFF0000ULL) ? (16 + LOG2_16((x) >> 16))                         \
+#define LOG2_32(x)                                     \
+    (((x) & 0xFFFF0000ULL) ? (16 + LOG2_16((x) >> 16)) \
                            : LOG2_16(x)) // NO ({ ... }) !
-#define LOG2(x)                                                                \
-    (((x) & 0xFFFFFFFF00000000ULL) ? (32 + LOG2_32((x) >> 32))                 \
+#define LOG2(x)                                                \
+    (((x) & 0xFFFFFFFF00000000ULL) ? (32 + LOG2_32((x) >> 32)) \
                                    : LOG2_32(x)) // NO ({ ... }) !
 
 typedef struct {
@@ -405,8 +405,12 @@ static const uint8_t jpeg_regs[][2] = {
 
 #define NUM_AE_LEVELS (5)
 static const uint8_t ae_levels_regs[NUM_AE_LEVELS + 1][3] = {
-    {AEW, AEB, VV},     {0x20, 0X18, 0x60}, {0x34, 0X1C, 0x00},
-    {0x3E, 0X38, 0x81}, {0x48, 0X40, 0x81}, {0x58, 0X50, 0x92},
+    {AEW, AEB, VV},
+    {0x20, 0X18, 0x60},
+    {0x34, 0X1C, 0x00},
+    {0x3E, 0X38, 0x81},
+    {0x48, 0X40, 0x81},
+    {0x58, 0X50, 0x92},
 };
 
 #define NUM_BRIGHTNESS_LEVELS (5)
@@ -464,7 +468,6 @@ const uint8_t agc_gain_tbl[31] = {
     0x78, 0x7A, 0x7C, 0x7E, 0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6,
     0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF};
 
-
 OV2640::OV2640()
     : _OV2640(NULL), _saturation(3), _hue(0), _frame_buffer_pointer(NULL) {
 }
@@ -509,7 +512,8 @@ uint16_t OV2640::getModelid() {
     Data = cameraReadRegister(0x0B);
     MID |= Data;
 
-    if (_debug)debug.printf("getModelID: return: %x\n", MID);
+    if (_debug)
+        debug.printf("getModelID: return: %x\n", MID);
     return MID;
 }
 
@@ -524,22 +528,26 @@ bool OV2640::begin_omnivision(framesize_t framesize, pixformat_t format,
     if (_rst != 0xff) {
         if (_rst_init >= 0) {
             pinMode(_rst, OUTPUT);
-            digitalWrite(_rst, _rst_init);            
-        } 
-        else if (_rst_init == -1) pinMode(_rst, INPUT);
-        else if (_rst_init == -2) pinMode(_rst, INPUT_PULLUP);
-        else if (_rst_init == -3) pinMode(_rst, INPUT_PULLDOWN);
+            digitalWrite(_rst, _rst_init);
+        } else if (_rst_init == -1)
+            pinMode(_rst, INPUT);
+        else if (_rst_init == -2)
+            pinMode(_rst, INPUT_PULLUP);
+        else if (_rst_init == -3)
+            pinMode(_rst, INPUT_PULLDOWN);
         delay(5);
     }
 
     if (_pwdn != 0xff) {
         if (_pwdn_init >= 0) {
             pinMode(_pwdn, OUTPUT);
-            digitalWrite(_pwdn, _pwdn_init);            
-        } 
-        else if (_pwdn_init == -1) pinMode(_pwdn, INPUT);
-        else if (_pwdn_init == -2) pinMode(_pwdn, INPUT_PULLUP);
-        else if (_pwdn_init == -3) pinMode(_pwdn, INPUT_PULLDOWN);
+            digitalWrite(_pwdn, _pwdn_init);
+        } else if (_pwdn_init == -1)
+            pinMode(_pwdn, INPUT);
+        else if (_pwdn_init == -2)
+            pinMode(_pwdn, INPUT_PULLUP);
+        else if (_pwdn_init == -3)
+            pinMode(_pwdn, INPUT_PULLDOWN);
         delay(5);
     }
 
@@ -701,7 +709,6 @@ int OV2640::reset() {
     return ret;
 }
 
-
 void OV2640::end() {
     endXClk();
 
@@ -766,7 +773,6 @@ uint8_t OV2640::setFramesize(int w, int h) {
 
     if ((w == 0) || (h == 0))
         return 1; // not valid
-
 
     // uint16_t w = resolution[framesize][0];
     // uint16_t h = resolution[framesize][1];
@@ -1108,7 +1114,7 @@ int OV2640::setQuality(int qs) {
 }
 
 uint8_t OV2640::getQuality() {
-    //int ret = 0;
+    // int ret = 0;
 
     /* Switch to DSP register bank */
     cameraWriteRegister(BANK_SEL, BANK_SEL_DSP);
@@ -2128,7 +2134,7 @@ static const OV2640_TO_NAME_t OV2640_reg_name_table[] PROGMEM{
     {F(" REG32"), 1, 0x32},
 };
 
-#define CNT_REG_NAME_TABLE                                                     \
+#define CNT_REG_NAME_TABLE \
     (sizeof(OV2640_reg_name_table) / sizeof(OV2640_reg_name_table[0]))
 
 #ifdef DEBUG_CAMERA_REG

@@ -1249,7 +1249,7 @@ static const uint8_t ESP_regs[][2] = {
     {0x67, 0xb2}, // R2G_stand3[7:0]  FF/CWF
     {0x68, 0xac}, // B2G_stand3[7:0]
     {0x69,
-     0x00}, // R2G_stand4[9:8] B2G_stand4[9:8] R2G_stand3[9:8] B2G_stand3[9:8]
+     0x00},       // R2G_stand4[9:8] B2G_stand4[9:8] R2G_stand3[9:8] B2G_stand3[9:8]
     {0x6a, 0xb2}, // R2G_stand4[7:0]  TL84/TL84&CWF
     {0x6b, 0xac}, // B2G_stand4[7:0]
     {0x6c, 0xb2}, // R2G_stand5[7:0]  A

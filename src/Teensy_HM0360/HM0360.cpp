@@ -470,22 +470,26 @@ bool HM0360::begin(framesize_t framesize, int framerate, bool use_gpio) {
     if (_rst != 0xff) {
         if (_rst_init >= 0) {
             pinMode(_rst, OUTPUT);
-            digitalWrite(_rst, _rst_init);            
-        } 
-        else if (_rst_init == -1) pinMode(_rst, INPUT);
-        else if (_rst_init == -2) pinMode(_rst, INPUT_PULLUP);
-        else if (_rst_init == -3) pinMode(_rst, INPUT_PULLDOWN);
+            digitalWrite(_rst, _rst_init);
+        } else if (_rst_init == -1)
+            pinMode(_rst, INPUT);
+        else if (_rst_init == -2)
+            pinMode(_rst, INPUT_PULLUP);
+        else if (_rst_init == -3)
+            pinMode(_rst, INPUT_PULLDOWN);
         delay(5);
     }
 
     if (_pwdn != 0xff) {
         if (_pwdn_init >= 0) {
             pinMode(_pwdn, OUTPUT);
-            digitalWrite(_pwdn, _pwdn_init);            
-        } 
-        else if (_pwdn_init == -1) pinMode(_pwdn, INPUT);
-        else if (_pwdn_init == -2) pinMode(_pwdn, INPUT_PULLUP);
-        else if (_pwdn_init == -3) pinMode(_pwdn, INPUT_PULLDOWN);
+            digitalWrite(_pwdn, _pwdn_init);
+        } else if (_pwdn_init == -1)
+            pinMode(_pwdn, INPUT);
+        else if (_pwdn_init == -2)
+            pinMode(_pwdn, INPUT_PULLUP);
+        else if (_pwdn_init == -3)
+            pinMode(_pwdn, INPUT_PULLDOWN);
         delay(5);
     }
 

@@ -130,21 +130,21 @@ bool verifyCSIPin(uint8_t pin, uint8_t csi_usage) {
 
 extern bool configureCSIPin(uint8_t pin) {
     const csi_pain_mapping_t *pcpm = mapPinToCSIPinInfo(pin);
-    //Serial.printf("Configure CSIPin %u\n", pin);
+    // Serial.printf("Configure CSIPin %u\n", pin);
     if (pcpm == nullptr)
         return false;
     // Lets setup the mux
     *pcpm->mux = pcpm->mux_val;
-    //Serial.printf("\t%p = %x\n", pcpm->mux, pcpm->mux_val);
+    // Serial.printf("\t%p = %x\n", pcpm->mux, pcpm->mux_val);
 
     // If it has an input select set it also
     if (pcpm->pin_select_input) {
         *pcpm->pin_select_input = pcpm->select_input_val;
-        //Serial.printf("\t%p = %x\n", pcpm->pin_select_input, pcpm->select_input_val);
+        // Serial.printf("\t%p = %x\n", pcpm->pin_select_input, pcpm->select_input_val);
     }
 
     // Lets setup the pad
     *pcpm->pad = pcpm->pad_val;
-    //Serial.printf("\t%p = %x\n", pcpm->pad, pcpm->pad_val);
+    // Serial.printf("\t%p = %x\n", pcpm->pad, pcpm->pad_val);
     return true;
 }

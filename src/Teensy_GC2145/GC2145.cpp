@@ -666,7 +666,7 @@ static const uint8_t default_regs[][2] = {
     {0x67, 0xb2}, // R2G_stand3[7:0]  FF/CWF
     {0x68, 0xac}, // B2G_stand3[7:0]
     {0x69,
-     0x00}, // R2G_stand4[9:8] B2G_stand4[9:8] R2G_stand3[9:8] B2G_stand3[9:8]
+     0x00},       // R2G_stand4[9:8] B2G_stand4[9:8] R2G_stand3[9:8] B2G_stand3[9:8]
     {0x6a, 0xb2}, // R2G_stand4[7:0]  TL84/TL84&CWF
     {0x6b, 0xac}, // B2G_stand4[7:0]
     {0x6c, 0xb2}, // R2G_stand5[7:0]  A
@@ -861,7 +861,6 @@ static const uint8_t gc2145_setting_vga[][2] = {
 GC2145::GC2145() : _GC2145(NULL), _frame_buffer_pointer(NULL) {
 }
 
-
 void GC2145::end() {
     endXClk();
 
@@ -908,25 +907,28 @@ bool GC2145::begin_omnivision(framesize_t resolution, pixformat_t format,
     if (_rst != 0xff) {
         if (_rst_init >= 0) {
             pinMode(_rst, OUTPUT);
-            digitalWrite(_rst, _rst_init);            
-        } 
-        else if (_rst_init == -1) pinMode(_rst, INPUT);
-        else if (_rst_init == -2) pinMode(_rst, INPUT_PULLUP);
-        else if (_rst_init == -3) pinMode(_rst, INPUT_PULLDOWN);
+            digitalWrite(_rst, _rst_init);
+        } else if (_rst_init == -1)
+            pinMode(_rst, INPUT);
+        else if (_rst_init == -2)
+            pinMode(_rst, INPUT_PULLUP);
+        else if (_rst_init == -3)
+            pinMode(_rst, INPUT_PULLDOWN);
         delay(5);
     }
 
     if (_pwdn != 0xff) {
         if (_pwdn_init >= 0) {
             pinMode(_pwdn, OUTPUT);
-            digitalWrite(_pwdn, _pwdn_init);            
-        } 
-        else if (_pwdn_init == -1) pinMode(_pwdn, INPUT);
-        else if (_pwdn_init == -2) pinMode(_pwdn, INPUT_PULLUP);
-        else if (_pwdn_init == -3) pinMode(_pwdn, INPUT_PULLDOWN);
+            digitalWrite(_pwdn, _pwdn_init);
+        } else if (_pwdn_init == -1)
+            pinMode(_pwdn, INPUT);
+        else if (_pwdn_init == -2)
+            pinMode(_pwdn, INPUT_PULLUP);
+        else if (_pwdn_init == -3)
+            pinMode(_pwdn, INPUT_PULLDOWN);
         delay(5);
     }
-
 
 // BUGBUG::: see where frame is
 #ifdef USE_DEBUG_PINS

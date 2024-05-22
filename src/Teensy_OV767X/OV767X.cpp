@@ -86,22 +86,26 @@ bool OV767X::begin_omnivision(framesize_t resolution, pixformat_t format,
     if (_rst != 0xff) {
         if (_rst_init >= 0) {
             pinMode(_rst, OUTPUT);
-            digitalWrite(_rst, _rst_init);            
-        } 
-        else if (_rst_init == -1) pinMode(_rst, INPUT);
-        else if (_rst_init == -2) pinMode(_rst, INPUT_PULLUP);
-        else if (_rst_init == -3) pinMode(_rst, INPUT_PULLDOWN);
+            digitalWrite(_rst, _rst_init);
+        } else if (_rst_init == -1)
+            pinMode(_rst, INPUT);
+        else if (_rst_init == -2)
+            pinMode(_rst, INPUT_PULLUP);
+        else if (_rst_init == -3)
+            pinMode(_rst, INPUT_PULLDOWN);
         delay(5);
     }
 
     if (_pwdn != 0xff) {
         if (_pwdn_init >= 0) {
             pinMode(_pwdn, OUTPUT);
-            digitalWrite(_pwdn, _pwdn_init);            
-        } 
-        else if (_pwdn_init == -1) pinMode(_pwdn, INPUT);
-        else if (_pwdn_init == -2) pinMode(_pwdn, INPUT_PULLUP);
-        else if (_pwdn_init == -3) pinMode(_pwdn, INPUT_PULLDOWN);
+            digitalWrite(_pwdn, _pwdn_init);
+        } else if (_pwdn_init == -1)
+            pinMode(_pwdn, INPUT);
+        else if (_pwdn_init == -2)
+            pinMode(_pwdn, INPUT_PULLUP);
+        else if (_pwdn_init == -3)
+            pinMode(_pwdn, INPUT_PULLDOWN);
         delay(5);
     }
 
@@ -371,10 +375,6 @@ void OV767X::autoExposure(int enable) {
     ov7670_s_autoexp(_ov7670, enable) /* V4L2_EXPOSURE_AUTO */;
     delay(10);
 }
-
-// void OV767X::setPins(int vsync, int href, int pclk, int xclk, int rst, const
-// int dpins[8])
-
 
 #define FLEXIO_USE_DMA
 

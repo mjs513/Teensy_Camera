@@ -166,9 +166,9 @@ void setup() {
   tft.fillScreen(TFT_BLACK);
 
 /***************************************************************/
-//    setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin, uint8_t hsync_pin, en_pin,
-//    uint8_t g0, uint8_t g1,uint8_t g2, uint8_t g3,
-//    uint8_t g4=0xff, uint8_t g5=0xff,uint8_t g6=0xff,uint8_t g7=0xff);
+//  If: not using default pins you may need to setup which pins are used using:
+//    camera.setPins(...) See the header file Teensy_Camera.h for details
+//          for the different pins
 uint8_t reset_pin = 31;
 #ifdef USE_MMOD_ATP_ADAPTER
   pinMode(30, INPUT);

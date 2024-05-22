@@ -2,36 +2,37 @@
 // Default camera pins - we will define by Teensy type
 // Note: These pins can be overrided in a sketch by first calling
 // Set pins before the begin
-//    virtual void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin,
-//                         uint8_t hsync_pin, uint8_t en_pin, uint8_t g0,
-//                         uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4 = 0xff,
-//                         uint8_t g5 = 0xff, uint8_t g6 = 0xff,
-//                         uint8_t g7 = 0xff, TwoWire &wire = Wire);
+//    void setPins(uint8_t mclk_pin, uint8_t pclk_pin, uint8_t vsync_pin,
+//                 uint8_t hsync_pin, uint8_t en_pin,
+//                 uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3,
+//                 uint8_t g4 = 0xff, uint8_t g5 = 0xff,
+//                 uint8_t g6 = 0xff, uint8_t g7 = 0xff,
+//                 uint8_t shutdn_pin=0xff,
+//                 TwoWire &wire = Wire);
+//
 //=============================================================================
 #pragma once
 
-
-
 #if defined(ARDUINO_TEENSY_DEVBRD4)
 // BUGBUG this is not a real default config, but...
-#define CAMERAPIN_XCLK 	7
-#define CAMERAPIN_PLK 	8
+#define CAMERAPIN_XCLK 7
+#define CAMERAPIN_PLK 8
 #define CAMERAPIN_VSYNC 21
-#define CAMERAPIN_HREF 	46
-#define CAMERAPIN_EN 	17
+#define CAMERAPIN_HREF 46
+#define CAMERAPIN_EN 17
 
 // Note for FlexIO the D0-D7 need to be in sequence
-#define CAMERAPIN_D0 	40 // 40      B0_04   FlexIO2:4
-#define CAMERAPIN_D1 	41 // 41      B0_05   FlexIO2:5
-#define CAMERAPIN_D2 	42 // 42      B0_06   FlexIO2:6
-#define CAMERAPIN_D3 	43 // 43      B0_07   FlexIO2:7
-#define CAMERAPIN_D4 	44 // 44      B0_08   FlexIO2:8
-#define CAMERAPIN_D5 	45 // 45      B0_09   FlexIO2:9
-#define CAMERAPIN_D6 	6  // 6       B0_10   FlexIO2:10
-#define CAMERAPIN_D7 	9  // 9       B0_11   FlexIO2:11
+#define CAMERAPIN_D0 40 // 40      B0_04   FlexIO2:4
+#define CAMERAPIN_D1 41 // 41      B0_05   FlexIO2:5
+#define CAMERAPIN_D2 42 // 42      B0_06   FlexIO2:6
+#define CAMERAPIN_D3 43 // 43      B0_07   FlexIO2:7
+#define CAMERAPIN_D4 44 // 44      B0_08   FlexIO2:8
+#define CAMERAPIN_D5 45 // 45      B0_09   FlexIO2:9
+#define CAMERAPIN_D6 6  // 6       B0_10   FlexIO2:10
+#define CAMERAPIN_D7 9  // 9       B0_11   FlexIO2:11
 
 #elif defined(ARDUINO_TEENSY_MICROMOD)
-// FLEXIO2 pins. 
+// FLEXIO2 pins.
 /*
 HM01B0 pin      pin#    NXP     Usage
 ----------      ----    ---     -----
@@ -53,17 +54,14 @@ SCL             19      AD_B1_0 I2C
 SDA             18      AD_B1_1 I2C
 */
 
-// camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);
-
-
-#define CAMERAPIN_XCLK 29   // 7       B1_01   PWM
-#define CAMERAPIN_PLK 10    // 8       B1_00   FlexIO2:16
-#define CAMERAPIN_VSYNC 33 //33 // 33      EMC_07  GPIO, 21 pon sdram board
-#define CAMERAPIN_HREF 32  // 32      B0_12   FlexIO2:12, pin 46 on sdram board
-#define CAMERAPIN_RST 31   // reset pin
-#define CAMERAPIN_RST_INIT -2   // reset pin
-#define CAMERAPIN_PWDN 30   // POWER down pin
-#define CAMERAPIN_PWDN_INIT -1   // POWER down pin
+#define CAMERAPIN_XCLK 29      // 7       B1_01   PWM
+#define CAMERAPIN_PLK 10       // 8       B1_00   FlexIO2:16
+#define CAMERAPIN_VSYNC 33     // 33 // 33      EMC_07  GPIO, 21 pon sdram board
+#define CAMERAPIN_HREF 32      // 32      B0_12   FlexIO2:12, pin 46 on sdram board
+#define CAMERAPIN_RST 31       // reset pin
+#define CAMERAPIN_RST_INIT -2  // reset pin
+#define CAMERAPIN_PWDN 30      // POWER down pin
+#define CAMERAPIN_PWDN_INIT -1 // POWER down pin
 
 #define CAMERAPIN_D0 40 // 40      B0_04   FlexIO2:4
 #define CAMERAPIN_D1 41 // 41      B0_05   FlexIO2:5
@@ -74,7 +72,7 @@ SDA             18      AD_B1_1 I2C
 #define CAMERAPIN_D6 6  // 6       B0_10   FlexIO2:10
 #define CAMERAPIN_D7 9  // 9       B0_11   FlexIO2:11
 
-#elif defined (ARDUINO_TEENSY41)
+#elif defined(ARDUINO_TEENSY41)
 
 #define CAMERAPIN_XCLK 41  // AD_B1_05 CSI_MCLK
 #define CAMERAPIN_PLK 40   // AD_B1_04 CSI_PIXCLK
@@ -91,13 +89,12 @@ SDA             18      AD_B1_1 I2C
 #define CAMERAPIN_D6 23 // AD_B1_09 CSI_D8
 #define CAMERAPIN_D7 22 // AD_B1_08 CSI_D9
 
-
 #else
 #define CAMERAPIN_PLK 4    // 40 // AD_B1_04 CSI_PIXCLK
 #define CAMERAPIN_XCLK 5   // 41 // AD_B1_05 CSI_MCLK
 #define CAMERAPIN_HREF 40  // AD_B1_07 CSI_HREF
 #define CAMERAPIN_VSYNC 41 // AD_B1_06 CSI_VSYNC
-#define CAMERAPIN_RST	0xff // don't know
+#define CAMERAPIN_RST 0xff // don't know
 
 #define CAMERAPIN_D0 27 // AD_B1_02 1.18
 #define CAMERAPIN_D1 15 // AD_B1_03 1.19
@@ -113,17 +110,17 @@ SDA             18      AD_B1_1 I2C
 //=============================================================================
 // Defaults for optional pins
 #ifndef CAMERAPIN_RST
-#define CAMERAPIN_RST 0xff   // reset pin
+#define CAMERAPIN_RST 0xff // reset pin
 #endif
 
 #ifndef CAMERAPIN_RST_INIT
-#define CAMERAPIN_RST_INIT -1   // reset pin
+#define CAMERAPIN_RST_INIT -1 // reset pin
 #endif
 
 #ifndef CAMERAPIN_PWDN
-#define CAMERAPIN_PWDN 0xff   // Power down pin
+#define CAMERAPIN_PWDN 0xff // Power down pin
 #endif
 
 #ifndef CAMERAPIN_PWDN_INIT
-#define CAMERAPIN_PWDN_INIT -1   // reset pin
+#define CAMERAPIN_PWDN_INIT -1 // reset pin
 #endif

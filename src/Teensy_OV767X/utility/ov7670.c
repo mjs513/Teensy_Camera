@@ -561,25 +561,26 @@ static struct regval_list ov7670_fmt_rgb565[] = {
 };
 
 static struct regval_list ov7670_fmt_rgb444[] = {
-    {REG_COM7, COM7_RGB},                    /* Selects RGB mode */
-    {REG_RGB444, R444_ENABLE},               /* Enable xxxxrrrr ggggbbbb */
-    {REG_COM1, 0x0},                         /* CCIR601 */
-    {REG_COM15, COM15_R01FE | COM15_RGB565}, /* Data range needed? */
-    {REG_COM9, 0x38}, /* 16x gain ceiling; 0x8 is reserved bit */
-    {0x4f, 0xb3},     /* "matrix coefficient 1" */
-    {0x50, 0xb3},     /* "matrix coefficient 2" */
-    {0x51, 0},        /* vb */
-    {0x52, 0x3d},     /* "matrix coefficient 4" */
-    {0x53, 0xa7},     /* "matrix coefficient 5" */
-    {0x54, 0xe4},     /* "matrix coefficient 6" */
+    {REG_COM7, COM7_RGB},                         /* Selects RGB mode */
+    {REG_RGB444, R444_ENABLE},                    /* Enable xxxxrrrr ggggbbbb */
+    {REG_COM1, 0x0},                              /* CCIR601 */
+    {REG_COM15, COM15_R01FE | COM15_RGB565},      /* Data range needed? */
+    {REG_COM9, 0x38},                             /* 16x gain ceiling; 0x8 is reserved bit */
+    {0x4f, 0xb3},                                 /* "matrix coefficient 1" */
+    {0x50, 0xb3},                                 /* "matrix coefficient 2" */
+    {0x51, 0},                                    /* vb */
+    {0x52, 0x3d},                                 /* "matrix coefficient 4" */
+    {0x53, 0xa7},                                 /* "matrix coefficient 5" */
+    {0x54, 0xe4},                                 /* "matrix coefficient 6" */
     {REG_COM13, COM13_GAMMA | COM13_UVSAT | 0x2}, /* Magic rsvd bit */
     {0xff, 0xff},
 };
 
 static struct regval_list ov7670_fmt_raw[] = {
-    {REG_COM7, COM7_BAYER}, {REG_COM13, 0x08}, /* No gamma, magic rsvd bit */
-    {REG_COM16, 0x3d},                         /* Edge enhancement, denoise */
-    {REG_REG76, 0xe1},                         /* Pix correction, magic rsvd */
+    {REG_COM7, COM7_BAYER},
+    {REG_COM13, 0x08}, /* No gamma, magic rsvd bit */
+    {REG_COM16, 0x3d}, /* Edge enhancement, denoise */
+    {REG_REG76, 0xe1}, /* Pix correction, magic rsvd */
     {0xff, 0xff},
 };
 
@@ -870,8 +871,12 @@ static struct regval_list ov7670_qcif_regs[] = {
 static struct regval_list ov7670_qqvga_regs[] = {
     {REG_COM3, COM3_DCWEN}, {REG_COM14, 0x1a}, {0x72, 0x22}, // downsample by 4
     {0x73, 0xf2},                                            // divide by 4
-    {REG_HSTART, 0x16},     {REG_HSTOP, 0x04}, {REG_HREF, 0xa4},
-    {REG_VSTART, 0x02},     {REG_VSTOP, 0x7a}, {REG_VREF, 0x0a},
+    {REG_HSTART, 0x16},
+    {REG_HSTOP, 0x04},
+    {REG_HREF, 0xa4},
+    {REG_VSTART, 0x02},
+    {REG_VSTOP, 0x7a},
+    {REG_VREF, 0x0a},
     {0xff, 0xff}, /* END MARKER */
 
 };
@@ -926,9 +931,13 @@ static struct regval_list ov7675_qvga_regs[] = {
 static struct regval_list ov7675_qqvga_regs[] = {
     {REG_COM3, COM3_DCWEN}, {REG_COM14, 0x1a}, {0x72, 0x22}, // downsample by 4
     {0x73, 0xf2},                                            // divide by 4
-    {REG_HSTART, 0x16},     {REG_HSTOP, 0x04}, {REG_HREF, 0xa4},
+    {REG_HSTART, 0x16},
+    {REG_HSTOP, 0x04},
+    {REG_HREF, 0xa4},
     {REG_VSTART, 0x22}, // Different from OV7670
-    {REG_VSTOP, 0x7a},      {REG_VREF, 0x0a},  {0xff, 0xff}, /* END MARKER */
+    {REG_VSTOP, 0x7a},
+    {REG_VREF, 0x0a},
+    {0xff, 0xff}, /* END MARKER */
 
 };
 
@@ -1034,7 +1043,7 @@ static struct ov7670_win_size ov7675_win_sizes[] = {
         .width = QCIF_WIDTH,
         .height = QCIF_HEIGHT,
         .com7_bit = COM7_FMT_VGA, /* see comment above */
-        .hstart = 250, /* Empirically determined and different from ov7670*/
+        .hstart = 250,            /* Empirically determined and different from ov7670*/
         .hstop = 24,
         .vstart = 120,
         .vstop = 180,
@@ -1045,7 +1054,7 @@ static struct ov7670_win_size ov7675_win_sizes[] = {
         .width = QQVGA_WIDTH,
         .height = QQVGA_HEIGHT,
         .com7_bit = COM7_FMT_VGA, /* see comment above */
-        .hstart = 0x16, /* Empirically determined and different from ov7670*/
+        .hstart = 0x16,           /* Empirically determined and different from ov7670*/
         .hstop = 0x04,
         .vstart = 0x22, /* These values seem to be overridden by the regs */
         .vstop = 0x7a,
@@ -1570,7 +1579,7 @@ static int ov7670_store_cmatrix(struct v4l2_subdev *sd,
  * carefully limited to -180 <= theta <= 180.
  */
 #define SIN_STEP 5
-static const int ov7670_sin_table[] = {0,   87,  173, 258, 342, 422, 499,
+static const int ov7670_sin_table[] = {0, 87, 173, 258, 342, 422, 499,
                                        573, 642, 707, 766, 819, 866, 906,
                                        939, 965, 984, 996, 1000};
 
