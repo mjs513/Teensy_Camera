@@ -50,14 +50,14 @@ bool useGPIO = false;
 
 #elif defined(USE_MMOD_ATP_ADAPTER)
 #define VSYNC_PIN 33
-#define TFT_DC 4  // 0   // "TX1" on left side of Sparkfun ML Carrier
-#define TFT_CS 5  // 4   // "CS" on left side of Sparkfun ML Carrier
-#define TFT_RST 2 // 1  // "RX1" on left side of Sparkfun ML Carrier
+#define TFT_DC 4   // 0   // "TX1" on left side of Sparkfun ML Carrier
+#define TFT_CS 5   // 4   // "CS" on left side of Sparkfun ML Carrier
+#define TFT_RST 2  // 1  // "RX1" on left side of Sparkfun ML Carrier
 #else
 #define VSYNC_PIN 33
-#define TFT_DC 0  // 20   // "TX1" on left side of Sparkfun ML Carrier
-#define TFT_CS 4  // 5, 4   // "CS" on left side of Sparkfun ML Carrier
-#define TFT_RST 1 // 2, 1  // "RX1" on left side of Sparkfun ML Carrier
+#define TFT_DC 0   // 20   // "TX1" on left side of Sparkfun ML Carrier
+#define TFT_CS 4   // 5, 4   // "CS" on left side of Sparkfun ML Carrier
+#define TFT_RST 1  // 2, 1  // "RX1" on left side of Sparkfun ML Carrier
 #endif
 
 #ifdef ARDUINO_TEENSY41
@@ -266,7 +266,7 @@ void setup() {
 
     // Lets setup camera interrupt priorities:
     // camera.setVSyncISRPriority(102); // higher priority than default
-    camera.setDMACompleteISRPriority(192); // lower than default
+    camera.setDMACompleteISRPriority(192);  // lower than default
 
     // Lets try reading in one frame
     for (uint8_t i = 0; i < 5; i++) {
