@@ -188,8 +188,6 @@ class OV5640 : public ImageSensor {
 
     // Autofocus
     void enableAutoFocus(bool useAF);
-    int setAutofocusMode();
-    int checkAFCmdStatus(uint16_t reg, uint8_t value);
 
   private:
     uint8_t cameraReadRegister(uint16_t reg_addr, uint8_t &reg_data);
@@ -201,6 +199,8 @@ class OV5640 : public ImageSensor {
     int calc_pclk_freq(uint8_t sc_pll_ctrl_0, uint8_t sc_pll_ctrl_1,
                        uint8_t sc_pll_ctrl_2, uint8_t sc_pll_ctrl_3,
                        uint8_t sys_root_div);
+
+    int checkAFCmdStatus(uint16_t reg, uint8_t value);
 
   private:
     int _xclk_freq = 8;
