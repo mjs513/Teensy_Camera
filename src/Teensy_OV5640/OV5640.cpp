@@ -1071,6 +1071,14 @@ bool OV5640::begin_omnivision(framesize_t framesize, pixformat_t format,
         return false; // failed to set resolution
     }
 
+    if (_useAF) {
+        if (setAutoFocusMode() != 0) {
+            if (_debug)
+                debug.println("Error: Failed to setAutoFocusMode");
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -1117,7 +1125,7 @@ int OV5640::reset() {
         cameraWriteRegister(OV5640_CMD_PARA1, 0x00);
         cameraWriteRegister(OV5640_CMD_PARA2, 0x00);
         cameraWriteRegister(OV5640_CMD_PARA3, 0x00);
-        cameraWriteRegister(OV5640_CMD_PARA4, 180);
+        cameraWriteRegister(OV5640_CMD_PARA4, 0x00);
         cameraWriteRegister(OV5640_CMD_FW_STATUS, 0x7f);
         // release mcu reset
         ret |= cameraWriteRegister(SYSTEM_RESET_00, 0x00);
@@ -1966,22 +1974,19 @@ int OV5640::setAutoSharpness(int enable) {
 
 #define FLEXIO_USE_DMA
 
-size_t OV5640::readFrameAF(void *buffer1, size_t cb1, void *buffer2,
-                           size_t cb2) {
-    uint32_t framesize_bytes_received = 0;
+uint8_t OV5640::setAutoFocusMode() {
+
     uint8_t ret = 0;
-    uint8_t sensor = 0;
-    cameraWriteRegister(OV5640_CMD_ACK, 0x01);
-    cameraWriteRegister(OV5640_CMD_MAIN, 0x03);
-    checkAFCmdStatus(OV5640_CMD_ACK, 0x00);
-    ret = checkAFCmdStatus(OV5640_CMD_FW_STATUS, AF_STATUS_S_FOCUSED);
-    // cameraWriteRegister(OV5640_CMD_MAIN, 0x06);
-    if (ret == 0)
-        framesize_bytes_received = ImageSensor::readFrame(buffer1, cb1, buffer2, cb2);
-    cameraWriteRegister(OV5640_CMD_ACK, 0x01);
-    cameraWriteRegister(OV5640_CMD_MAIN, 0x08);
-    checkAFCmdStatus(OV5640_CMD_ACK, 0x00);
-    return framesize_bytes_received;
+
+    ret = cameraWriteRegister(OV5640_CMD_MAIN, 0x01);
+    ret |= cameraWriteRegister(OV5640_CMD_MAIN, 0x08);
+    checkAFCmdStatus(OV5640_CMD_ACK, 0);
+
+    ret |= cameraWriteRegister(OV5640_CMD_ACK, 0x01);
+    ret |= cameraWriteRegister(OV5640_CMD_MAIN, AF_CONTINUE_AUTO_FOCUS);
+    checkAFCmdStatus(OV5640_CMD_ACK, 0);
+
+    return ret;
 }
 
 size_t OV5640::readFrameGPIO_JPEG(void *buffer, size_t cb1, void *buffer2,

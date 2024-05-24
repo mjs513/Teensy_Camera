@@ -190,6 +190,8 @@ class OV5640 : public ImageSensor {
     void enableAutoFocus(bool useAF);
 
   private:
+    uint8_t setAutoFocusMode();
+
     uint8_t cameraReadRegister(uint16_t reg_addr, uint8_t &reg_data);
     uint8_t cameraWriteRegister(uint16_t reg, uint8_t data);
     uint8_t cameraWriteFirmware();
