@@ -1710,7 +1710,7 @@ size_t ImageSensor::readFrameCSI_use_FlexIO(void *buffer, size_t cb1, void *buff
     return frame_bytes_received;
 }
 
-// not implemented yet
+
 bool ImageSensor::startReadCSI(bool (*callback)(void *frame_buffer), void *fb1,
                                size_t cb1, void *fb2, size_t cb2) {
     if (_debug)
@@ -1732,7 +1732,7 @@ bool ImageSensor::startReadCSI(bool (*callback)(void *frame_buffer), void *fb1,
     CSI_CSIDMASA_FB1 = (uint32_t)fb1;
     CSI_CSIDMASA_FB2 = fb2 ? (uint32_t)fb2 : (uint32_t)fb1;
     // Set Image Parameters--width in bytes and height
-    CSI_CSIIMAG_PARA = CSI_CSIIMAG_PARA_IMAGE_WIDTH(2 * _width) |
+    CSI_CSIIMAG_PARA = CSI_CSIIMAG_PARA_IMAGE_WIDTH(_bytesPerPixel * _width) |
                        CSI_CSIIMAG_PARA_IMAGE_HEIGHT(_height);
 
     // Set our logical state
