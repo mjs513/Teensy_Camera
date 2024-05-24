@@ -23,7 +23,7 @@ Camera camera(omni);
 framesize_t camera_framesize = FRAMESIZE_QVGA;
 pixformat_t camera_format = RGB565;
 bool useGPIO = false;
-bool useAutoFocus = true;
+bool useAutoFocus = false;
 
 #define skipFrames 1
 
