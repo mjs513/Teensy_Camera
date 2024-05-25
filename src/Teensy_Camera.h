@@ -256,7 +256,7 @@ class ImageSensor : public FlexIOHandlerCallback {
     // void* _last_frame_buffer_returned = nullptr;
     FlexIOHandler *_pflex;
     IMXRT_FLEXIO_t *_pflexio;
-    uint8_t _fshifter;
+    uint8_t _fshifter = 0xff;
     uint8_t _fshifter_mask;
     uint8_t _ftimer;
     uint8_t _dma_source;

@@ -1020,14 +1020,17 @@ bool ImageSensor::flexio_configure() {
             debug.println("Custom - Flexio is 4 bit mode");
     }
     // Needs Shifter 3 (maybe 7 would work as well?)
-    if (_pflex->claimShifter(3))
-        _fshifter = 3;
-    else if (_pflex->claimShifter(7))
-        _fshifter = 7;
-    else {
-        if (_debug)
-            debug.printf("OV767X Flex IO: Could not claim Shifter 3 or 7\n");
-        return false;
+    // make sure we handle if we already claimed it before.
+    if ((_fshifter != 3) && (_fshifter != 7)) {
+        if (_pflex->claimShifter(3))
+            _fshifter = 3;
+        else if (_pflex->claimShifter(7))
+            _fshifter = 7;
+        else {
+            if (_debug)
+                debug.printf("OV767X Flex IO: Could not claim Shifter 3 or 7\n");
+            return false;
+        }
     }
     _fshifter_mask = 1 << _fshifter;                     // 4 channels.
     _dma_source = _pflex->shiftersDMAChannel(_fshifter); // looks like they use
@@ -1768,8 +1771,8 @@ void ImageSensor::CSIInterrupt() {
 void ImageSensor::processCSIInterrupt() {
     // lets grab the state and see what the ISR was for....
     uint32_t csisr = CSI_CSISR; //
-    if (_debug /*&& (csisr & (CSI_CSISR_BASEADDR_CHHANGE_ERROR | CSI_CSISR_SOF_INT | CSI_CSISR_DMA_TSF_DONE_FB1 | CSI_CSISR_DMA_TSF_DONE_FB2))*/)
-        debug.printf("CSII:%x\n", csisr);
+    //if (_debug /*&& (csisr & (CSI_CSISR_BASEADDR_CHHANGE_ERROR | CSI_CSISR_SOF_INT | CSI_CSISR_DMA_TSF_DONE_FB1 | CSI_CSISR_DMA_TSF_DONE_FB2))*/)
+    //    debug.printf("CSII:%x\n", csisr);
     uint32_t frame_size_bytes = _width * _height * _bytesPerPixel;
 
     // Not sure if we will not SOF or not but...
