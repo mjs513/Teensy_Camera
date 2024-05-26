@@ -7,13 +7,13 @@
 #define USE_MMOD_ATP_ADAPTER
 
 #define TFT_ROTATION 3
-#define USE_SDCARD
+//#define USE_SDCARD
 
-#define use9488
-//#define DVP_CAMERA_HM01B0
+//#define use9488
+#define DVP_CAMERA_HM01B0
 //#define DVP_CAMERA_HM0360
 //#define DVP_CAMERA_OV2640
-#define DVP_CAMERA_OV7670
+//#define DVP_CAMERA_OV7670
 //#define DVP_CAMERA_OV7675
 //#define DVP_CAMERA_GC2145
 //#define DVP_CAMERA_OV5640
@@ -328,8 +328,12 @@ void setup() {
 // HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
 // HM0360(8pin) 15/30/60/120 works :)
 #if defined(DVP_CAMERA_HM01B0)
-    camera.data4BitMode(true);
+    camera.data4BitMode(false);
 #endif
+//NOTE: if using the PJRC MM or Sparkfun ML breakoutboad use the following for 8bit mode
+//    camera.setPins(7, 8, 33, 32, 2, 40, 41, 42, 43, 44, 45, 6, 9);
+//  for 4bit
+//    camera.setPins(7, 8, 33, 32, 2, 40, 41, 42, 43);
     status = camera.begin(camera_framesize, 15, useGPIO);
 #else
     status = camera.begin(camera_framesize, camera_format, 15, CameraID, useGPIO);
