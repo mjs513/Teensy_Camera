@@ -428,6 +428,7 @@ void ImageSensor::processFrameStartInterruptFlexIO() {
 #ifdef USE_DEBUG_PINS
     digitalWriteFast(5, HIGH);
 #endif
+
     //    debug.println("VSYNC");
     // See if we read the state of it a few times if the pin stays high...
     if (digitalReadFast(_vsyncPin) && digitalReadFast(_vsyncPin) &&
@@ -448,6 +449,7 @@ void ImageSensor::processFrameStartInterruptFlexIO() {
         _dmachannel.clearComplete();
         _dmachannel.enable();
 
+        DBGdigitalWriteFast(DBG_TIMING_PIN, HIGH);
         if (_format == pixformat_t::JPEG) {
             // if JPEG reenable match for ending interrupt...
             _pflexio->SHIFTEIEN |= _fshifter_jpeg_mask;
@@ -471,6 +473,8 @@ void ImageSensor::processDMAInterruptFlexIO() {
     digitalWriteFast(2, HIGH);
     digitalWriteFast(2, LOW);
 #endif
+    DBGdigitalWriteFast(DBG_TIMING_PIN, LOW);
+
     if (_dma_state == DMA_STATE_ONE_FRAME) {
         _dma_state = DMA_STATE_STOPPED;
         asm("DSB");

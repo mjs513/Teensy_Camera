@@ -125,6 +125,7 @@ uint16_t screen_buffer[480 * 320] __attribute__((aligned(32)));
 volatile uint32_t frame_count_camera = 0;
 volatile uint32_t frame_count_tft = 0;
 
+#ifdef USE_T4_PXP
 inline void do_pxp_conversion(uint16_t &outputWidth, uint16_t &outputHeight) {
 
 #if defined(CAMERA_USES_MONO_PALETTE)
@@ -143,7 +144,7 @@ inline void do_pxp_conversion(uint16_t &outputWidth, uint16_t &outputHeight) {
                   &outputWidth, &outputHeight);    /* Frame Out size for drawing */
 #endif
 }
-
+#endif
 
 void setup() {
     Serial.begin(921600);
@@ -183,6 +184,7 @@ void setup() {
     delay(500);
 
     tft.fillScreen(TFT_BLACK);
+    tft.setFrameCompleteCB(&TFTFrameComplete);
 
     /***************************************************************/
     //  If: not using default pins you may need to setup which pins are used using:
@@ -196,6 +198,7 @@ void setup() {
     pinMode(2, OUTPUT);
     pinMode(3, OUTPUT);
 #endif
+    pinMode(1, OUTPUT); 
 
     // Start up the camera, with error recovery code
     //  FRAMESIZE_VGA = 0,
@@ -210,6 +213,8 @@ void setup() {
     //  FRAMESIZE_UXGA, //1500, 1200
     start_camera();
     omni.setWBmode(true);
+    camera.setPixformat(camera_format);
+
     delay(1000);
     //
     //  if (!camera.setZoomWindow(80, 80, 480, 320)) Serial.println("$$$camera.setZoomWindow failed");
@@ -281,6 +286,8 @@ void setup() {
     tft.useFrameBuffer(true);
     tft.updateScreenAsync();
 
+    PXPShow();
+
     // now lets start up continuious reading and displaying...
     Serial.println("Press any key to enter continuous mode");
     while (Serial.read() == -1) {
@@ -297,9 +304,12 @@ void setup() {
 }
 
 bool camera_read_callback(void *pfb) {
+    digitalWriteFast(3, HIGH);
     frame_count_camera++;
-    if (tft.asyncUpdateActive())
-        return true;
+    if (tft.asyncUpdateActive()) {
+        digitalWriteFast(3, LOW);
+       return true;
+    }
     frame_count_tft++;
 
 #ifdef USE_T4_PXP
@@ -311,8 +321,15 @@ bool camera_read_callback(void *pfb) {
     memcpy(screen_buffer, camera_buffer, sizeof(camera_buffer));
 #endif
     tft.updateScreenAsync();
+    digitalWriteFast(1, HIGH);
+    digitalWriteFast(3, LOW);
     return true;
 }
+
+void TFTFrameComplete() {
+    digitalWriteFast(1, LOW);
+}
+    
 
 void loop() {
     if (Serial.available()) {
@@ -473,3 +490,29 @@ void test_display() {
     tft.fillScreen(TFT_BLACK);
     delay(500);
 }
+void PXPShow(void) {
+  Serial.printf("CTRL:         %08X       STAT:         %08X\n", PXP_CTRL, PXP_STAT);
+  Serial.printf("OUT_CTRL:     %08X       OUT_BUF:      %08X    \nOUT_BUF2:     %08X\n", PXP_OUT_CTRL, PXP_OUT_BUF, PXP_OUT_BUF2);
+  Serial.printf("OUT_PITCH:    %8lu       OUT_LRC:       %3u,%3u\n", PXP_OUT_PITCH, PXP_OUT_LRC >> 16, PXP_OUT_LRC & 0xFFFF);
+
+  Serial.printf("OUT_PS_ULC:    %3u,%3u       OUT_PS_LRC:    %3u,%3u\n", PXP_OUT_PS_ULC >> 16, PXP_OUT_PS_ULC & 0xFFFF,
+                PXP_OUT_PS_LRC >> 16, PXP_OUT_PS_LRC & 0xFFFF);
+  Serial.printf("OUT_AS_ULC:    %3u,%3u       OUT_AS_LRC:    %3u,%3u\n", PXP_OUT_AS_ULC >> 16, PXP_OUT_AS_ULC & 0xFFFF,
+                PXP_OUT_AS_LRC >> 16, PXP_OUT_AS_LRC & 0xFFFF);
+  Serial.println();  // section separator
+  Serial.printf("PS_CTRL:      %08X       PS_BUF:       %08X\n", PXP_PS_CTRL, PXP_PS_BUF);
+  Serial.printf("PS_UBUF:      %08X       PS_VBUF:      %08X\n", PXP_PS_UBUF, PXP_PS_VBUF);
+  Serial.printf("PS_PITCH:     %8lu       PS_BKGND:     %08X\n", PXP_PS_PITCH, PXP_PS_BACKGROUND_0);
+  Serial.printf("PS_SCALE:     %08X       PS_OFFSET:    %08X\n", PXP_PS_SCALE, PXP_PS_OFFSET);
+  Serial.printf("PS_CLRKEYLOW: %08X       PS_CLRKEYLHI: %08X\n", PXP_PS_CLRKEYLOW_0, PXP_PS_CLRKEYHIGH_0);
+  Serial.println();
+  Serial.printf("AS_CTRL:      %08X       AS_BUF:       %08X    AS_PITCH: %6u\n", PXP_AS_CTRL, PXP_AS_BUF, PXP_AS_PITCH & 0xFFFF);
+  Serial.printf("AS_CLRKEYLOW: %08X       AS_CLRKEYLHI: %08X\n", PXP_AS_CLRKEYLOW_0, PXP_AS_CLRKEYHIGH_0);
+  Serial.println();
+  Serial.printf("CSC1_COEF0:   %08X       CSC1_COEF1:   %08X    \nCSC1_COEF2:   %08X\n",
+                PXP_CSC1_COEF0, PXP_CSC1_COEF1, PXP_CSC1_COEF2);
+  Serial.println();  // section separator
+  Serial.printf("POWER:        %08X       NEXT:         %08X\n", PXP_POWER, PXP_NEXT);
+  Serial.printf("PORTER_DUFF:  %08X\n", PXP_PORTER_DUFF_CTRL);
+}
+
