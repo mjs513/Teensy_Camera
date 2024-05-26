@@ -143,7 +143,7 @@ static const uint8_t default_regs[][3] = {
     {0x31, 0x03, 0x03},
     {0x30, 0x17, 0xff}, // { 0x30, 0x17, 0x7f },
     {0x30, 0x18, 0xff},
-    {0x30, 0x2c, 0x02},
+    {0x30, 0x2c, 0x03},
     {0x31, 0x08, 0x01},
     {0x36, 0x30, 0x2e},
     {0x36, 0x32, 0xe2},
@@ -975,12 +975,12 @@ bool OV5640::begin_omnivision(framesize_t framesize, pixformat_t format,
         return false;
     }
 
-    pinMode(_vsyncPin, INPUT /*INPUT_PULLDOWN*/);
+    pinMode(_vsyncPin, INPUT_PULLDOWN /*INPUT_PULLDOWN*/);
     //  const struct digital_pin_bitband_and_config_table_struct *p;
     //  p = digital_pin_to_info_PGM + _vsyncPin;
     //  *(p->pad) = IOMUXC_PAD_DSE(7) | IOMUXC_PAD_HYS;  // See if I turn on
     //  HYS...
-    pinMode(_hrefPin, INPUT_PULLUP);
+    pinMode(_hrefPin, INPUT_PULLDOWN);
     pinMode(_pclkPin, INPUT_PULLDOWN);
     pinMode(_xclkPin, OUTPUT);
 
@@ -1131,6 +1131,7 @@ int OV5640::reset() {
         ret |= cameraWriteRegister(SYSTEM_RESET_00, 0x00);
 
         ret1 |= checkAFCmdStatus(OV5640_CMD_FW_STATUS, AF_STATUS_S_IDLE);
+
         if (ret1 < 0) {
             if (_debug)
                 debug.println("AF config failed to start!!");

@@ -11,8 +11,8 @@
 // #define USE_HX8357D
 
 //#define DVP_CAMERA_OV2640
-//#define DVP_CAMERA_OV5640
-#define DVP_CAMERA_HM0360
+#define DVP_CAMERA_OV5640
+//#define DVP_CAMERA_HM0360
 
 #if defined(DVP_CAMERA_OV2640)
 #include "Teensy_OV2640/OV2640.h"
@@ -25,7 +25,7 @@ Camera camera(omni);
 OV5640 omni;
 Camera camera(omni);
 #define CameraID OV5640a
-// #define MIRROR_FLIP_CAMERA
+//#define MIRROR_FLIP_CAMERA
 #elif defined(DVP_CAMERA_HM0360)
 #define CAMERA_USES_MONO_PALETTE
 #include "Teensy_HM0360/HM0360.h"
@@ -139,7 +139,7 @@ inline void do_pxp_conversion(uint16_t &outputWidth, uint16_t &outputHeight) {
                   camera.width(), camera.height(), /* Image width and height */
                   camera_buffer, PXP_RGB565, 2, 0, /* Input buffer configuration */
                   screen_buffer, PXP_RGB565, 2, 0, /* Output buffer configuration */
-                  TFT_ROTATION, 0, 0.0,            /* Rotation, flip, scaling */
+                  TFT_ROTATION, true, 0.0,            /* Rotation, flip, scaling */
                   &outputWidth, &outputHeight);    /* Frame Out size for drawing */
 #endif
 }
@@ -209,7 +209,8 @@ void setup() {
     //  FRAMESIZE_SVGA, //800, 600
     //  FRAMESIZE_UXGA, //1500, 1200
     start_camera();
-
+    omni.setWBmode(true);
+    delay(1000);
     //
     //  if (!camera.setZoomWindow(80, 80, 480, 320)) Serial.println("$$$camera.setZoomWindow failed");
 
@@ -334,7 +335,7 @@ void loop() {
 }
 
 /***********************************************************/
-#if 1
+#if 0
 void start_camera() {
     // Setup for OV5640 Camera
     // CSI support
