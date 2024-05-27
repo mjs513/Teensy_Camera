@@ -199,8 +199,8 @@ static const uint8_t default_regs[][3] = {
     {0x38, 0x14, 0x31},
     {0x38, 0x15, 0x31},
     {0x30, 0x34, 0x1a},
-    {0x30, 0x35, 0x11},                 // { 0x30, 0x35, 0x21 },
-    {0x30, 0x36, OMV_OV5640_PLL_CTRL2}, // { 0x30, 0x36, 0x46 },
+    {0x30, 0x35, 0x21}, // was 0x11 now// { 0x30, 0x35, 0x21 },
+    {0x30, 0x36, 0x46}, // wasOMV_OV5640_PLL_CTRL2}, // { 0x30, 0x36, 0x46 },
     {0x30, 0x37, OMV_OV5640_PLL_CTRL3},
     {0x30, 0x38, 0x00},
     {0x30, 0x39, 0x00},
@@ -975,12 +975,12 @@ bool OV5640::begin_omnivision(framesize_t framesize, pixformat_t format,
         return false;
     }
 
-    pinMode(_vsyncPin, INPUT_PULLDOWN /*INPUT_PULLDOWN*/);
+    pinMode(_vsyncPin, INPUT /*INPUT_PULLDOWN*/);
     //  const struct digital_pin_bitband_and_config_table_struct *p;
     //  p = digital_pin_to_info_PGM + _vsyncPin;
     //  *(p->pad) = IOMUXC_PAD_DSE(7) | IOMUXC_PAD_HYS;  // See if I turn on
     //  HYS...
-    pinMode(_hrefPin, INPUT_PULLDOWN);
+    pinMode(_hrefPin, INPUT);
     pinMode(_pclkPin, INPUT_PULLDOWN);
     pinMode(_xclkPin, OUTPUT);
 
@@ -1065,6 +1065,7 @@ bool OV5640::begin_omnivision(framesize_t framesize, pixformat_t format,
             debug.println("Error: setPixformat failed");
         return false;
     }
+
     if (setFramesize(framesize) != 0) {
         if (_debug)
             debug.println("Error: setFramesize failed");
