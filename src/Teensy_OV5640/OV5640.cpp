@@ -894,6 +894,17 @@ uint16_t OV5640::getModelid() {
     return MID;
 }
 
+#ifdef DEBUG_CAMERA
+void print_pin_info(const char *pin_name, uint8_t pin) {
+    Serial.printf("\t%s(%d)", pin_name, pin);
+    if (pin >= CORE_NUM_DIGITAL)
+        Serial.println(" ** unused **");
+    else {
+        Serial.printf(": %08x %08x\n", *(portControlRegister(pin)), *(portConfigRegister(pin)));
+    }
+}
+#endif
+
 bool OV5640::begin_omnivision(framesize_t framesize, pixformat_t format,
                               int fps, int camera_name, bool use_gpio) {
 
@@ -990,7 +1001,7 @@ bool OV5640::begin_omnivision(framesize_t framesize, pixformat_t format,
     debug.printf("  RST=%d(%d), PWDN=%d(%d)\n", _rst, _rst_init, _pwdn, _pwdn_init);
 
     for (int i = 0; i < 8; i++) {
-        pinMode(_dPins[i], INPUT);
+        pinMode(_dPins[i], INPUT_PULLDOWN);
         debug.printf("  _dpins(%d)=%d\n", i, _dPins[i]);
     }
 #endif
@@ -1079,6 +1090,27 @@ bool OV5640::begin_omnivision(framesize_t framesize, pixformat_t format,
             return false;
         }
     }
+
+#ifdef DEBUG_CAMERA
+    if (_debug) {
+        // curious of pin setting between CSI and FlexIO
+        Serial.println("\n*** Camera Pin Settings ***");
+        print_pin_info("vsyncPin", _vsyncPin);
+        print_pin_info("hrefPin", _hrefPin);
+        print_pin_info("pclkPin", _pclkPin);
+        print_pin_info("xclkPin", _xclkPin);
+        print_pin_info("rst", _rst);
+        print_pin_info("pwdn", _pwdn);
+        print_pin_info("D0", _dPins[0]);
+        print_pin_info("D1", _dPins[1]);
+        print_pin_info("D2", _dPins[2]);
+        print_pin_info("D3", _dPins[3]);
+        print_pin_info("D4", _dPins[4]);
+        print_pin_info("D5", _dPins[5]);
+        print_pin_info("D6", _dPins[6]);
+        print_pin_info("D7", _dPins[7]);
+    }
+#endif
 
     return true;
 }
