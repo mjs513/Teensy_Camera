@@ -11,8 +11,8 @@
 // #define USE_HX8357D
 
 //#define DVP_CAMERA_OV2640
-//#define DVP_CAMERA_OV5640
-#define DVP_CAMERA_HM0360
+#define DVP_CAMERA_OV5640
+//#define DVP_CAMERA_HM0360
 
 #if defined(DVP_CAMERA_OV2640)
 #include "Teensy_OV2640/OV2640.h"
@@ -44,7 +44,7 @@ Camera camera(himax);
 framesize_t camera_framesize = FRAMESIZE_VGA;
 pixformat_t camera_format = RGB565;
 #else
-framesize_t camera_framesize = FRAMESIZE_480X320;
+framesize_t camera_framesize = FRAMESIZE_VGA; //FRAMESIZE_480X320;
 pixformat_t camera_format = RGB565;
 #endif
 
@@ -87,7 +87,7 @@ uint8_t powdwn_pin = 30;
 #if defined(CAMERA_USES_MONO_PALETTE)
 #define TFT_ROTATION 1
 #else
-#define TFT_ROTATION 3
+#define TFT_ROTATION 1
 #endif
 #else
 #define TFT_ROTATION 1
@@ -121,11 +121,17 @@ DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 // Later we will play with memory locations...
 #if defined(CAMERA_USES_MONO_PALETTE)
 // we will read in full VGA size
-DMAMEM uint8_t camera_buffer[640 * 480] __attribute__((aligned(32)));
+DMAMEM uint8_t camera_buffer_data[640 * 480] __attribute__((aligned(32)));
+uint8_t *camera_buffer = camera_buffer_data;
 #else
-DMAMEM uint16_t camera_buffer[480 * 320] __attribute__((aligned(32)));
+DMAMEM uint16_t camera_buffer_data[480 * 320] __attribute__((aligned(32)));
+uint16_t *camera_buffer = camera_buffer_data;
 #endif
 uint16_t screen_buffer[480 * 320] __attribute__((aligned(32)));
+
+uint32_t camera_buffer_size = sizeof(camera_buffer_data);
+
+
 
 #ifdef USE_T4_PXP
 #include <T4_PXP.h>
@@ -147,6 +153,7 @@ void PXP_ps_window_output(uint16_t disp_width, uint16_t disp_height, uint16_t im
                           uint16_t *scr_width, uint16_t *scr_height) {
 
     // Lets see if we can setup a window into the camera data
+    if (scaling == 0) scaling = 1.0;
     Serial.printf("PXP_ps_window_output(%u, %u, %u, %u.... %u, %u. %f)\n", disp_width, disp_height, image_width, image_height,
                   rotation, flip, scaling);
 
@@ -165,6 +172,7 @@ void PXP_ps_window_output(uint16_t disp_width, uint16_t disp_height, uint16_t im
         PXP_set_csc_y8_to_rgb();
 
     // Output stuff
+#if 0
     uint16_t out_width, out_height, output_Width, output_Height;
     if (rotation == 1 || rotation == 3) {
         out_width = disp_height;
@@ -173,6 +181,7 @@ void PXP_ps_window_output(uint16_t disp_width, uint16_t disp_height, uint16_t im
         out_width = disp_width;
         out_height = disp_height;
     }
+#endif
 
     PXP_output_buffer(buf_out, bpp_out, disp_width, disp_height);
     PXP_output_format(format_out, 0, 0, byte_swap_out);
@@ -254,12 +263,12 @@ inline void do_pxp_conversion(uint16_t &outputWidth, uint16_t &outputHeight) {
         return;
     }
     pxp_next_initialized = true;
-#if defined(CAMERA_USES_MONO_PALETTE)
 #ifdef PXP_LET_SCREEN_DO_ROTATE
     uint8_t rotate = 0;
 #else
     uint8_t rotate = TFT_ROTATION;
 #endif
+#if defined(CAMERA_USES_MONO_PALETTE)
 #if 1
     // lets try to unwind the PXP_ps_output code and instead of clip
     // se if we can setup window into the source with the output size.
@@ -279,12 +288,21 @@ inline void do_pxp_conversion(uint16_t &outputWidth, uint16_t &outputHeight) {
                   &outputWidth, &outputHeight);    /* Frame Out size for drawing */
 #endif
 #else
+#if 1
+    PXP_ps_window_output(tft.width(), tft.height(),       /* Display width and height */
+                  camera.width(), camera.height(), /* Image width and height */
+                  camera_buffer, PXP_RGB565, 2, 0, /* Input buffer configuration */
+                  screen_buffer, PXP_RGB565, 2, 0, /* Output buffer configuration */
+                  rotate, true, pxp_scale_factor,               /* Rotation, flip, scaling */
+                  &outputWidth, &outputHeight);    /* Frame Out size for drawing */
+#else
     PXP_ps_output(tft.width(), tft.height(),       /* Display width and height */
                   camera.width(), camera.height(), /* Image width and height */
                   camera_buffer, PXP_RGB565, 2, 0, /* Input buffer configuration */
                   screen_buffer, PXP_RGB565, 2, 0, /* Output buffer configuration */
                   rotate, true, 0.0,               /* Rotation, flip, scaling */
                   &outputWidth, &outputHeight);    /* Frame Out size for drawing */
+#endif
 #endif
     PXPShowNext();
     Serial.flush();
@@ -394,7 +412,30 @@ void setup() {
 
     FRAME_HEIGHT = camera.height();
     FRAME_WIDTH = camera.width();
-    Serial.printf("ImageSize (w,h): %d, %d\n", FRAME_WIDTH, FRAME_HEIGHT);
+    uint32_t camera_frame_size = FRAME_WIDTH * FRAME_HEIGHT * sizeof(camera_buffer_data[0]);
+    Serial.printf("ImageSize (w,h): %d, %d size in bytes:%u \n", FRAME_WIDTH, FRAME_HEIGHT, camera_frame_size);
+
+    // See how large the camera frame is in bytes:
+    if (camera_frame_size > camera_buffer_size) {
+        Serial.println("*** Warning image size larger than default buffer size ***");
+        // this probably can only work on T4.1 with PSRAM
+        uint8_t *new_buf = extmem_malloc(camera_frame_size + 32);
+        if (new_buf == nullptr) {
+            Serial.println("$$$ Could not allocate new one - Abort $$$");
+            pinMode(LED_BUILTIN, OUTPUT);
+            while (1) {
+                digitalToggleFast(LED_BUILTIN);
+                delay(250);
+            }
+        }
+        #ifdef CAMERA_USES_MONO_PALETTE
+        camera_buffer = (uint8_t*)(((uint32_t)new_buf+32) & 0xffffffe0);
+        #else
+        camera_buffer = (uint16_t*)(((uint32_t)new_buf+32) & 0xffffffe0);
+        #endif
+        Serial.printf("\tAllocated new external buffer: %p\n", camera_buffer);
+        camera_buffer_size = camera_frame_size;
+    }
 
     // Lets setup camera interrupt priorities:
     // camera.setVSyncISRPriority(102); // higher priority than default
@@ -402,15 +443,15 @@ void setup() {
 
     // Lets try reading in one frame
     delay(250);
-    memset(camera_buffer, 0, sizeof(camera_buffer));
+    memset(camera_buffer, 0, camera_buffer_size);
     memset(screen_buffer, 0, sizeof(screen_buffer));
 
     uint16_t outputWidth, outputHeight;
     for (uint8_t i = 0; i < 5; i++) {
         Serial.printf("Couple of Quick frames: %u\n", i);
         camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
-        camera.readFrame(camera_buffer, sizeof(camera_buffer));
-        arm_dcache_flush((uint8_t *)camera_buffer, sizeof(camera_buffer));  // always flush cache after writing to DMAMEM variable that will be accessed by DMA
+        camera.readFrame(camera_buffer, camera_buffer_size);
+        arm_dcache_flush((uint8_t *)camera_buffer, camera_buffer_size);  // always flush cache after writing to DMAMEM variable that will be accessed by DMA
         Serial.println("After camera.read");
         Serial.flush();
 #ifdef USE_T4_PXP
@@ -429,7 +470,7 @@ void setup() {
     delay(1000);
 #ifdef USE_T4_PXP
     camera.setMode(HIMAX_MODE_STREAMING_NFRAMES, 1);
-    camera.readFrame(camera_buffer, sizeof(camera_buffer));
+    camera.readFrame(camera_buffer, camera_buffer_size);
     do_pxp_conversion(outputWidth, outputHeight);
 #else
     camera.readFrame(screen_buffer, sizeof(screen_buffer));
@@ -455,7 +496,7 @@ void setup() {
 #endif
 
     camera.setMode(HIMAX_MODE_STREAMING, 0);  // turn on, continuous streaming mode
-    if (!camera.readContinuous(&camera_read_callback, camera_buffer, sizeof(camera_buffer), nullptr, 0)) {
+    if (!camera.readContinuous(&camera_read_callback, camera_buffer, camera_buffer_size, nullptr, 0)) {
         Serial.print("\n*** Failed to enter Continuous mode ***");
     }
     camera.debug(false);
@@ -487,7 +528,7 @@ bool camera_read_callback(void *pfb) {
 #else
     // not sure if I can update the CSI buffers without stopping camera and restarting the dma..
     // so first try copy memory
-    memcpy(screen_buffer, camera_buffer, sizeof(camera_buffer));
+    memcpy(screen_buffer, camera_buffer, camera_buffer_size);
 #endif
 #ifndef PXP_CALLBACK_SUPPORTED
     tft.updateScreenAsync();
@@ -513,9 +554,10 @@ void loop() {
             pxp_scale_factor = next_scale;
             pxp_next_initialized = false;  // have it rebuild it...
             memset(screen_buffer, 0, sizeof(screen_buffer));
+            memset(camera_buffer, 0, camera_buffer_size);
 
             camera.setMode(HIMAX_MODE_STREAMING, 0);  // turn on, continuous streaming mode
-            if (!camera.readContinuous(&camera_read_callback, camera_buffer, sizeof(camera_buffer), nullptr, 0)) {
+            if (!camera.readContinuous(&camera_read_callback, camera_buffer, camera_buffer_size, nullptr, 0)) {
                 Serial.print("\n*** Failed to enter Continuous mode ***");
             }
         } else {
