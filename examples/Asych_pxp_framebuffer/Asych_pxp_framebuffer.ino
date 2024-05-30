@@ -43,12 +43,13 @@ Camera camera(himax);
 #if defined(CAMERA_USES_MONO_PALETTE)
 framesize_t camera_framesize = FRAMESIZE_VGA;
 pixformat_t camera_format = RGB565;
+float pxp_scale_factor = 1.3333333333333;
 #else
 framesize_t camera_framesize = FRAMESIZE_VGA; //FRAMESIZE_480X320;
 pixformat_t camera_format = RGB565;
+float pxp_scale_factor = 1.0;
 #endif
 
-float pxp_scale_factor = 1.3333333333333;
 bool pxp_next_initialized = false;
 
 
@@ -154,7 +155,8 @@ void PXP_ps_window_output(uint16_t disp_width, uint16_t disp_height, uint16_t im
 
     // Lets see if we can setup a window into the camera data
     if (scaling == 0) scaling = 1.0;
-    Serial.printf("PXP_ps_window_output(%u, %u, %u, %u.... %u, %u. %f)\n", disp_width, disp_height, image_width, image_height,
+    Serial.printf("PXP_ps_window_output(%u, %u, %u, %u... %u %u %u %u ... %u, %u. %f)\n", disp_width, disp_height, image_width, image_height,
+                  format_in, bpp_in, format_out, bpp_out,
                   rotation, flip, scaling);
 
     // we may bypass some of the helper functions and output the data directly.
@@ -171,7 +173,7 @@ void PXP_ps_window_output(uint16_t disp_width, uint16_t disp_height, uint16_t im
     if (format_in == PXP_Y8 || format_in == PXP_Y4)
         PXP_set_csc_y8_to_rgb();
 
-    // Output stuff
+        // Output stuff
 #if 0
     uint16_t out_width, out_height, output_Width, output_Height;
     if (rotation == 1 || rotation == 3) {
@@ -239,7 +241,7 @@ void PXP_ps_window_output(uint16_t disp_width, uint16_t disp_height, uint16_t im
         buf_in_clipped += ((scaled_image_height - disp_height) / 2) * bpp_in * image_width;
     }
 
-    if (buf_in_clipped != (uint8_t*)buf_in) {
+    if (buf_in_clipped != (uint8_t *)buf_in) {
         Serial.printf("Input clip Buffer(%p -> %p)\n", buf_in, buf_in_clipped);
         next_pxp->PS_BUF = buf_in_clipped;
     }
@@ -276,7 +278,7 @@ inline void do_pxp_conversion(uint16_t &outputWidth, uint16_t &outputHeight) {
                          camera.width(), camera.height(), /* Image width and height */
                          camera_buffer, PXP_Y8, 1, 0,     /* Input buffer configuration */
                          screen_buffer, PXP_RGB565, 2, 0, /* Output buffer configuration */
-                         rotate, 0, pxp_scale_factor,                    /* Rotation, flip, scaling */
+                         rotate, 0, pxp_scale_factor,     /* Rotation, flip, scaling */
                          &outputWidth, &outputHeight);    /* Frame Out size for drawing */
 
 #else
@@ -290,11 +292,11 @@ inline void do_pxp_conversion(uint16_t &outputWidth, uint16_t &outputHeight) {
 #else
 #if 1
     PXP_ps_window_output(tft.width(), tft.height(),       /* Display width and height */
-                  camera.width(), camera.height(), /* Image width and height */
-                  camera_buffer, PXP_RGB565, 2, 0, /* Input buffer configuration */
-                  screen_buffer, PXP_RGB565, 2, 0, /* Output buffer configuration */
-                  rotate, true, pxp_scale_factor,               /* Rotation, flip, scaling */
-                  &outputWidth, &outputHeight);    /* Frame Out size for drawing */
+                         camera.width(), camera.height(), /* Image width and height */
+                         camera_buffer, PXP_RGB565, 2, 0, /* Input buffer configuration */
+                         screen_buffer, PXP_RGB565, 2, 0, /* Output buffer configuration */
+                         rotate, true, pxp_scale_factor,  /* Rotation, flip, scaling */
+                         &outputWidth, &outputHeight);    /* Frame Out size for drawing */
 #else
     PXP_ps_output(tft.width(), tft.height(),       /* Display width and height */
                   camera.width(), camera.height(), /* Image width and height */
@@ -428,11 +430,11 @@ void setup() {
                 delay(250);
             }
         }
-        #ifdef CAMERA_USES_MONO_PALETTE
-        camera_buffer = (uint8_t*)(((uint32_t)new_buf+32) & 0xffffffe0);
-        #else
-        camera_buffer = (uint16_t*)(((uint32_t)new_buf+32) & 0xffffffe0);
-        #endif
+#ifdef CAMERA_USES_MONO_PALETTE
+        camera_buffer = (uint8_t *)(((uint32_t)new_buf + 32) & 0xffffffe0);
+#else
+        camera_buffer = (uint16_t *)(((uint32_t)new_buf + 32) & 0xffffffe0);
+#endif
         Serial.printf("\tAllocated new external buffer: %p\n", camera_buffer);
         camera_buffer_size = camera_frame_size;
     }
