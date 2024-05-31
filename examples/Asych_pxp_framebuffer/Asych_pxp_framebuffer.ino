@@ -45,7 +45,7 @@ framesize_t camera_framesize = FRAMESIZE_VGA;
 pixformat_t camera_format = RGB565;
 float pxp_scale_factor = 1.3333333333333;
 #else
-framesize_t camera_framesize = FRAMESIZE_VGA; //FRAMESIZE_480X320;
+framesize_t camera_framesize = FRAMESIZE_SVGA;  //FRAMESIZE_480X320;
 pixformat_t camera_format = RGB565;
 float pxp_scale_factor = 1.0;
 #endif
@@ -208,7 +208,26 @@ void PXP_ps_window_output(uint16_t disp_width, uint16_t disp_height, uint16_t im
 
     // lets setup the scaling.
     uint16_t pxp_scale = scaling * 4096;
+    uint8_t dec = 0;
+    //next_pxp->PS_SCALE = PXP_XSCALE(pxp_scale) | PXP_YSCALE(pxp_scale);
+
+    if (scaling >= 8.0) {
+        pxp_scale = (scaling /8.0) * 4096;
+        dec = 3U;
+    } else if (scaling >= 4.0) {
+        pxp_scale = (scaling /4.0) * 4096;
+        dec = 2U;
+    } else if (scaling >= 2.0) {
+        pxp_scale = (scaling /2.0) * 4096;
+        dec = 1U;
+    }
+    next_pxp->PS_CTRL = (next_pxp->PS_CTRL & ~(0xC00U | 0x300U)) | PXP_PS_CTRL_DECX(dec) | PXP_PS_CTRL_DECY(dec);
     next_pxp->PS_SCALE = PXP_XSCALE(pxp_scale) | PXP_YSCALE(pxp_scale);
+
+    Serial.printf("ScaleFactor: %d\n", pxp_scale);
+    Serial.printf("Dec: %d\n", dec);
+
+
 
     // now if the input image and the scaled output image are not the same size, we may want to center either
     // the input or the output...
@@ -438,6 +457,14 @@ void setup() {
         Serial.printf("\tAllocated new external buffer: %p\n", camera_buffer);
         camera_buffer_size = camera_frame_size;
     }
+
+    // give an initial guess on what the scale factor should be. 
+    // Start of with the lower ratio and have it clip the other direction.
+    // BUGBUG needs to work with rotatio.
+    pxp_scale_factor = (float)camera.width() / (float)tft.width();
+    float height_factor = (float)camera.height() / (float)tft.height();
+    if (height_factor < pxp_scale_factor) pxp_scale_factor = height_factor;
+    Serial.printf("Starting scale factor: %f\n", pxp_scale_factor);
 
     // Lets setup camera interrupt priorities:
     // camera.setVSyncISRPriority(102); // higher priority than default
