@@ -10,8 +10,8 @@
 //#define DVP_CAMERA_HM01B0
 //#define DVP_CAMERA_HM0360
 //#define DVP_CAMERA_OV2640
-//#define DVP_CAMERA_OV5640
-#define DVP_CAMERA_OV7670
+#define DVP_CAMERA_OV5640
+//#define DVP_CAMERA_OV7670
 //#define DVP_CAMERA_OV7675
 //#define DVP_CAMERA_GC2145
 
@@ -158,6 +158,12 @@ static const uint16_t mono_palette[256] PROGMEM = {
 #define TFT_RST 8
 #define VSYNC_PIN 33
 
+#elif defined(ARDUINO_TEENSY_DEVBRD5)
+#undef USE_MMOD_ATP_ADAPTER
+#define TFT_CS 63  // AD_B0_02
+#define TFT_DC 61  // AD_B0_03
+#define TFT_RST 62
+#define VSYNC_PIN 21
 
 #elif defined(USE_MMOD_ATP_ADAPTER)
 #define VSYNC_PIN 33
@@ -183,7 +189,7 @@ ILI9488_t3 tft = ILI9488_t3(TFT_CS, TFT_DC, TFT_RST);
 // Setup framebuffers
 DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 
-#ifdef ARDUINO_TEENSY_DEVBRD4
+#if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
 #if defined(DVP_CAMERA_OV7675) || defined(DVP_CAMERA_OV7670) || defined(DVP_CAMERA_OV2640) || defined(DVP_CAMERA_OV5640) || defined(DVP_CAMERA_GC2145)
 uint16_t *frameBuffer = nullptr;
 uint16_t *frameBuffer2 = nullptr;
@@ -396,7 +402,7 @@ void setup() {
 #endif
     // galaxycore.setFramesize(800, 600);
 
-#if defined(ARDUINO_TEENSY_DEVBRD4)
+#if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
 #if defined(DVP_CAMERA_OV7675) || defined(DVP_CAMERA_OV7670) || defined(DVP_CAMERA_OV2640) || defined(DVP_CAMERA_OV5640) || defined(DVP_CAMERA_GC2145)
 
     sizeof_framebufferSDRAM = sizeof_framebuffer = sizeof_framebuffer2 =
@@ -751,7 +757,7 @@ void loop() {
                 else
                     Serial.println("Camera debug turned off");
                 break;
-#ifdef ARDUINO_TEENSY_DEVBRD4
+#if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
             case 's':
                 {
                     if (frameBuffer == frameBufferSDRAM) {
@@ -1389,7 +1395,7 @@ void showCommandList() {
         "Send the 'r' character to show the current camera registers");
     Serial.println("Send the 'w <row> <col>' to set the start window x, y");
     Serial.println("Send the 'W' to pan through range of windows");
-#ifdef ARDUINO_TEENSY_DEVBRD4
+#if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
     Serial.println("Send the 's' to change if using SDRAM or other memory");
 #endif
     Serial.println();

@@ -49,6 +49,12 @@ PROGMEM const char hmConfig[][48] = {
 #define TFT_RST 24
 #define VSYNC_PIN 21
 
+#elif defined(ARDUINO_TEENSY_DEVBRD5)
+#undef USE_MMOD_ATP_ADAPTER
+#define TFT_CS 63  // AD_B0_02
+#define TFT_DC 61  // AD_B0_03
+#define TFT_RST 62
+
 #elif defined(USE_MMOD_ATP_ADAPTER)
 #define VSYNC_PIN 33
 #define TFT_DC 4   //0   // "TX1" on left side of Sparkfun ML Carrier
@@ -168,7 +174,15 @@ void setup() {
         camera.setPins(7, 8, 21, 46, 31, 40, 41, 42, 43);
     }
     reset_pin = 23;
-
+#elif defined(ARDUINO_TEENSY_DEVBRD5)
+    pinMode(57, INPUT_PULLUP);
+    if ((_hmConfig == 0) || (_hmConfig == 2)) {
+        camera.setPins(7, 8, 21, 32, 57, 40, 41, 42, 43, 44, 45, 6, 9);
+    } else if (_hmConfig == 1) {
+        //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
+        camera.setPins(7, 8, 21, 46, 57, 40, 41, 42, 43);
+    }
+    reset_pin = 57;
 #else
     if (_hmConfig == 0) {
         //camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43, 44, 45, 6, 9);

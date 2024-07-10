@@ -31,6 +31,25 @@
 #define CAMERAPIN_D6 6  // 6       B0_10   FlexIO2:10
 #define CAMERAPIN_D7 9  // 9       B0_11   FlexIO2:11
 
+#elif defined(ARDUINO_TEENSY_DEVBRD5)
+// BUGBUG this is not a real default config, but...
+#define CAMERAPIN_XCLK 7
+#define CAMERAPIN_PLK 8
+#define CAMERAPIN_VSYNC 21
+#define CAMERAPIN_HREF 32
+#define CAMERAPIN_EN 57
+
+// Note for FlexIO the D0-D7 need to be in sequence
+#define CAMERAPIN_D0 40 // 40      B0_04   FlexIO2:4
+#define CAMERAPIN_D1 41 // 41      B0_05   FlexIO2:5
+#define CAMERAPIN_D2 42 // 42      B0_06   FlexIO2:6
+#define CAMERAPIN_D3 43 // 43      B0_07   FlexIO2:7
+#define CAMERAPIN_D4 44 // 44      B0_08   FlexIO2:8
+#define CAMERAPIN_D5 45 // 45      B0_09   FlexIO2:9
+#define CAMERAPIN_D6 6  // 6       B0_10   FlexIO2:10
+#define CAMERAPIN_D7 9  // 9       B0_11   FlexIO2:11
+
+
 #elif defined(ARDUINO_TEENSY_MICROMOD)
 // FLEXIO2 pins.
 /*
