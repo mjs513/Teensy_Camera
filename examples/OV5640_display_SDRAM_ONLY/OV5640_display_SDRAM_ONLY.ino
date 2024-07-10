@@ -54,6 +54,7 @@ PROGMEM const char hmConfig[][48] = {
 #define TFT_CS 63  // AD_B0_02
 #define TFT_DC 61  // AD_B0_03
 #define TFT_RST 62
+#define DB5_USE_CSI
 
 #elif defined(USE_MMOD_ATP_ADAPTER)
 #define VSYNC_PIN 33
@@ -93,6 +94,7 @@ DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 #if defined(use_sdram)
 //#include "SDRAM_t4.h"
 //SDRAM_t4 sdram;
+extern "C" bool sdram_begin(uint8_t external_sdram_size, uint8_t clock, uint8_t useDQS);
 uint16_t *frameBuffer = nullptr;
 uint16_t *frameBuffer2 = nullptr;
 #else
@@ -177,7 +179,12 @@ void setup() {
 #elif defined(ARDUINO_TEENSY_DEVBRD5)
     pinMode(57, INPUT_PULLUP);
     if ((_hmConfig == 0) || (_hmConfig == 2)) {
-        camera.setPins(7, 8, 21, 32, 57, 40, 41, 42, 43, 44, 45, 6, 9);
+#if defined(DB5_USE_CSI)
+      // try using the CSI pins on devboard 5
+      camera.setPins(65,  64, 17, 16, 57, 27, 26, 67, 66, 21, 20, 23, 22, 58);
+ #else
+     camera.setPins(7, 8, 21, 32, 57, 40, 41, 42, 43, 44, 45, 6, 9);
+#endif
     } else if (_hmConfig == 1) {
         //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
         camera.setPins(7, 8, 21, 46, 57, 40, 41, 42, 43);
@@ -229,6 +236,7 @@ void setup() {
 #endif
 
 #if defined(use_sdram)
+    sdram_begin(32, 221, 1);
     sizeof_framebuffer = sizeof_framebuffer2 = camera.width() * camera.height() * 2;
     frameBuffer = (uint16_t *)((((uint32_t)(sdram_malloc(sizeof_framebuffer + 32)) + 32) & 0xffffffe0));
     frameBuffer2 = (uint16_t *)((((uint32_t)(sdram_malloc(sizeof_framebuffer2 + 32)) + 32) & 0xffffffe0));

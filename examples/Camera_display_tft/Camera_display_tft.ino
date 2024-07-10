@@ -9,14 +9,14 @@
 #define TFT_ROTATION 3
 //#define USE_SDCARD
 
-//#define use9488
-#define DVP_CAMERA_HM01B0
+#define use9488
+//#define DVP_CAMERA_HM01B0
 //#define DVP_CAMERA_HM0360
 //#define DVP_CAMERA_OV2640
 //#define DVP_CAMERA_OV7670
 //#define DVP_CAMERA_OV7675
 //#define DVP_CAMERA_GC2145
-//#define DVP_CAMERA_OV5640
+#define DVP_CAMERA_OV5640
 
 //set cam configuration - need to remember when saving jpeg
 framesize_t camera_framesize = FRAMESIZE_QVGA;
@@ -104,6 +104,10 @@ PROGMEM const char hmConfig[][48] = { "FLEXIO_CUSTOM_LIKE_8_BIT",
                                       "FLEXIO_CUSTOM_LIKE_4_BIT" };
 
 
+#if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
+extern "C" bool sdram_begin(uint8_t external_sdram_size, uint8_t clock, uint8_t useDQS);
+#endif
+
 #ifdef ARDUINO_TEENSY_DEVBRD4
 // Set up ILI9341
 #undef USE_MMOD_ATP_ADAPTER
@@ -111,6 +115,15 @@ PROGMEM const char hmConfig[][48] = { "FLEXIO_CUSTOM_LIKE_8_BIT",
 #define TFT_CS 10  // AD_B0_02
 #define TFT_DC 25  // AD_B0_03
 #define TFT_RST 24
+
+
+#elif defined(ARDUINO_TEENSY_DEVBRD5)
+#undef USE_MMOD_ATP_ADAPTER
+#define TFT_CS 63  // AD_B0_02
+#define TFT_DC 61  // AD_B0_03
+#define TFT_RST 62
+#define VSYNC_PIN 21
+#define DB5_USE_CSI
 
 #elif defined(ARDUINO_TEENSY41)
 #undef USE_MMOD_ATP_ADAPTER
@@ -158,7 +171,7 @@ ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
 DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 //-----------------------------------------------------------------------------
 // Custom board based off of Teensy4 with SDRAM
-#ifdef ARDUINO_TEENSY_DEVBRD4
+#if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
 //#include "SDRAM_t4.h"
 //SDRAM_t4 sdram;
 PIXEL_TYPE *frameBuffer = nullptr;
@@ -324,6 +337,12 @@ void setup() {
     //-------------------------------------------------------------------------
 
     uint8_t status = 0;
+
+#if defined(DB5_USE_CSI)
+    // try using the CSI pins on devboard 5
+    camera.setPins(65,  64, 17, 16, 57, 27, 26, 67, 66, 21, 20, 23, 22, 58);
+#endif
+
 #if defined(CAMERA_USES_MONO_PALETTE)
 // HM0360(4pin) 15/30 @6mhz, 60 works but get 4 pics on one screen :)
 // HM0360(8pin) 15/30/60/120 works :)
@@ -356,7 +375,7 @@ void setup() {
 #endif
 
 
-#if defined(ARDUINO_TEENSY_DEVBRD4)
+#if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
     // we need to allocate bufers
     // if (!sdram.begin()) {
     //  Serial.printf("SDRAM Init Failed!!!\n");

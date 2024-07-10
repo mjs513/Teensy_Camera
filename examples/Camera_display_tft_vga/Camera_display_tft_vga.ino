@@ -139,6 +139,10 @@ static const uint16_t mono_palette[256] PROGMEM = {
     MCP(0xfc), MCP(0xfd), MCP(0xfe), MCP(0xff)
 };
 
+#if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
+extern "C" bool sdram_begin(uint8_t external_sdram_size, uint8_t clock, uint8_t useDQS);
+#endif
+
 // Set up ILI9488
 #ifdef ARDUINO_TEENSY_DEVBRD4
 #undef USE_MMOD_ATP_ADAPTER
@@ -164,6 +168,7 @@ static const uint16_t mono_palette[256] PROGMEM = {
 #define TFT_DC 61  // AD_B0_03
 #define TFT_RST 62
 #define VSYNC_PIN 21
+#define DB5_USE_CSI
 
 #elif defined(USE_MMOD_ATP_ADAPTER)
 #define VSYNC_PIN 33
@@ -319,7 +324,7 @@ void setup() {
 #endif
 
     Serial.printf("TFT Begin: CS:%u DC:%u RST:%u\n", TFT_CS, TFT_DC, TFT_RST);
-    tft.begin(15000000);
+    tft.begin();
 
 // BUGBUG Teensy41 board is rotated 180 degrees.
 // Actually depends on if I put display above or below the Board...
@@ -344,6 +349,7 @@ void setup() {
 
     while (!Serial)
         ;
+
     Serial.println("TeensyMM Camera Test");
     Serial.println(hmConfig[_hmConfig]);
     Serial.println("------------------");
@@ -369,6 +375,11 @@ void setup() {
     //  FRAMESIZE_UXGA, //1500, 1200
 
     uint8_t status = 0;
+#if defined(DB5_USE_CSI)
+    // try using the CSI pins on devboard 5
+    camera.setPins(65,  64, 17, 16, 57, 27, 26, 67, 66, 21, 20, 23, 22, 58);
+#endif
+
 #if defined(DVP_CAMERA_OV7675) || defined(DVP_CAMERA_OV7670) || defined(DVP_CAMERA_OV2640) || defined(DVP_CAMERA_OV5640) || defined(DVP_CAMERA_GC2145)
     // VGA mode
 #if defined(DVP_CAMERA_GC2145) || defined(DVP_CAMERA_OV2640) || defined(DVP_CAMERA_OV5640)
@@ -404,7 +415,7 @@ void setup() {
 
 #if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
 #if defined(DVP_CAMERA_OV7675) || defined(DVP_CAMERA_OV7670) || defined(DVP_CAMERA_OV2640) || defined(DVP_CAMERA_OV5640) || defined(DVP_CAMERA_GC2145)
-
+    sdram_begin(32, 221, 1);
     sizeof_framebufferSDRAM = sizeof_framebuffer = sizeof_framebuffer2 =
         camera.width() * camera.height() * 2;
     frameBufferSDRAM = frameBuffer = (uint16_t *)((

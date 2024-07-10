@@ -6,7 +6,7 @@
 
 #define USE_MMOD_ATP_ADAPTER
 #define USE_T4_PXP
-
+#define PXP_LET_SCREEN_DO_ROTATE  //
 // just a test
 // #define USE_HX8357D
 
@@ -48,6 +48,11 @@ framesize_t camera_framesize = FRAMESIZE_480X320;
 pixformat_t camera_format = RGB565;
 #endif
 
+float pxp_scale_factor = 1.3333333333333;
+bool pxp_next_initialized = false;
+
+
+
 bool useGPIO = false;
 bool continuous_mode = false;
 
@@ -79,9 +84,13 @@ uint8_t powdwn_pin = 30;
 #endif
 
 #ifdef ARDUINO_TEENSY41
+#if defined(CAMERA_USES_MONO_PALETTE)
 #define TFT_ROTATION 1
 #else
 #define TFT_ROTATION 3
+#endif
+#else
+#define TFT_ROTATION 1
 #endif
 
 #ifdef USE_HX8357D
@@ -126,23 +135,159 @@ volatile uint32_t frame_count_camera = 0;
 volatile uint32_t frame_count_tft = 0;
 
 #ifdef USE_T4_PXP
+
+//=================================================================================================
+// PXP_ps_window_output
+//=================================================================================================
+
+void PXP_ps_window_output(uint16_t disp_width, uint16_t disp_height, uint16_t image_width, uint16_t image_height,
+                          void *buf_in, uint8_t format_in, uint8_t bpp_in, uint8_t byte_swap_in,
+                          void *buf_out, uint8_t format_out, uint8_t bpp_out, uint8_t byte_swap_out,
+                          uint8_t rotation, bool flip, float scaling,
+                          uint16_t *scr_width, uint16_t *scr_height) {
+
+    // Lets see if we can setup a window into the camera data
+    Serial.printf("PXP_ps_window_output(%u, %u, %u, %u.... %u, %u. %f)\n", disp_width, disp_height, image_width, image_height,
+                  rotation, flip, scaling);
+
+    // we may bypass some of the helper functions and output the data directly.
+    volatile IMXRT_NEXT_PXP_t *next_pxp = PXP_next_pxp();
+
+
+    // lets reduce down to basic.
+    PXP_input_background_color(0, 0, 153);
+
+    // Initial input stuff.
+    PXP_input_buffer(buf_in, bpp_in, image_width, image_height);
+    // VYUY1P422, PXP_UYVY1P422
+    PXP_input_format(format_in, 0, 0, byte_swap_in);
+    if (format_in == PXP_Y8 || format_in == PXP_Y4)
+        PXP_set_csc_y8_to_rgb();
+
+    // Output stuff
+    uint16_t out_width, out_height, output_Width, output_Height;
+    if (rotation == 1 || rotation == 3) {
+        out_width = disp_height;
+        out_height = disp_width;
+    } else {
+        out_width = disp_width;
+        out_height = disp_height;
+    }
+
+    PXP_output_buffer(buf_out, bpp_out, disp_width, disp_height);
+    PXP_output_format(format_out, 0, 0, byte_swap_out);
+
+    // Set the clip rect.
+    PXP_output_clip(disp_width - 1, disp_height - 1);
+
+    // Rotation
+    /* Setting this bit to 1'b0 will place the rotationre sources at  *
+   * the output stage of the PXP data path. Image compositing will  *
+   * occur before pixels are processed for rotation.                *
+   * Setting this bit to a 1'b1 will place the rotation resources   *
+   * before image composition.                                      *
+   */
+    PXP_rotate_position(0);
+    //Serial.println("Rotating");
+    // Performs the actual rotation specified
+    PXP_rotate(rotation);
+
+    // flip - pretty straight forward
+    PXP_flip(flip);
+
+    // lets setup the scaling.
+    uint16_t pxp_scale = scaling * 4096;
+    next_pxp->PS_SCALE = PXP_XSCALE(pxp_scale) | PXP_YSCALE(pxp_scale);
+
+    // now if the input image and the scaled output image are not the same size, we may want to center either
+    // the input or the output...
+    uint32_t scaled_image_width = image_width / scaling;
+    uint32_t scaled_image_height = image_height / scaling;
+
+    uint16_t ul_x = 0;
+    uint16_t ul_y = 0;
+    uint16_t lr_x = disp_width - 1;
+    uint16_t lr_y = disp_height - 1;
+
+    if (scaled_image_width < disp_width) {
+        ul_x = (disp_width - scaled_image_width) / 2;
+        lr_x = ul_x + scaled_image_width - 1;
+    }
+    if (scaled_image_height < disp_height) {
+        ul_y = (disp_height - scaled_image_height) / 2;
+        lr_y = ul_y + scaled_image_height - 1;
+    }
+    PXP_input_position(ul_x, ul_y, lr_x, lr_y);  // need this to override the setup in pxp_input_buffer
+
+    // See if we should input clip the image...  That is center the large image onto the screen.  later allow for panning.
+    uint8_t *buf_in_clipped = (uint8_t *)buf_in;
+
+    if (scaled_image_width > disp_width) {
+        buf_in_clipped += ((scaled_image_width - disp_width) / 2) * bpp_in;
+    }
+
+    if (scaled_image_height > disp_height) {
+        buf_in_clipped += ((scaled_image_height - disp_height) / 2) * bpp_in * image_width;
+    }
+
+    if (buf_in_clipped != (uint8_t*)buf_in) {
+        Serial.printf("Input clip Buffer(%p -> %p)\n", buf_in, buf_in_clipped);
+        next_pxp->PS_BUF = buf_in_clipped;
+    }
+
+    *scr_width = disp_width;
+    *scr_height = disp_height;
+
+
+
+    PXP_process();
+}
+
+
+
+
+
 inline void do_pxp_conversion(uint16_t &outputWidth, uint16_t &outputHeight) {
 
+    if (pxp_next_initialized) {
+        PXP_process();
+        return;
+    }
+    pxp_next_initialized = true;
 #if defined(CAMERA_USES_MONO_PALETTE)
+#ifdef PXP_LET_SCREEN_DO_ROTATE
+    uint8_t rotate = 0;
+#else
+    uint8_t rotate = TFT_ROTATION;
+#endif
+#if 1
+    // lets try to unwind the PXP_ps_output code and instead of clip
+    // se if we can setup window into the source with the output size.
+    PXP_ps_window_output(tft.width(), tft.height(),       /* Display width and height */
+                         camera.width(), camera.height(), /* Image width and height */
+                         camera_buffer, PXP_Y8, 1, 0,     /* Input buffer configuration */
+                         screen_buffer, PXP_RGB565, 2, 0, /* Output buffer configuration */
+                         rotate, 0, pxp_scale_factor,                    /* Rotation, flip, scaling */
+                         &outputWidth, &outputHeight);    /* Frame Out size for drawing */
+
+#else
     PXP_ps_output(tft.width(), tft.height(),       /* Display width and height */
                   camera.width(), camera.height(), /* Image width and height */
                   camera_buffer, PXP_Y8, 1, 0,     /* Input buffer configuration */
                   screen_buffer, PXP_RGB565, 2, 0, /* Output buffer configuration */
-                  TFT_ROTATION, 0, 1.5f,  /* Rotation, flip, scaling */
+                  rotate, 0, 640.0 / 480.0,        /* Rotation, flip, scaling */
                   &outputWidth, &outputHeight);    /* Frame Out size for drawing */
+#endif
 #else
     PXP_ps_output(tft.width(), tft.height(),       /* Display width and height */
                   camera.width(), camera.height(), /* Image width and height */
                   camera_buffer, PXP_RGB565, 2, 0, /* Input buffer configuration */
                   screen_buffer, PXP_RGB565, 2, 0, /* Output buffer configuration */
-                  TFT_ROTATION, true, 0.0,            /* Rotation, flip, scaling */
+                  rotate, true, 0.0,               /* Rotation, flip, scaling */
                   &outputWidth, &outputHeight);    /* Frame Out size for drawing */
 #endif
+    PXPShowNext();
+    Serial.flush();
 }
 #endif
 
@@ -166,7 +311,12 @@ void setup() {
 #ifdef USE_T4_PXP
     Serial.println("Starting T4 PXP library");
     PXP_init();
+
+#ifdef PXP_LET_SCREEN_DO_ROTATE
+    tft.setRotation(TFT_ROTATION);
+#else
     tft.setRotation(0);
+#endif
 #else
     tft.setRotation(TFT_ROTATION);
 #endif
@@ -198,7 +348,7 @@ void setup() {
     pinMode(2, OUTPUT);
     pinMode(3, OUTPUT);
 #endif
-    pinMode(1, OUTPUT); 
+    pinMode(1, OUTPUT);
 
     // Start up the camera, with error recovery code
     //  FRAMESIZE_VGA = 0,
@@ -212,8 +362,10 @@ void setup() {
     //  FRAMESIZE_SVGA, //800, 600
     //  FRAMESIZE_UXGA, //1500, 1200
     start_camera();
-    //omni.setWBmode(true);
-    //camera.setPixformat(camera_format);
+#ifndef CAMERA_USES_MONO_PALETTE
+    omni.setWBmode(true);
+#endif
+    camera.setPixformat(camera_format);
 
     delay(1000);
     //
@@ -286,14 +438,22 @@ void setup() {
     tft.useFrameBuffer(true);
     tft.updateScreenAsync();
 
-    PXPShow();
 
+#ifdef USE_T4_PXP
+    PXPShow();
+#endif
     // now lets start up continuious reading and displaying...
     Serial.println("Press any key to enter continuous mode");
     while (Serial.read() == -1) {
     };
     while (Serial.read() != -1) {
     };
+
+#ifdef PXP_CALLBACK_SUPPORTED
+    Serial.println("*** Setting PXP Callback function ***");
+    PXP_setPXPDoneCB(&pxpCompleteCB);
+#endif
+
     camera.setMode(HIMAX_MODE_STREAMING, 0);  // turn on, continuous streaming mode
     if (!camera.readContinuous(&camera_read_callback, camera_buffer, sizeof(camera_buffer), nullptr, 0)) {
         Serial.print("\n*** Failed to enter Continuous mode ***");
@@ -303,12 +463,21 @@ void setup() {
     continuous_mode = true;
 }
 
+#ifdef PXP_CALLBACK_SUPPORTED
+// lets try to use CB from PXP to start the update screen...
+void pxpCompleteCB() {
+    tft.updateScreenAsync();
+    digitalWriteFast(1, HIGH);
+}
+
+#endif
+
 bool camera_read_callback(void *pfb) {
     digitalWriteFast(3, HIGH);
     frame_count_camera++;
     if (tft.asyncUpdateActive()) {
         digitalWriteFast(3, LOW);
-       return true;
+        return true;
     }
     frame_count_tft++;
 
@@ -320,8 +489,10 @@ bool camera_read_callback(void *pfb) {
     // so first try copy memory
     memcpy(screen_buffer, camera_buffer, sizeof(camera_buffer));
 #endif
+#ifndef PXP_CALLBACK_SUPPORTED
     tft.updateScreenAsync();
     digitalWriteFast(1, HIGH);
+#endif
     digitalWriteFast(3, LOW);
     return true;
 }
@@ -329,22 +500,27 @@ bool camera_read_callback(void *pfb) {
 void TFTFrameComplete() {
     digitalWriteFast(1, LOW);
 }
-    
+
 
 void loop() {
     if (Serial.available()) {
-        while (Serial.read() != -1) {
-            continuous_mode = !continuous_mode;
-            if (continuous_mode) {
-                Serial.println("Restart Continuous mode");
-                camera.setMode(HIMAX_MODE_STREAMING, 0);  // turn on, continuous streaming mode
-                if (!camera.readContinuous(&camera_read_callback, camera_buffer, sizeof(camera_buffer), nullptr, 0)) {
-                    Serial.print("\n*** Failed to enter Continuous mode ***");
-                }
-            } else {
-                Serial.println("Exit continuous mode");
-                camera.stopReadContinuous();
+        float next_scale = 0;
+        next_scale = Serial.parseFloat();
+        while (Serial.read() != -1) {}
+        continuous_mode = !continuous_mode;
+        if (continuous_mode) {
+            Serial.printf("Restart Continuous mode(%f)\n", next_scale);
+            pxp_scale_factor = next_scale;
+            pxp_next_initialized = false;  // have it rebuild it...
+            memset(screen_buffer, 0, sizeof(screen_buffer));
+
+            camera.setMode(HIMAX_MODE_STREAMING, 0);  // turn on, continuous streaming mode
+            if (!camera.readContinuous(&camera_read_callback, camera_buffer, sizeof(camera_buffer), nullptr, 0)) {
+                Serial.print("\n*** Failed to enter Continuous mode ***");
             }
+        } else {
+            Serial.println("Exit continuous mode");
+            camera.stopReadContinuous();
         }
     }
     if (continuous_mode) Serial.printf("%u %u\n", frame_count_camera, frame_count_tft);
@@ -352,7 +528,7 @@ void loop() {
 }
 
 /***********************************************************/
-#if 0
+#if 1
 void start_camera() {
     // Setup for OV5640 Camera
     // CSI support
@@ -385,7 +561,12 @@ void start_camera() {
         delay(500);
         pinMode(reset_pin, INPUT_PULLUP);
         delay(500);
+#if defined(CAMERA_USES_MONO_PALETTE)
         status = camera.begin(camera_framesize, 15, useGPIO);
+        camera.setPixformat(YUV422);
+#else
+        status = camera.begin(camera_framesize, camera_format, 15, CameraID, useGPIO);
+#endif
         if (!status) {
             Serial.println("Camera failed to start again program halted");
             while (1) {}
@@ -491,28 +672,57 @@ void test_display() {
     delay(500);
 }
 void PXPShow(void) {
-  Serial.printf("CTRL:         %08X       STAT:         %08X\n", PXP_CTRL, PXP_STAT);
-  Serial.printf("OUT_CTRL:     %08X       OUT_BUF:      %08X    \nOUT_BUF2:     %08X\n", PXP_OUT_CTRL, PXP_OUT_BUF, PXP_OUT_BUF2);
-  Serial.printf("OUT_PITCH:    %8lu       OUT_LRC:       %3u,%3u\n", PXP_OUT_PITCH, PXP_OUT_LRC >> 16, PXP_OUT_LRC & 0xFFFF);
+    Serial.printf("CTRL:         %08X       STAT:         %08X\n", PXP_CTRL, PXP_STAT);
+    Serial.printf("OUT_CTRL:     %08X       OUT_BUF:      %08X    \nOUT_BUF2:     %08X\n", PXP_OUT_CTRL, PXP_OUT_BUF, PXP_OUT_BUF2);
+    Serial.printf("OUT_PITCH:    %8lu       OUT_LRC:       %3u,%3u\n", PXP_OUT_PITCH, PXP_OUT_LRC >> 16, PXP_OUT_LRC & 0xFFFF);
 
-  Serial.printf("OUT_PS_ULC:    %3u,%3u       OUT_PS_LRC:    %3u,%3u\n", PXP_OUT_PS_ULC >> 16, PXP_OUT_PS_ULC & 0xFFFF,
-                PXP_OUT_PS_LRC >> 16, PXP_OUT_PS_LRC & 0xFFFF);
-  Serial.printf("OUT_AS_ULC:    %3u,%3u       OUT_AS_LRC:    %3u,%3u\n", PXP_OUT_AS_ULC >> 16, PXP_OUT_AS_ULC & 0xFFFF,
-                PXP_OUT_AS_LRC >> 16, PXP_OUT_AS_LRC & 0xFFFF);
-  Serial.println();  // section separator
-  Serial.printf("PS_CTRL:      %08X       PS_BUF:       %08X\n", PXP_PS_CTRL, PXP_PS_BUF);
-  Serial.printf("PS_UBUF:      %08X       PS_VBUF:      %08X\n", PXP_PS_UBUF, PXP_PS_VBUF);
-  Serial.printf("PS_PITCH:     %8lu       PS_BKGND:     %08X\n", PXP_PS_PITCH, PXP_PS_BACKGROUND_0);
-  Serial.printf("PS_SCALE:     %08X       PS_OFFSET:    %08X\n", PXP_PS_SCALE, PXP_PS_OFFSET);
-  Serial.printf("PS_CLRKEYLOW: %08X       PS_CLRKEYLHI: %08X\n", PXP_PS_CLRKEYLOW_0, PXP_PS_CLRKEYHIGH_0);
-  Serial.println();
-  Serial.printf("AS_CTRL:      %08X       AS_BUF:       %08X    AS_PITCH: %6u\n", PXP_AS_CTRL, PXP_AS_BUF, PXP_AS_PITCH & 0xFFFF);
-  Serial.printf("AS_CLRKEYLOW: %08X       AS_CLRKEYLHI: %08X\n", PXP_AS_CLRKEYLOW_0, PXP_AS_CLRKEYHIGH_0);
-  Serial.println();
-  Serial.printf("CSC1_COEF0:   %08X       CSC1_COEF1:   %08X    \nCSC1_COEF2:   %08X\n",
-                PXP_CSC1_COEF0, PXP_CSC1_COEF1, PXP_CSC1_COEF2);
-  Serial.println();  // section separator
-  Serial.printf("POWER:        %08X       NEXT:         %08X\n", PXP_POWER, PXP_NEXT);
-  Serial.printf("PORTER_DUFF:  %08X\n", PXP_PORTER_DUFF_CTRL);
+    Serial.printf("OUT_PS_ULC:    %3u,%3u       OUT_PS_LRC:    %3u,%3u\n", PXP_OUT_PS_ULC >> 16, PXP_OUT_PS_ULC & 0xFFFF,
+                  PXP_OUT_PS_LRC >> 16, PXP_OUT_PS_LRC & 0xFFFF);
+    Serial.printf("OUT_AS_ULC:    %3u,%3u       OUT_AS_LRC:    %3u,%3u\n", PXP_OUT_AS_ULC >> 16, PXP_OUT_AS_ULC & 0xFFFF,
+                  PXP_OUT_AS_LRC >> 16, PXP_OUT_AS_LRC & 0xFFFF);
+    Serial.println();  // section separator
+    Serial.printf("PS_CTRL:      %08X       PS_BUF:       %08X\n", PXP_PS_CTRL, PXP_PS_BUF);
+    Serial.printf("PS_UBUF:      %08X       PS_VBUF:      %08X\n", PXP_PS_UBUF, PXP_PS_VBUF);
+    Serial.printf("PS_PITCH:     %8lu       PS_BKGND:     %08X\n", PXP_PS_PITCH, PXP_PS_BACKGROUND_0);
+    Serial.printf("PS_SCALE:     %08X       PS_OFFSET:    %08X\n", PXP_PS_SCALE, PXP_PS_OFFSET);
+    Serial.printf("PS_CLRKEYLOW: %08X       PS_CLRKEYLHI: %08X\n", PXP_PS_CLRKEYLOW_0, PXP_PS_CLRKEYHIGH_0);
+    Serial.println();
+    Serial.printf("AS_CTRL:      %08X       AS_BUF:       %08X    AS_PITCH: %6u\n", PXP_AS_CTRL, PXP_AS_BUF, PXP_AS_PITCH & 0xFFFF);
+    Serial.printf("AS_CLRKEYLOW: %08X       AS_CLRKEYLHI: %08X\n", PXP_AS_CLRKEYLOW_0, PXP_AS_CLRKEYHIGH_0);
+    Serial.println();
+    Serial.printf("CSC1_COEF0:   %08X       CSC1_COEF1:   %08X    \nCSC1_COEF2:   %08X\n",
+                  PXP_CSC1_COEF0, PXP_CSC1_COEF1, PXP_CSC1_COEF2);
+    Serial.println();  // section separator
+    Serial.printf("POWER:        %08X       NEXT:         %08X\n", PXP_POWER, PXP_NEXT);
+    Serial.printf("PORTER_DUFF:  %08X\n", PXP_PORTER_DUFF_CTRL);
 }
 
+void PXPShowNext(void) {
+    volatile IMXRT_NEXT_PXP_t *next_pxp = PXP_next_pxp();
+    Serial.printf("Show next PXP data(%p)\n", next_pxp);
+    Serial.printf("CTRL:         %08X       STAT:         %08X\n", next_pxp->CTRL, next_pxp->STAT);
+    Serial.printf("OUT_CTRL:     %08X       OUT_BUF:      %08X    \nOUT_BUF2:     %08X\n", next_pxp->OUT_CTRL, next_pxp->OUT_BUF, next_pxp->OUT_BUF2);
+    Serial.printf("OUT_PITCH:    %8lu       OUT_LRC:       %3u,%3u\n", next_pxp->OUT_PITCH, next_pxp->OUT_LRC >> 16, next_pxp->OUT_LRC & 0xFFFF);
+
+    Serial.printf("OUT_PS_ULC:    %3u,%3u       OUT_PS_LRC:    %3u,%3u\n", next_pxp->OUT_PS_ULC >> 16, next_pxp->OUT_PS_ULC & 0xFFFF,
+                  next_pxp->OUT_PS_LRC >> 16, next_pxp->OUT_PS_LRC & 0xFFFF);
+    Serial.printf("OUT_AS_ULC:    %3u,%3u       OUT_AS_LRC:    %3u,%3u\n", next_pxp->OUT_AS_ULC >> 16, next_pxp->OUT_AS_ULC & 0xFFFF,
+                  next_pxp->OUT_AS_LRC >> 16, next_pxp->OUT_AS_LRC & 0xFFFF);
+    Serial.println();  // section separator
+    Serial.printf("PS_CTRL:      %08X       PS_BUF:       %08X\n", next_pxp->PS_CTRL, next_pxp->PS_BUF);
+    Serial.printf("PS_UBUF:      %08X       PS_VBUF:      %08X\n", next_pxp->PS_UBUF, next_pxp->PS_VBUF);
+    Serial.printf("PS_PITCH:     %8lu       PS_BKGND:     %08X\n", next_pxp->PS_PITCH, next_pxp->PS_BACKGROUND);
+    float x_ps_scale = (next_pxp->PS_SCALE & 0xffff) / 4096.0;
+    float y_ps_scale = (next_pxp->PS_SCALE >> 16) / 4096.0;
+    Serial.printf("PS_SCALE:  %5.3f,%5.3f       PS_OFFSET:    %08X\n", x_ps_scale, y_ps_scale, next_pxp->PS_OFFSET);
+    Serial.printf("PS_CLRKEYLOW: %08X       PS_CLRKEYLHI: %08X\n", next_pxp->PS_CLRKEYLOW, next_pxp->PS_CLRKEYHIGH);
+    Serial.println();
+    Serial.printf("AS_CTRL:      %08X       AS_BUF:       %08X    AS_PITCH: %6u\n", next_pxp->AS_CTRL, next_pxp->AS_BUF, next_pxp->AS_PITCH & 0xFFFF);
+    Serial.printf("AS_CLRKEYLOW: %08X       AS_CLRKEYLHI: %08X\n", next_pxp->AS_CLRKEYLOW, next_pxp->AS_CLRKEYHIGH);
+    Serial.println();
+    Serial.printf("CSC1_COEF0:   %08X       CSC1_COEF1:   %08X    \nCSC1_COEF2:   %08X\n",
+                  next_pxp->CSC1_COEF0, next_pxp->CSC1_COEF1, next_pxp->CSC1_COEF2);
+    Serial.println();  // section separator
+    Serial.printf("POWER:        %08X       NEXT:         %08X\n", next_pxp->POWER, next_pxp->NEXT);
+    Serial.printf("PORTER_DUFF:  %08X\n", next_pxp->PORTER_DUFF_CTRL);
+}
