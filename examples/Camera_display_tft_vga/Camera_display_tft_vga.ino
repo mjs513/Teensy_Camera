@@ -10,10 +10,10 @@
 //#define DVP_CAMERA_HM01B0
 //#define DVP_CAMERA_HM0360
 //#define DVP_CAMERA_OV2640
-#define DVP_CAMERA_OV5640
+//#define DVP_CAMERA_OV5640
 //#define DVP_CAMERA_OV7670
 //#define DVP_CAMERA_OV7675
-//#define DVP_CAMERA_GC2145
+#define DVP_CAMERA_GC2145
 
 #if defined(DVP_CAMERA_HM0360)
 #include "Teensy_HM0360/HM0360.h"
@@ -207,6 +207,8 @@ uint16_t frameBufferM2[640 * 240] __attribute__((aligned(32)));
 #else
 uint8_t *frameBuffer = nullptr;
 uint8_t *frameBuffer2 = nullptr;
+uint8_t *frameBufferSDRAM = nullptr;
+uint8_t *frameBufferSDRAM2 = nullptr;
 DMAMEM uint8_t frameBufferM[640 * 480] __attribute__((aligned(32)));
 // mono can fit one in each.
 uint8_t frameBufferM2[640 * 480] __attribute__((aligned(32)));
@@ -324,7 +326,7 @@ void setup() {
 #endif
 
     Serial.printf("TFT Begin: CS:%u DC:%u RST:%u\n", TFT_CS, TFT_DC, TFT_RST);
-    tft.begin();
+    tft.begin(15000000);
 
 // BUGBUG Teensy41 board is rotated 180 degrees.
 // Actually depends on if I put display above or below the Board...
@@ -387,7 +389,7 @@ void setup() {
     status = camera.begin(FRAMESIZE_VGA, camera_format, 8, false);
     camera.setZoomWindow(-1, -1, 480, 320);
 #else
-    status = camera.begin(FRAMESIZE_VGA, camera_format, 15, false);
+    status = camera.begin(FRAMESIZE_VGA, camera_format, 10, false);
 #endif
 #elif defined(DVP_CAMERA_HM0360)
     status = camera.begin(FRAMESIZE_VGA, 5, false);
@@ -414,8 +416,9 @@ void setup() {
     // galaxycore.setFramesize(800, 600);
 
 #if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
+  sdram_begin(32, 221, 1);
+
 #if defined(DVP_CAMERA_OV7675) || defined(DVP_CAMERA_OV7670) || defined(DVP_CAMERA_OV2640) || defined(DVP_CAMERA_OV5640) || defined(DVP_CAMERA_GC2145)
-    sdram_begin(32, 221, 1);
     sizeof_framebufferSDRAM = sizeof_framebuffer = sizeof_framebuffer2 =
         camera.width() * camera.height() * 2;
     frameBufferSDRAM = frameBuffer = (uint16_t *)((
@@ -508,7 +511,7 @@ void setup() {
       GC2145_SOLID_CYAN,
       GC2145_SOLID_MAGENTA
     ****************************************************************************/
-    camera.setColorbar(GC2145_DISABLED);
+    camera.setColorbar(0);
 #else
     /**************************************************************************
       0 = disabled

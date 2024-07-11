@@ -7,7 +7,7 @@
 #include "Teensy_Camera.h"
 
 #define USE_MMOD_ATP_ADAPTER
-//#define USE_SDCARD
+#define USE_SDCARD
 //#define useILI9341
 
 #define DVP_CAMERA_OV2640
@@ -91,8 +91,16 @@ PROGMEM const char hmConfig[][48] = {
 #define TFT_DC 25  // AD_B0_03
 #define TFT_RST 24
 #define VSYNC_PIN 21
-#elif defined(ARDUINO_TEENSY41)
 
+#elif defined(ARDUINO_TEENSY_DEVBRD5)
+#undef USE_MMOD_ATP_ADAPTER
+#define TFT_CS 63  // AD_B0_02
+#define TFT_DC 61  // AD_B0_03
+#define TFT_RST 62
+#define VSYNC_PIN 21
+#define DB5_USE_CSI
+
+#elif defined(ARDUINO_TEENSY41)
 // My T4.1 Camera board
 #undef USE_MMOD_ATP_ADAPTER
 #undef TFT_ROTATION
@@ -137,9 +145,10 @@ ILI9488_t3 tft = ILI9488_t3(TFT_CS, TFT_DC, TFT_RST);
 
 // Setup framebuffers
 DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
-#ifdef ARDUINO_TEENSY_DEVBRD4
+#if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
 //#include "SDRAM_t4.h"
 //SDRAM_t4 sdram;
+extern "C" bool sdram_begin(uint8_t external_sdram_size, uint8_t clock, uint8_t useDQS);
 uint16_t *frameBuffer = nullptr;
 uint16_t *frameBuffer2 = nullptr;
 uint16_t *frameBufferSDRAM = nullptr;
@@ -226,8 +235,14 @@ void setup() {
     //  If: not using default pins you may need to setup which pins are used using:
     //    camera.setPins(...) See the header file Teensy_Camera.h for details
     //          for the different pins
+    
     uint8_t reset_pin = 31;
     uint8_t powdwn_pin = 30;
+#if defined(ARDUINO_TEENSY_DEVBRD5)
+    reset_pin = 57;
+    powdwn_pin = 58;
+#endif
+
 #ifdef USE_MMOD_ATP_ADAPTER
     pinMode(0, OUTPUT);
     pinMode(3, OUTPUT);
@@ -260,6 +275,12 @@ void setup() {
     //  FRAMESIZE_SVGA, //800, 600
     //  FRAMESIZE_UXGA, //1500, 1200
     uint8_t status = 0;
+#if defined(DB5_USE_CSI)
+    // try using the CSI pins on devboard 5
+    reset_pin = 57;
+    powdwn_pin = 58;
+    camera.setPins(65,  64, 17, 16, 57, 27, 26, 67, 66, 21, 20, 23, 22, 58);
+ #endif
     status = camera.begin(camera_framesize, camera_format, 5, CameraID, useGPIO);
 
     Serial.printf("Begin status: %d\n", status);
@@ -285,7 +306,8 @@ void setup() {
     camera.setVflip(true);
 #endif
 
-#if defined(ARDUINO_TEENSY_DEVBRD4)
+#if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
+    sdram_begin(32, 221, 1);
     sizeof_framebufferSDRAM = sizeof_framebuffer = sizeof_framebuffer2 = camera.width() * camera.height() * 2;
     frameBufferSDRAM = frameBuffer = (uint16_t *)((((uint32_t)(sdram_malloc(camera.width() * camera.height() * 2 + 32)) + 32) & 0xffffffe0));
     frameBufferSDRAM2 = frameBuffer2 = (uint16_t *)((((uint32_t)(sdram_malloc(camera.width() * camera.height() * 2 + 32)) + 32) & 0xffffffe0));
@@ -585,7 +607,7 @@ void loop() {
                 if (camera.debug()) Serial.println("Camera Debug turned on");
                 else Serial.println("Camera debug turned off");
                 break;
-#ifdef ARDUINO_TEENSY_DEVBRD4
+#if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
             case 's':
                 {
                     if (frameBuffer == frameBufferSDRAM) {
@@ -1120,7 +1142,7 @@ void showCommandList() {
     Serial.println("Send the 'R[QVSU]' To set image size QVGA, VGA, SVGA UXGA");
     Serial.println("Send the 'w <row> <col>' to set the start window x, y");
     Serial.println("Send the 'W' to pan through range of windows");
-#ifdef ARDUINO_TEENSY_DEVBRD4
+#if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
     Serial.println("Send the 's' to change if using SDRAM or other memory");
 #endif
 #if defined(USE_SDCARD)
