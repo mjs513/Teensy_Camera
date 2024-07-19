@@ -10,10 +10,10 @@
 //#define DVP_CAMERA_HM01B0
 //#define DVP_CAMERA_HM0360
 //#define DVP_CAMERA_OV2640
-//#define DVP_CAMERA_OV5640
+#define DVP_CAMERA_OV5640
 //#define DVP_CAMERA_OV7670
 //#define DVP_CAMERA_OV7675
-#define DVP_CAMERA_GC2145
+//#define DVP_CAMERA_GC2145
 
 #if defined(DVP_CAMERA_HM0360)
 #include "Teensy_HM0360/HM0360.h"
@@ -416,7 +416,7 @@ void setup() {
     // galaxycore.setFramesize(800, 600);
 
 #if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
-  sdram_begin(32, 221, 1);
+  sdram_begin(32, 166, 1);
 
 #if defined(DVP_CAMERA_OV7675) || defined(DVP_CAMERA_OV7670) || defined(DVP_CAMERA_OV2640) || defined(DVP_CAMERA_OV5640) || defined(DVP_CAMERA_GC2145)
     sizeof_framebufferSDRAM = sizeof_framebuffer = sizeof_framebuffer2 =
@@ -1486,7 +1486,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
     // tft.setOrigin(-2, -2);
     int numPixels = camera.width() * camera.height();
 
-#ifdef ARDUINO_TEENSY41
+#if defined(ARDUINO_TEENSY41) || defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
     // See what which camera buffer was used.
     uint16_t *pbuffer = (uint16_t *)camera.readFrameReturnBuffer();
 

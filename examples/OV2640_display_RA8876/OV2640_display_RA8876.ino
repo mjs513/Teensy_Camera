@@ -1,21 +1,40 @@
 #include <stdint.h>
 
+#define use_spi
+
+#include <MemoryHexDump.h>
+#include <Adafruit_GFX.h>  // Core graphics library
+#if defined(use_spi)
+#include "SPI.h"
+#include <RA8876_t3.h>
+#else
+#include <RA8876_t41_p.h>
+#endif
+
 #include <SPI.h>
 #include <JPEGDEC.h>
 #include <MemoryHexDump.h>
 
 #include "Teensy_Camera.h"
 
-#define USE_MMOD_ATP_ADAPTER
+#if defined(USE_MMOD_ATP_ADAPTER
 #define useRA9976
 //#define USE_SDCARD
 
-#define DVP_CAMERA_OV2640
+#ifdef DVP_CAMERA_OV3640
 #include "Teensy_OV2640/OV2640.h"
 OV2640 omni;
 Camera camera(omni);
 #define CameraID OV2640a
 #define MIRROR_FLIP_CAMERA
+#else
+//define DVP_CAMERA_OV5640
+#include "Teensy_OV5640/OV5640.h"
+OV5640 omni;
+Camera camera(omni);
+#define CameraID OV5640a
+#define MIRROR_FLIP_CAMERA
+#endif
 
 #if defined(USE_SDCARD)
 #include <SD.h>
@@ -46,17 +65,32 @@ PROGMEM const char hmConfig[][48] = {
 //Set up Display
 #ifdef ARDUINO_TEENSY_DEVBRD4
 #undef USE_MMOD_ATP_ADAPTER
-
 #define TFT_CS 10  // AD_B0_02
 #define TFT_DC 25  // AD_B0_03
 #define TFT_RST 24
 #define VSYNC_PIN 21
+
+#elif defined(ARDUINO_TEENSY_DEVBRD5)
+#undef USE_MMOD_ATP_ADAPTER
+#if defined(use_spi)
+#define TFT_CS 63
+#define TFT_RST 62
+//#define TFT_BL 29
+#define DB5_USE_CSI
+
+#else
+#define TFT_CS 63  // AD_B0_02
+#define TFT_DC 61  // AD_B0_03
+#define TFT_RST 62
+#define VSYNC_PIN 21
+#endif
 
 #elif defined(USE_MMOD_ATP_ADAPTER)
 #define VSYNC_PIN 33
 #define TFT_DC 4   //0   // "TX1" on left side of Sparkfun ML Carrier
 #define TFT_CS 5   //4   // "CS" on left side of Sparkfun ML Carrier
 #define TFT_RST 2  //1  // "RX1" on left side of Sparkfun ML Carrier
+
 #else
 #define VSYNC_PIN 33
 #define TFT_DC 0   //20   // "TX1" on left side of Sparkfun ML Carrier
@@ -64,20 +98,29 @@ PROGMEM const char hmConfig[][48] = {
 #define TFT_RST 1  //2, 1  // "RX1" on left side of Sparkfun ML Carrier
 #endif
 
-#include <RA8876_t3.h>
-RA8876_t3 tft = RA8876_t3(TFT_CS, TFT_RST);  //Using standard SPI pins
+#if defined(use_spi)
+RA8876_t3 tft = RA8876_t3(TFT_CS, TFT_RST);
+#else
+uint8_t dc = 13;
+uint8_t cs = 11;
+uint8_t rst = 12;
+RA8876_t41_p tft = RA8876_t41_p(dc,cs,rst); //(dc, cs, rst)
+#endif
+
+#if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
+extern "C" bool sdram_begin(uint8_t external_sdram_size, uint8_t clock, uint8_t useDQS);
+#endif
+
 #define TFT_BLACK BLACK
 #define TFT_YELLOW YELLOW
 #define TFT_RED RED
 #define TFT_GREEN GREEN
 #define TFT_BLUE BLUE
 //#define CENTER RA8876_t3::CENTER
-#include "RA8876_t3.h"
-
 
 // Setup framebuffers
 DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
-#ifdef ARDUINO_TEENSY_DEVBRD4
+#if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
 //#include "SDRAM_t4.h"
 //SDRAM_t4 sdram;
 uint16_t *frameBuffer = nullptr;
@@ -180,6 +223,11 @@ void setup() {
         //camera.setPins(7, 8, 33, 32, 17, 40, 41, 42, 43);
         camera.setPins(29, 10, 33, 32, 31, 40, 41, 42, 43);
     }
+
+#elif  defined(DB5_USE_CSI)
+    // try using the CSI pins on devboard 5
+    camera.setPins(65,  64, 17, 16, 57, 27, 26, 67, 66, 21, 20, 23, 22, 58);
+
 #elif defined(ARDUINO_TEENSY_DEVBRD4)
     pinMode(23, INPUT_PULLUP);
     if ((_hmConfig == 0) || (_hmConfig == 2)) {
@@ -234,7 +282,8 @@ void setup() {
     camera.setVflip(true);
 #endif
 
-#if defined(ARDUINO_TEENSY_DEVBRD4)
+#if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
+    //sdram_begin(32, 216, 1);
     sizeof_framebufferSDRAM = sizeof_framebuffer = sizeof_framebuffer2 = camera.width() * camera.height() * 2;
     frameBufferSDRAM = frameBuffer = (uint16_t *)((((uint32_t)(sdram_malloc(camera.width() * camera.height() * 2 + 32)) + 32) & 0xffffffe0));
     frameBufferSDRAM2 = frameBuffer2 = (uint16_t *)((((uint32_t)(sdram_malloc(camera.width() * camera.height() * 2 + 32)) + 32) & 0xffffffe0));
@@ -274,7 +323,7 @@ uint16_t color565(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 inline uint16_t HTONS(uint16_t x) {
-#if defined(ARDUCAM_CAMERA_OV2640)
+#if defined(DVP_CAMERA_OV5640)
     return x;
 #else  //byte reverse
     return ((x >> 8) & 0x00FF) | ((x << 8) & 0xFF00);
@@ -422,7 +471,7 @@ void loop() {
                 }
             case 'j':
                 {
-#if (defined(USE_SDCARD) && defined(ARDUCAM_CAMERA_OV2640))
+#if (defined(USE_SDCARD) && (defined(DVP_CAMERA_OV2640) || defined(DVP_CAMERA_OV5640))
                     bool error = false;
                     error = save_jpg_SD();
                     if (!error) Serial.println("ERROR reading JPEG.  Try again....");
@@ -496,7 +545,7 @@ void loop() {
             case 'M':
                 read_display_multiple_frames(true);
                 break;
-#ifdef ARDUINO_TEENSY_DEVBRD4
+#if defined(ARDUINO_TEENSY_DEVBRD4) || defined(ARDUINO_TEENSY_DEVBRD5)
             case 's':
                 {
                     if (frameBuffer == frameBufferSDRAM) {
@@ -596,7 +645,7 @@ void read_display_one_frame(bool use_dma, bool show_debug_info) {
     }
 
     //  digitalWriteFast(24, HIGH);
-    camera.useDMA(use_dma);
+    camera.useDMA(true);
     camera.readFrame(frameBuffer, sizeof_framebuffer, frameBuffer2, sizeof_framebuffer2);
     //  digitalWriteFast(24, LOW);
 
@@ -640,7 +689,7 @@ void read_display_multiple_frames(bool use_frame_buffer) {
     if (use_frame_buffer) {
         Serial.println("\n*** Read and display multiple frames (using async screen updates), press any key to stop ***");
         tft.displayOn(false);
-        tft.useCanvas();
+        tft.useCanvas(true);
     } else {
         Serial.println("\n*** Read and display multiple frames, press any key to stop ***");
     }
@@ -664,7 +713,8 @@ void read_display_multiple_frames(bool use_frame_buffer) {
         if (Serial.available()) break;
     }
     // turn off frame buffer
-    //tft.useFrameBuffer(false);
+    tft.updateScreen();
+    tft.useCanvas(false);
 }
 
 void test_display() {
