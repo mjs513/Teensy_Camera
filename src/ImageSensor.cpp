@@ -7,24 +7,24 @@
 
 #define debug Serial
 
-#define DEBUG_CAMERA
+//#define DEBUG_CAMERA
 //  #define DEBUG_CAMERA_VERBOSE
-#define DEBUG_FLEXIO
+//#define DEBUG_FLEXIO
 // #define USE_DEBUG_PINS
 
 ImageSensor *ImageSensor::active_dma_camera = nullptr;
 DMAChannel ImageSensor::_dmachannel;
 DMASetting ImageSensor::_dmasettings[10];
 
-#define USE_DEBUG_PINS_TIMING
+//#define USE_DEBUG_PINS_TIMING
 
-#ifdef USE_DEBUG_PINS_TIMING
 #ifdef ARDUINO_TEENSY41
 #define DBG_TIMING_PIN 2
 #else
 #define DBG_TIMING_PIN 0
 #endif
 
+#ifdef USE_DEBUG_PINS_TIMING
 #define DBGdigitalWriteFast digitalWriteFast
 #define DBGdigitalToggleFast digitalToggleFast
 #else
@@ -298,6 +298,7 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
         _dmachannel.clearComplete();
 #ifdef DEBUG_FLEXIO
         if (_debug) {
+            Serial.printf("Camera dma channel: %u\n", _dmachannel.channel);
             dumpDMA_TCD(&_dmachannel, "CH: ");
         }
 #endif
@@ -401,12 +402,12 @@ size_t ImageSensor::readFrameFlexIO(void *buffer, size_t cb1, void *buffer2,
 #ifdef USE_DEBUG_PINS
     digitalWriteFast(2, LOW);
 #endif
-    // arm_dcache_delete(buffer, frame_size_bytes);
+    // arm_dcache_flush_delete(buffer, frame_size_bytes);
     if ((uint32_t)buffer >= 0x20200000u)
-        arm_dcache_delete(buffer, min(cb1, frame_size_bytes));
+        arm_dcache_flush_delete(buffer, min(cb1, frame_size_bytes));
     if (frame_size_bytes > cb1) {
         if ((uint32_t)buffer2 >= 0x20200000u)
-            arm_dcache_delete(buffer2, frame_size_bytes - cb1);
+            arm_dcache_flush_delete(buffer2, frame_size_bytes - cb1);
     }
 
 #ifdef DEBUG_FLEXIO
@@ -504,12 +505,12 @@ void ImageSensor::processDMAInterruptFlexIO() {
     if (((uint32_t)_dmachannel.TCD->DADDR) == (uint32_t)_frame_buffer_1) {
         _dma_last_completed_frame = _frame_buffer_2;
         if ((uint32_t)_frame_buffer_2 >= 0x20200000u)
-            arm_dcache_delete(_frame_buffer_2,
+            arm_dcache_flush_delete(_frame_buffer_2,
                               min(_frame_buffer_2_size, frame_size_bytes));
     } else {
         _dma_last_completed_frame = _frame_buffer_1;
         if ((uint32_t)_frame_buffer_1 >= 0x20200000u)
-            arm_dcache_delete(_frame_buffer_1,
+            arm_dcache_flush_delete(_frame_buffer_1,
                               min(_frame_buffer_1_size, frame_size_bytes));
     }
 
@@ -815,7 +816,7 @@ bool ImageSensor::call_back(FlexIOHandler *pflex) {
             _dma_last_completed_image_size = frame_size_bytes;
 
             if (start_address >= 0x20200000u)
-                arm_dcache_delete((void *)start_address, frame_size_bytes);
+                arm_dcache_flush_delete((void *)start_address, frame_size_bytes);
 
             if (_callback)
                 (*_callback)(_dma_last_completed_frame);
@@ -1447,7 +1448,8 @@ size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2, size_t
             break;
         }
     }
-    Serial.printf("$$Count of RxFifoFull ISRs:%u\n", CSIRxFIFOFullISRCount);
+    if (_debug)
+        debug.printf("$$Count of RxFifoFull ISRs:%u\n", CSIRxFIFOFullISRCount);
     if (_dma_state == DMA_STATE_FRAME_ERROR) {
 
         // hackarama - lets see if I get a couple more interrupts before we return, will that help...
@@ -1467,7 +1469,7 @@ size_t ImageSensor::readFrameCSI(void *buffer, size_t cb1, void *buffer2, size_t
 
     // maybe flush out frame buffer
     if ((uint32_t)_dma_last_completed_frame >= 0x20200000u)
-        arm_dcache_delete(_dma_last_completed_frame, frame_size_bytes);
+        arm_dcache_flush_delete(_dma_last_completed_frame, frame_size_bytes);
 
     return return_value;
 }
@@ -1809,13 +1811,13 @@ void ImageSensor::processCSIInterrupt() {
             _dma_last_completed_image_size = frame_size_bytes;
 
             if ((uint32_t)_dma_last_completed_frame >= 0x20200000u)
-                arm_dcache_delete(_dma_last_completed_frame, frame_size_bytes);
+                arm_dcache_flush_delete(_dma_last_completed_frame, frame_size_bytes);
             if (_callback)
                 (*_callback)(_dma_last_completed_frame); // TODO: use EventResponder
         } else if (csisr & CSI_CSISR_DMA_TSF_DONE_FB2) {
             _dma_last_completed_frame = (uint8_t *)CSI_CSIDMASA_FB2;
             if ((uint32_t)_dma_last_completed_frame >= 0x20200000u)
-                arm_dcache_delete(_dma_last_completed_frame, frame_size_bytes);
+                arm_dcache_flush_delete(_dma_last_completed_frame, frame_size_bytes);
             if (_callback)
                 (*_callback)(_dma_last_completed_frame); // TODO: use EventResponder
         }
