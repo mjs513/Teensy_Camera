@@ -205,7 +205,7 @@ class OV5640 : public ImageSensor {
     int checkAFCmdStatus(uint16_t reg, uint8_t value);
 
   private:
-    int _xclk_freq = 10;
+    int _xclk_freq = 12;
 
     bool _grayscale;
     int _framesize = FRAMESIZE_QVGA;

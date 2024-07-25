@@ -41,6 +41,8 @@ typedef enum {
     FRAMESIZE_WQXGA, // 2560x1600
     FRAMESIZE_P_FHD, // 1080x1920
     FRAMESIZE_QSXGA, // 2560x1920
+    
+    FRAMESIZE_1024X600, //1024x600
 
     FRAMESIZE_INVALID,
 } framesize_t;
